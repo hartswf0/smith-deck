@@ -48,8 +48,10 @@
     @media (max-width: 879px){
       #app{ grid-template-rows: 1fr; }
       header{ display:none !important; }
-      /* Only two corner icons visible */
-      .sd-dot{ display:none !important; }
+      /* Only two corner icons visible by default; SD shows in fullscreen */
+      .sd-dot{ display:none; }
+      body.fullscreen-on .sd-dot{ display:block !important; }
+      body.fullscreen-on .corner-btn{ display:none !important; }
       .corner-btn{ display:flex !important; }
       .decks{ grid-template-columns: 1fr 1fr !important; gap:0; padding:0; }
       .deck{ grid-template-rows: 1fr; background: transparent; border:0; border-radius:0; padding:0; box-shadow:none; }
@@ -243,9 +245,14 @@
       srcB.addEventListener('change', ()=> switchSrc(srcB, frameB));
 
       function fullscreenElement(el){
+        const body = document.body;
         if (!document.fullscreenElement && !document.webkitFullscreenElement){
           if (el.requestFullscreen) el.requestFullscreen(); else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-        } else { if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); }
+          body.classList.add('fullscreen-on');
+        } else {
+          if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+          body.classList.remove('fullscreen-on');
+        }
       }
       fullA.addEventListener('click', ()=> fullscreenElement(frameA));
       fullB.addEventListener('click', ()=> fullscreenElement(frameB));
@@ -254,6 +261,14 @@
       btnPageFullscreen.addEventListener('click', ()=> fullscreenElement(document.documentElement));
       const miniFS = document.getElementById('miniFullscreen');
       if (miniFS){ miniFS.addEventListener('click', ()=> fullscreenElement(document.documentElement)); }
+
+      // Keep body class in sync with actual fullscreen state (covers gesture exits)
+      function syncFSClass(){
+        const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+        document.body.classList.toggle('fullscreen-on', on);
+      }
+      document.addEventListener('fullscreenchange', syncFSClass);
+      document.addEventListener('webkitfullscreenchange', syncFSClass);
 
       // Mobile menu + fullscreen behavior on right button: tap = fullscreen, long-press = menu
       function closeMenu(){ miniMenu?.classList.remove('show'); miniScrim?.classList.remove('show'); }
