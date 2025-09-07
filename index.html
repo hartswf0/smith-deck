@@ -48,6 +48,9 @@
     @media (max-width: 879px){
       #app{ grid-template-rows: 1fr; }
       header{ display:none !important; }
+      /* Only two corner icons visible */
+      .sd-dot{ display:none !important; }
+      .corner-btn{ display:flex !important; }
       .decks{ grid-template-columns: 1fr 1fr !important; gap:0; padding:0; }
       .deck{ grid-template-rows: 1fr; background: transparent; border:0; border-radius:0; padding:0; box-shadow:none; }
       .deck .bar{ display:none !important; }
@@ -55,13 +58,36 @@
       .pad iframe{ border:0; }
     }
 
-    /* Tiny SD dot indicator */
-    .sd-dot{ position:fixed; top:6px; left:6px; width:6px; height:6px; border-radius:50%; background:#6ee7ff; box-shadow:0 0 8px rgba(110,231,255,.7); z-index:9999; }
+    /* SD dot: larger, tappable, acts as fullscreen button */
+    .sd-dot{ position:fixed; top:12px; left:12px; width:44px; height:44px; border-radius:50%; background:#6ee7ff; box-shadow:0 0 12px rgba(110,231,255,.9); z-index:9999; cursor:pointer; border:1px solid #233443; }
+    .sd-dot:active{ transform: scale(0.98); }
+
+    /* Corner icon buttons */
+    .corner-btn{ position:fixed; top:10px; width:40px; height:40px; border-radius:12px; background:#0b0d12; border:1px solid #243444; display:none; align-items:center; justify-content:center; color:#9ee7ff; font-weight:800; letter-spacing:.06em; cursor:pointer; user-select:none; z-index:5001; box-shadow:0 4px 14px rgba(0,0,0,.35) inset, 0 0 10px rgba(110,231,255,.12) }
+    .corner-btn.left{ left:10px; }
+    .corner-btn.right{ right:10px; }
+    .corner-btn:active{ transform:scale(0.98); }
+
+    /* Popup menu for mobile controls */
+    .mini-menu{ position:fixed; top:56px; right:10px; width:min(90vw, 320px); background:linear-gradient(180deg, #0f1115, #0c0e13); color:var(--ink); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px; z-index:5002; display:none; box-shadow:0 16px 40px rgba(0,0,0,.6) }
+    .mini-menu.show{ display:block; }
+    .mini-menu .row{ display:flex; gap:8px; align-items:center; margin-bottom:8px }
+    .mini-menu select{ flex:1; min-width:0; padding:8px 10px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid #263241; font-size:13px }
+    .mini-menu .btn{ padding:8px 10px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid #263241; cursor:pointer; font-size:14px; width:100% }
+    .mini-scrim{ position:fixed; inset:0; background:transparent; z-index:5000; display:none }
+    .mini-scrim.show{ display:block }
   </style>
 </head>
 <body>
   <div id="app">
-    <div class="sd-dot" aria-hidden="true"></div>
+    <div class="corner-btn left" id="btnLogo" title="SMITH">SD</div>
+    <div class="corner-btn right" id="btnMenu" title="Fullscreen / Menu" aria-label="Fullscreen / Menu">⛶</div>
+    <div class="mini-scrim" id="miniScrim"></div>
+    <div class="mini-menu" id="miniMenu" role="menu" aria-label="Deck Controls">
+      <div class="row"><label class="tiny" for="srcA_m" style="min-width:42px">A</label><select id="srcA_m"></select></div>
+      <div class="row"><label class="tiny" for="srcB_m" style="min-width:42px">B</label><select id="srcB_m"></select></div>
+      <button id="miniFullscreen" class="btn" title="Fullscreen">⛶ Fullscreen</button>
+    </div>
     <header>
       <h1>
         <span class="brand-led"><span class="led on"></span><span class="led"></span><span class="led on"></span></span>
@@ -165,6 +191,11 @@
     (function(){
       const srcA = document.getElementById('srcA');
       const srcB = document.getElementById('srcB');
+      const srcA_m = document.getElementById('srcA_m');
+      const srcB_m = document.getElementById('srcB_m');
+      const btnMenu = document.getElementById('btnMenu');
+      const miniMenu = document.getElementById('miniMenu');
+      const miniScrim = document.getElementById('miniScrim');
       const frameA = document.getElementById('frameA');
       const frameB = document.getElementById('frameB');
       const fullA = document.getElementById('fullA');
@@ -221,6 +252,28 @@
       if (openA){ openA.addEventListener('click', ()=>{ try{ const url = frameA?.src || srcA?.value; if (url) window.open(url, '_blank', 'noopener'); }catch{} }); }
       if (openB){ openB.addEventListener('click', ()=>{ try{ const url = frameB?.src || srcB?.value; if (url) window.open(url, '_blank', 'noopener'); }catch{} }); }
       btnPageFullscreen.addEventListener('click', ()=> fullscreenElement(document.documentElement));
+      const miniFS = document.getElementById('miniFullscreen');
+      if (miniFS){ miniFS.addEventListener('click', ()=> fullscreenElement(document.documentElement)); }
+
+      // Mobile menu + fullscreen behavior on right button: tap = fullscreen, long-press = menu
+      function closeMenu(){ miniMenu?.classList.remove('show'); miniScrim?.classList.remove('show'); }
+      function toggleMenu(){ const s = miniMenu?.classList.toggle('show'); if(s){ miniScrim?.classList.add('show'); } else { miniScrim?.classList.remove('show'); } }
+      miniScrim?.addEventListener('click', closeMenu);
+      if (btnMenu){
+        let pressTimer;
+        const FS = ()=> fullscreenElement(document.documentElement);
+        const start = ()=>{ pressTimer = setTimeout(()=>{ toggleMenu(); }, 550); };
+        const clear = (doTap)=>{
+          if (pressTimer){ clearTimeout(pressTimer); pressTimer = null; if (doTap){ FS(); } }
+        };
+        btnMenu.addEventListener('touchstart', start, {passive:true});
+        btnMenu.addEventListener('touchend', ()=> clear(true));
+        btnMenu.addEventListener('mousedown', start);
+        btnMenu.addEventListener('mouseup', ()=> clear(true));
+        btnMenu.addEventListener('mouseleave', ()=> clear(false));
+        // Secondary: double-click opens menu
+        btnMenu.addEventListener('dblclick', (e)=>{ e.preventDefault(); toggleMenu(); });
+      }
 
       function normalizeUrl(v){
         let url = (v||'').trim();
@@ -282,6 +335,27 @@
       }
       // On load, request both
       window.addEventListener('load', ()=>{ setTimeout(()=>{ requestStreamForFrame(frameA); requestStreamForFrame(frameB); }, 600); });
+
+      // SD dot toggles fullscreen for page (useful in minimal mobile mode)
+      const sdDot = document.querySelector('.sd-dot');
+      if (sdDot){
+        const toggleFS = ()=> fullscreenElement(document.documentElement);
+        sdDot.addEventListener('click', toggleFS);
+        sdDot.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); toggleFS(); }});
+      }
+
+      // Populate and sync mobile selects with desktop selects
+      function syncMobileSelects(){
+        try{
+          if (srcA && srcA_m){ srcA_m.innerHTML = srcA.innerHTML; srcA_m.value = srcA.value; }
+          if (srcB && srcB_m){ srcB_m.innerHTML = srcB.innerHTML; srcB_m.value = srcB.value; }
+        }catch(e){}
+      }
+      syncMobileSelects();
+      if (srcA){ srcA.addEventListener('change', ()=>{ if(srcA_m){ srcA_m.value = srcA.value; } }); }
+      if (srcB){ srcB.addEventListener('change', ()=>{ if(srcB_m){ srcB_m.value = srcB.value; } }); }
+      if (srcA_m){ srcA_m.addEventListener('change', ()=>{ if(srcA){ srcA.value = srcA_m.value; } switchSrc(srcA, frameA); }); }
+      if (srcB_m){ srcB_m.addEventListener('change', ()=>{ if(srcB){ srcB.value = srcB_m.value; } switchSrc(srcB, frameB); }); }
 
       window.addEventListener('message', (e)=>{
         const msg = e.data || {};

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>SMITH • Classic Index</title>
+  <style>
+    :root{ --bg:#0b0c0f; --ink:#e6e6e6; --muted:#9aa4ad; --ring:#263241; --card:#0f1115; --accent:#6ee7ff; }
+    *{ box-sizing:border-box }
+    html,body{ height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+    header{ position:sticky; top:0; z-index:10; background:linear-gradient(180deg,#0f1115,#0c0e13); border-bottom:1px solid rgba(255,255,255,.08); padding:10px 12px; display:flex; gap:10px; align-items:center; }
+    .logo{ width:36px; height:36px; border-radius:10px; border:1px solid var(--ring); display:flex; align-items:center; justify-content:center; color:#9ee7ff; font-weight:800; letter-spacing:.06em; box-shadow:0 4px 14px rgba(0,0,0,.35) inset, 0 0 10px rgba(110,231,255,.12) }
+    h1{ margin:0; font-size:14px; letter-spacing:.2em; color:#a5f3fc; text-transform:uppercase }
+    .search{ flex:1; display:flex; gap:8px; align-items:center; }
+    .search input{ flex:1; min-width:0; padding:10px 12px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid var(--ring); font-size:14px }
+
+    .wrap{ padding:12px }
+    .grid{ display:grid; grid-template-columns:1fr; gap:10px }
+    @media(min-width:720px){ .grid{ grid-template-columns:1fr 1fr; } }
+    .item{ background:var(--card); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px; display:flex; justify-content:space-between; align-items:center; }
+    .name{ font-weight:600 }
+    .muted{ color:var(--muted); font-size:12px }
+    .btn{ padding:10px 12px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid var(--ring); cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px }
+    .btn:active{ transform:translateY(1px) }
+    a.item-link{ text-decoration:none; color:inherit; display:flex; flex:1; gap:10px; align-items:center }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">SD</div>
+    <h1>Classic Index</h1>
+    <div class="search"><input id="filter" placeholder="Filter… (e.g., smith, deco, radio)" /></div>
+    <a class="btn" href="index-min.html" title="Open Minimal Decks">⧉ Minimal</a>
+  </header>
+
+  <div class="wrap">
+    <div id="list" class="grid"></div>
+  </div>
+
+  <script>
+  (function(){
+    const demos = [
+      'smith-968.html','smith-137.html','smith-255.html','smith-radio.html',
+      'smith-puppet.html','smith-puppet-01.html','smith-puppet-02.html','smith-puppet-complex.html','smith-deco-puppet-00.html',
+      'deco-mood-00.html','deco-mood-02.html','deco-mood-03.html',
+      'double-smith.html','dub-base.html','sg-00.html','sg-01.html'
+    ];
+
+    const list = document.getElementById('list');
+    const filter = document.getElementById('filter');
+
+    function makeItem(name){
+      const li = document.createElement('div');
+      li.className = 'item';
+      const a = document.createElement('a');
+      a.className = 'item-link'; a.href = name; a.target = '_self'; a.rel='noopener';
+      const left = document.createElement('div');
+      const title = document.createElement('div'); title.className = 'name'; title.textContent = name.replace('.html','');
+      const sub = document.createElement('div'); sub.className = 'muted'; sub.textContent = name;
+      left.appendChild(title); left.appendChild(sub);
+      a.appendChild(left);
+      const open = document.createElement('a'); open.href = name; open.target = '_blank'; open.rel = 'noopener'; open.className = 'btn'; open.textContent = '↗︎ Open';
+      li.appendChild(a); li.appendChild(open);
+      return li;
+    }
+
+    function render(q){
+      list.innerHTML = '';
+      const f = (q||'').trim().toLowerCase();
+      demos.filter(n => !f || n.toLowerCase().includes(f)).forEach(n => list.appendChild(makeItem(n)));
+    }
+
+    render('');
+    filter.addEventListener('input', ()=> render(filter.value));
+  })();
+  </script>
+</body>
+</html>
