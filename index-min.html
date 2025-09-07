@@ -10,11 +10,11 @@
       --btn:#0c0e13;
     }
     *{box-sizing:border-box}
-    html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
-    #wrap{position:fixed; inset:0; display:grid; grid-template-columns: 1fr; grid-auto-rows: 1fr;}
-    @media(min-width: 880px){ #wrap{ grid-template-columns: 1fr 1fr; grid-auto-rows: 100%; }}
-    .pad{position:relative; border:1px solid rgba(255,255,255,.06);}
-    iframe{position:absolute; inset:0; width:100%; height:100%; border:0; background:#0a0c10}
+    html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; overscroll-behavior: none;}
+    body{ touch-action: manipulation; }
+    #wrap{position:fixed; inset:0; display:grid; grid-template-columns: 1fr 1fr; grid-auto-rows: auto; gap:0; height:100svh; min-height:100dvh;}
+    .pad{position:relative; aspect-ratio: 1 / 1; border:0;}
+    iframe{position:absolute; inset:0; width:100%; height:100%; border:0; background:#000}
 
     /* Tiny floating setup button */
     #setupBtn{position:fixed; right:12px; top:12px; z-index:30; background:#0e1117; color:#e6e6e6; border:1px solid #263241; border-radius:999px; padding:10px 14px; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.45); font-weight:600}
@@ -29,9 +29,28 @@
     .presets{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px}
     .preset{padding:6px 10px; border-radius:999px; background:#0b0d12; color:var(--ink); border:1px solid var(--ring); cursor:pointer}
     .tiny{font-size:12px; color:#9aa4ad}
+
+    /* Minimal mobile: hide setup UI, no chrome, two squares */
+    @media(max-width: 879px){
+      #setupBtn, #panel, #backdrop{ display:none !important; }
+      #wrap{ grid-template-columns: 1fr 1fr; height:100svh; min-height:100dvh; }
+      .pad{ aspect-ratio: 1 / 1; }
+    }
+
+    /* Orientation-aware layout: stack in portrait for larger squares */
+    @media (orientation: portrait){
+      #wrap{ grid-template-columns: 1fr; grid-auto-rows: auto; }
+    }
+    @media (orientation: landscape){
+      #wrap{ grid-template-columns: 1fr 1fr; grid-auto-rows: auto; }
+    }
+
+    /* Tiny SD dot indicator */
+    .sd-dot{ position:fixed; top:6px; left:6px; width:6px; height:6px; border-radius:50%; background:#6ee7ff; box-shadow:0 0 8px rgba(110,231,255,.7); z-index:9999; }
   </style>
 </head>
 <body>
+  <div class="sd-dot" aria-hidden="true"></div>
   <button id="setupBtn" title="Set deck URLs">URLs</button>
   <div id="backdrop"></div>
   <div id="panel" role="dialog" aria-modal="false">
@@ -107,6 +126,38 @@
   parseParams();
   // Make the panel visible by default so it's easy to find where to paste URLs
   togglePanel(true);
+  
+  // Fullscreen helper for mobile: request fullscreen on first tap
+  function requestFullscreen(el){
+    try{
+      if (document.fullscreenElement || document.webkitFullscreenElement) return;
+      const t = el || document.documentElement;
+      if (t.requestFullscreen) t.requestFullscreen();
+      else if (t.webkitRequestFullscreen) t.webkitRequestFullscreen();
+    }catch(e){}
+  }
+  function tryLockOrientation(){
+    try{
+      if (screen.orientation && screen.orientation.lock){
+        // Best-effort; may be ignored on some browsers
+        const mode = (window.matchMedia('(orientation: landscape)').matches) ? 'landscape' : 'portrait';
+        screen.orientation.lock(mode).catch(()=>{});
+      }
+    }catch(e){}
+  }
+  function firstTap(){
+    requestFullscreen(document.documentElement);
+    tryLockOrientation();
+    document.removeEventListener('touchend', firstTap);
+    document.removeEventListener('click', firstTap);
+  }
+  if (window.matchMedia('(max-width: 879px)').matches){
+    document.addEventListener('touchend', firstTap, { once:false, passive:true });
+    document.addEventListener('click', firstTap, { once:false });
+    // Avoid scrolling/bounce
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
 })();
 </script>
 </body>

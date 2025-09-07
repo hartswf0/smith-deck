@@ -43,10 +43,25 @@
       .pad::before{content:""; display:block; padding-top:100%}
       .pad iframe{position:absolute; inset:0}
     }
+
+    /* Minimal mobile layout: two squares, no chrome */
+    @media (max-width: 879px){
+      #app{ grid-template-rows: 1fr; }
+      header{ display:none !important; }
+      .decks{ grid-template-columns: 1fr 1fr !important; gap:0; padding:0; }
+      .deck{ grid-template-rows: 1fr; background: transparent; border:0; border-radius:0; padding:0; box-shadow:none; }
+      .deck .bar{ display:none !important; }
+      .pad{ border:0; border-radius:0; box-shadow:none; aspect-ratio: 1 / 1; }
+      .pad iframe{ border:0; }
+    }
+
+    /* Tiny SD dot indicator */
+    .sd-dot{ position:fixed; top:6px; left:6px; width:6px; height:6px; border-radius:50%; background:#6ee7ff; box-shadow:0 0 8px rgba(110,231,255,.7); z-index:9999; }
   </style>
 </head>
 <body>
   <div id="app">
+    <div class="sd-dot" aria-hidden="true"></div>
     <header>
       <h1>
         <span class="brand-led"><span class="led on"></span><span class="led"></span><span class="led on"></span></span>
