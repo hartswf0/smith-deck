@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Smith Decks</title>
+  <style>
+    :root{
+      --bg:#0b0c0f; --panel:#0f1115; --ink:#e6e6e6; --muted:#9aa4ad; --accent:#6ee7ff;
+      --ring:#1f2937;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
+    #app{position:fixed; inset:0; display:grid; grid-template-rows:auto 1fr;}
+    header{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; background:linear-gradient(180deg, #0f1115, #0c0e13); border-bottom:1px solid rgba(255,255,255,.06); box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    header h1{margin:0; font-size:12px; letter-spacing:.3em; color:#9ee7ff; font-weight:800; text-transform:uppercase; text-shadow:0 0 10px rgba(110,231,255,.3)}
+    .brand-led{display:inline-flex; gap:6px; align-items:baseline}
+    .led{display:inline-block; width:8px; height:8px; border-radius:50%; background:#0a2830; box-shadow:0 0 6px rgba(110,231,255,.15) inset}
+    .led.on{background:#6ee7ff; box-shadow:0 0 12px rgba(110,231,255,.9)}
+    .led.sm{width:6px; height:6px; border:1px solid #243244}
+    .top-controls{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .pill{background:#0c0e13; color:var(--ink); border:1px solid #1f2937; border-radius:999px; padding:10px 14px; cursor:pointer; min-width:40px; min-height:36px; display:inline-flex; align-items:center; justify-content:center}
+    .pill:active{transform:translateY(1px)}
+    .pill[disabled]{opacity:.45; filter:saturate(.2); pointer-events:none}
+    .rec{border-color:#5a0a12; color:#fca5a5}
+    .rec.on{background:#7f1420; color:#fff; box-shadow:0 0 12px rgba(252,165,165,.35)}
+    .tiny{font-size:12px; color:var(--muted)}
+    .decks{position:relative; display:grid; grid-template-columns: 1fr; gap:10px; padding:10px; overflow:auto}
+    @media (min-width: 880px){ .decks{ grid-template-columns: 1fr 1fr; } }
+
+    .deck{display:grid; grid-template-rows: auto 1fr; gap:8px; background:linear-gradient(180deg, rgba(16,18,23,.9), rgba(16,18,23,.9)); border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:10px}
+    .deck .bar{display:flex; align-items:center; justify-content:space-between; gap:8px}
+    .deck label{font-size:12px; color:var(--muted)}
+    .deck select, .deck button{background:#0c0e13; color:var(--ink); border:1px solid #1f2937; border-radius:10px; padding:8px 10px; font-size:13px}
+    .deck button{cursor:pointer}
+
+    /* Responsive square area for the iframe (turntable look) */
+    .pad{position:relative; width:100%; aspect-ratio:1/1; border-radius:10px; overflow:hidden; background:#0a0c10; border:1px solid #151923; box-shadow: 0 10px 30px rgba(0,0,0,.35)}
+    .pad iframe{position:absolute; inset:0; width:100%; height:100%; border:0; background:#000;}
+
+    /* Fallback if aspect-ratio is not supported */
+    @supports not (aspect-ratio: 1 / 1){
+      .pad::before{content:""; display:block; padding-top:100%}
+      .pad iframe{position:absolute; inset:0}
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>
+        <span class="brand-led"><span class="led on"></span><span class="led"></span><span class="led on"></span></span>
+        SMITH • DECKS <span id="statusBadge" class="tiny" style="margin-left:8px; padding:2px 8px; border:1px solid #263241; border-radius:999px; color:#9aa4ad">Tap inside each deck to start audio</span>
+      </h1>
+      <div class="top-controls">
+        <button id="btnPageFullscreen" class="pill" title="Fullscreen page">⛶</button>
+        <button id="btnStartBoth" class="pill" title="Start both decks">▶︎ Start</button>
+        <button id="btnPauseBoth" class="pill" title="Pause/Resume both decks">⏯</button>
+        <button id="btnRecordBoth" class="pill rec" title="Record both decks" disabled>● Record</button>
+        <div class="xfader">
+          <button id="cutA" class="pill cut" title="Cut to Deck A">A</button>
+          <input id="crossfader" type="range" min="0" max="1" step="0.01" value="0.5" disabled />
+          <button id="cutB" class="pill cut" title="Cut to Deck B">B</button>
+          <span id="deckAStatus" title="Deck A stream" class="led sm" style="margin-left:4px"></span>
+          <span id="deckBStatus" title="Deck B stream" class="led sm" style="margin-right:2px"></span>
+        </div>
+      </div>
+    </header>
+
+    <div class="decks">
+      <section class="deck" id="deckA">
+        <div class="bar">
+          <label for="srcA">Deck A</label>
+          <div style="display:flex; gap:8px; align-items:center">
+            <select id="srcA">
+              <!-- Core smith demos -->
+              <option value="smith-968.html" selected>smith-968</option>
+              <option value="smith-137.html">smith-137</option>
+              <option value="smith-255.html">smith-255</option>
+              <option value="smith-radio.html">smith-radio</option>
+              <!-- Puppet series -->
+              <option value="smith-puppet.html">smith-puppet</option>
+              <option value="smith-puppet-01.html">smith-puppet-01</option>
+              <option value="smith-puppet-02.html">smith-puppet-02</option>
+              <option value="smith-puppet-complex.html">smith-puppet-complex</option>
+              <option value="smith-deco-puppet-00.html">smith-deco-puppet-00</option>
+              <!-- New deck pages -->
+              <option value="deco-mood-00.html">deco-mood-00</option>
+              <option value="deco-mood-02.html">deco-mood-02</option>
+              <option value="deco-mood-03.html">deco-mood-03</option>
+              <!-- Other demos -->
+              <option value="double-smith.html">double-smith</option>
+              <option value="dub-base.html">dub-base</option>
+              <option value="sg-00.html">sg-00</option>
+              <option value="sg-01.html">sg-01</option>
+            </select>
+            <button id="urlAToggle" title="Paste a custom URL for Deck A">URL</button>
+            <span id="urlABox" style="display:none; gap:6px; align-items:center">
+              <input id="urlAInput" placeholder="https://… or local.html" style="width:200px" />
+              <button id="urlALoad">Load</button>
+            </span>
+            <button id="openA" title="Open Deck A in a new tab">↗︎ Open</button>
+            <button id="fullA" title="Fullscreen deck A">⛶</button>
+          </div>
+        </div>
+        <div class="pad"><iframe id="frameA" src="smith-968.html" allow="autoplay; microphone" allowfullscreen></iframe></div>
+      </section>
+
+      <section class="deck" id="deckB">
+        <div class="bar">
+          <label for="srcB">Deck B</label>
+          <div style="display:flex; gap:8px; align-items:center">
+            <select id="srcB">
+              <!-- Core smith demos -->
+              <option value="smith-968.html" selected>smith-968</option>
+              <option value="smith-137.html">smith-137</option>
+              <option value="smith-255.html">smith-255</option>
+              <option value="smith-radio.html">smith-radio</option>
+              <!-- Puppet series -->
+              <option value="smith-puppet.html">smith-puppet</option>
+              <option value="smith-puppet-01.html">smith-puppet-01</option>
+              <option value="smith-puppet-02.html">smith-puppet-02</option>
+              <option value="smith-puppet-complex.html">smith-puppet-complex</option>
+              <option value="smith-deco-puppet-00.html">smith-deco-puppet-00</option>
+              <!-- New deck pages -->
+              <option value="deco-mood-00.html">deco-mood-00</option>
+              <option value="deco-mood-02.html">deco-mood-02</option>
+              <option value="deco-mood-03.html">deco-mood-03</option>
+              <!-- Other demos -->
+              <option value="double-smith.html">double-smith</option>
+              <option value="dub-base.html">dub-base</option>
+              <option value="sg-00.html">sg-00</option>
+              <option value="sg-01.html">sg-01</option>
+            </select>
+            <button id="urlBToggle" title="Paste a custom URL for Deck B">URL</button>
+            <span id="urlBBox" style="display:none; gap:6px; align-items:center">
+              <input id="urlBInput" placeholder="https://… or local.html" style="width:200px" />
+              <button id="urlBLoad">Load</button>
+            </span>
+            <button id="openB" title="Open Deck B in a new tab">↗︎ Open</button>
+            <button id="fullB" title="Fullscreen deck B">⛶</button>
+          </div>
+        </div>
+        <div class="pad"><iframe id="frameB" src="smith-968.html" allow="autoplay; microphone" allowfullscreen></iframe></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const srcA = document.getElementById('srcA');
+      const srcB = document.getElementById('srcB');
+      const frameA = document.getElementById('frameA');
+      const frameB = document.getElementById('frameB');
+      const fullA = document.getElementById('fullA');
+      const fullB = document.getElementById('fullB');
+      const openA = document.getElementById('openA');
+      const openB = document.getElementById('openB');
+      const urlAToggle = document.getElementById('urlAToggle');
+      const urlBToggle = document.getElementById('urlBToggle');
+      const urlABox = document.getElementById('urlABox');
+      const urlBBox = document.getElementById('urlBBox');
+      const urlAInput = document.getElementById('urlAInput');
+      const urlBInput = document.getElementById('urlBInput');
+      const urlALoad = document.getElementById('urlALoad');
+      const urlBLoad = document.getElementById('urlBLoad');
+      const btnPageFullscreen = document.getElementById('btnPageFullscreen');
+      const btnStartBoth = document.getElementById('btnStartBoth');
+      const btnRecordBoth = document.getElementById('btnRecordBoth');
+      const btnPauseBoth = document.getElementById('btnPauseBoth');
+      const deckAStatus = document.getElementById('deckAStatus');
+      const deckBStatus = document.getElementById('deckBStatus');
+      const statusBadge = document.getElementById('statusBadge');
+
+      // Handle deck source switching
+      function switchSrc(select, frame){
+        frame.src = select.value;
+        // Request fresh stream shortly after load
+        setTimeout(()=> requestStreamForFrame(frame), 600);
+      }
+      function setMonitor(frame, on){
+        try{ frame.contentWindow?.postMessage({ type:'set-monitor', on: !!on }, '*'); }catch(e){ }
+      }
+
+      function updateUI(){
+        const aOn = deckAStatus.classList.contains('on');
+        const bOn = deckBStatus.classList.contains('on');
+        const any = aOn || bOn;
+        const both = aOn && bOn;
+        // Start is always available; Record/XFader depend on streams
+        btnRecordBoth.disabled = !any;
+        const xf = document.getElementById('crossfader');
+        if (xf) xf.disabled = !any;
+        if (statusBadge){ statusBadge.textContent = any ? (both ? 'Ready' : 'Deck ready (tap B)') : 'Tap inside each deck to start audio'; statusBadge.style.color = any ? '#a7f3d0' : '#9aa4ad'; }
+      }
+      srcA.addEventListener('change', ()=> switchSrc(srcA, frameA));
+      srcB.addEventListener('change', ()=> switchSrc(srcB, frameB));
+
+      function fullscreenElement(el){
+        if (!document.fullscreenElement && !document.webkitFullscreenElement){
+          if (el.requestFullscreen) el.requestFullscreen(); else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        } else { if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); }
+      }
+      fullA.addEventListener('click', ()=> fullscreenElement(frameA));
+      fullB.addEventListener('click', ()=> fullscreenElement(frameB));
+      if (openA){ openA.addEventListener('click', ()=>{ try{ const url = frameA?.src || srcA?.value; if (url) window.open(url, '_blank', 'noopener'); }catch{} }); }
+      if (openB){ openB.addEventListener('click', ()=>{ try{ const url = frameB?.src || srcB?.value; if (url) window.open(url, '_blank', 'noopener'); }catch{} }); }
+      btnPageFullscreen.addEventListener('click', ()=> fullscreenElement(document.documentElement));
+
+      function normalizeUrl(v){
+        let url = (v||'').trim();
+        if (!url) return '';
+        // Help relative names (e.g., smith-968) become .html
+        if (!/^https?:\/\//i.test(url) && !url.endsWith('.html')) url = url + '.html';
+        return url;
+      }
+      function loadDeckUrl(which){
+        const v = which==='A' ? normalizeUrl(urlAInput.value) : normalizeUrl(urlBInput.value);
+        if (!v) return;
+        if (which==='A'){ frameA.src = v; setTimeout(()=> requestStreamForFrame(frameA), 800); }
+        else { frameB.src = v; setTimeout(()=> requestStreamForFrame(frameB), 800); }
+      }
+      urlAToggle.addEventListener('click', ()=>{ urlABox.style.display = urlABox.style.display==='none' ? 'inline-flex' : 'none'; });
+      urlBToggle.addEventListener('click', ()=>{ urlBBox.style.display = urlBBox.style.display==='none' ? 'inline-flex' : 'none'; });
+      urlALoad.addEventListener('click', ()=> loadDeckUrl('A'));
+      urlBLoad.addEventListener('click', ()=> loadDeckUrl('B'));
+
+      // Start both decks: resume children, request streams, and mute local monitors
+      function startBoth(){
+        ensureAudio();
+        frameA.contentWindow?.postMessage({ type:'resume-audio' }, '*');
+        frameB.contentWindow?.postMessage({ type:'resume-audio' }, '*');
+        setMonitor(frameA, false); setMonitor(frameB, false);
+        requestStreamForFrame(frameA); requestStreamForFrame(frameB);
+        audioCtx.resume?.();
+        // After a brief moment, refresh UI based on LEDs
+        setTimeout(updateUI, 500);
+      }
+      btnStartBoth.addEventListener('click', startBoth);
+
+      // Parent audio mixer & recorder
+      let audioCtx; let deckAGain; let deckBGain; let mixGain; let dest; let mediaRecorder; let chunks=[]; let recOn=false;
+      const sources = new Map(); // id => {stream, node}
+
+      function ensureAudio(){
+        if (!audioCtx){
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          // Per-deck gains -> mix
+          deckAGain = audioCtx.createGain(); deckAGain.gain.value = 0.5;
+          deckBGain = audioCtx.createGain(); deckBGain.gain.value = 0.5;
+          mixGain = audioCtx.createGain(); mixGain.gain.value = 1;
+          deckAGain.connect(mixGain); deckBGain.connect(mixGain);
+          dest = audioCtx.createMediaStreamDestination();
+          mixGain.connect(audioCtx.destination);
+          mixGain.connect(dest);
+        }
+      }
+
+      function requestStreamForFrame(frame){
+        try{
+          const id = frame.id; // 'frameA'|'frameB'
+          frame.contentWindow?.postMessage({ type:'request-audio-stream', id }, '*');
+        }catch(e){ console.warn('postMessage failed', e); }
+      }
+      function setMonitor(frame, on){
+        try{ frame.contentWindow?.postMessage({ type:'set-monitor', on: !!on }, '*'); }catch(e){ }
+      }
+      // On load, request both
+      window.addEventListener('load', ()=>{ setTimeout(()=>{ requestStreamForFrame(frameA); requestStreamForFrame(frameB); }, 600); });
+
+      window.addEventListener('message', (e)=>{
+        const msg = e.data || {};
+        if (msg && msg.type==='audio-stream'){
+          ensureAudio();
+          // Build or replace node
+          // Determine which frame sent it if id missing
+          let which = msg.id;
+          if (!which){
+            if (e.source === frameA.contentWindow) which = 'frameA';
+            else if (e.source === frameB.contentWindow) which = 'frameB';
+          }
+          if (!which) return;
+          const prev = sources.get(which);
+          try{ if (prev?.node) prev.node.disconnect(); }catch{}
+          const node = audioCtx.createMediaStreamSource(msg.stream);
+          if (which === 'frameA') { node.connect(deckAGain); deckAStatus.classList.add('on'); setMonitor(frameA, false); }
+          else if (which === 'frameB') { node.connect(deckBGain); deckBStatus.classList.add('on'); setMonitor(frameB, false); }
+          sources.set(which, { stream: msg.stream, node });
+          // Warm-up resume for iOS if suspended
+          audioCtx.resume?.().catch(()=>{});
+          updateUI();
+        }
+      });
+
+      function toggleRecord(){
+        ensureAudio();
+        if (!recOn){
+          chunks = [];
+          // Attempt preferred mime types with graceful fallback
+          const mtCandidates = [
+            'audio/webm;codecs=opus', 'audio/webm; codecs=opus', 'audio/webm',
+            'audio/mp4', 'audio/aac'
+          ];
+          let opts = undefined, ok=false;
+          for (const mt of mtCandidates){
+            if (MediaRecorder.isTypeSupported?.(mt)) { opts = { mimeType: mt }; ok=true; break; }
+          }
+          try{ mediaRecorder = new MediaRecorder(dest.stream, opts); }
+          catch(e){ alert('Recording not supported in this browser'); return; }
+          mediaRecorder.ondataavailable = (ev)=>{ if (ev.data?.size>0) chunks.push(ev.data); };
+          mediaRecorder.onstop = ()=>{
+            const type = mediaRecorder.mimeType || 'audio/webm';
+            const blob = new Blob(chunks, { type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.style.display='none'; a.href=url; a.download = `smith_decks_${new Date().toISOString()}.webm`;
+            document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
+          };
+          // Ensure child contexts are running and streams are up to date
+          frameA.contentWindow?.postMessage({ type:'resume-audio' }, '*');
+          frameB.contentWindow?.postMessage({ type:'resume-audio' }, '*');
+          setMonitor(frameA, false); setMonitor(frameB, false);
+          requestStreamForFrame(frameA); requestStreamForFrame(frameB);
+          audioCtx.resume?.();
+          mediaRecorder.start(); recOn = true; btnRecordBoth.classList.add('on'); btnRecordBoth.textContent = '■ Stop';
+          // If we have 0 sources, try request again shortly
+          if (sources.size===0){ setTimeout(()=>{ requestStreamForFrame(frameA); requestStreamForFrame(frameB); }, 500); }
+        } else {
+          try{ mediaRecorder?.stop(); }catch{}
+          recOn = false; btnRecordBoth.classList.remove('on'); btnRecordBoth.textContent = '● Record';
+        }
+      }
+      btnRecordBoth.addEventListener('click', toggleRecord);
+
+      // Pause/Resume both decks (toggles children AudioContexts)
+      let paused=false;
+      function togglePauseBoth(){
+        paused = !paused;
+        if (paused){
+          frameA.contentWindow?.postMessage({ type:'suspend-audio' }, '*');
+          frameB.contentWindow?.postMessage({ type:'suspend-audio' }, '*');
+          btnPauseBoth.textContent = '▶︎';
+          btnPauseBoth.title = 'Resume both decks';
+        } else {
+          frameA.contentWindow?.postMessage({ type:'resume-audio' }, '*');
+          frameB.contentWindow?.postMessage({ type:'resume-audio' }, '*');
+          btnPauseBoth.textContent = '⏯';
+          btnPauseBoth.title = 'Pause both decks';
+        }
+      }
+      btnPauseBoth.addEventListener('click', togglePauseBoth);
+
+      // Crossfader logic (0=A, 1=B)
+      const xf = document.getElementById('crossfader');
+      const cutA = document.getElementById('cutA');
+      const cutB = document.getElementById('cutB');
+      function setCrossfade(t){ // 0..1 (equal-power curve)
+        ensureAudio();
+        t = Math.min(1, Math.max(0, parseFloat(t)||0));
+        if (deckAGain && deckBGain){
+          const a = Math.cos(t * Math.PI/2); // equal-power
+          const b = Math.sin(t * Math.PI/2);
+          deckAGain.gain.setTargetAtTime(a, audioCtx.currentTime, 0.02);
+          deckBGain.gain.setTargetAtTime(b, audioCtx.currentTime, 0.02);
+        }
+      }
+      // Haptics helper
+      function vibe(ms=12){ try{ if (navigator.vibrate) navigator.vibrate(ms); }catch{} }
+
+      if (xf){
+        let lastZone = null; // 'A' | 'MID' | 'B'
+        xf.addEventListener('input', ()=>{
+          const v = parseFloat(xf.value)||0;
+          ensureAudio(); audioCtx.resume?.();
+          setCrossfade(v);
+          // nudge children to ensure streams exist
+          requestStreamForFrame(frameA); requestStreamForFrame(frameB);
+          const zone = (v<0.45) ? 'A' : (v>0.55 ? 'B' : 'MID');
+          if (zone !== lastZone){
+            vibe(zone==='MID'? 20 : 8); // stronger vibe at center detent
+            lastZone = zone;
+          }
+        });
+      }
+      if (cutA){ cutA.addEventListener('click', ()=>{ if(xf){ xf.value = 0; } setCrossfade(0); vibe(); }); }
+      if (cutB){ cutB.addEventListener('click', ()=>{ if(xf){ xf.value = 1; } setCrossfade(1); vibe(); }); }
+      // Initialize position and UI
+      setCrossfade(0.5);
+      updateUI();
+    })();
+  </script>
+</body>
+</html>

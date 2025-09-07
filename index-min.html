@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>SMITH • Minimal Decks</title>
+  <style>
+    :root{
+      --bg:#0b0c0f; --panel:#0f1115; --ink:#e6e6e6; --muted:#9aa4ad; --ring:#1f2937;
+      --btn:#0c0e13;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
+    #wrap{position:fixed; inset:0; display:grid; grid-template-columns: 1fr; grid-auto-rows: 1fr;}
+    @media(min-width: 880px){ #wrap{ grid-template-columns: 1fr 1fr; grid-auto-rows: 100%; }}
+    .pad{position:relative; border:1px solid rgba(255,255,255,.06);}
+    iframe{position:absolute; inset:0; width:100%; height:100%; border:0; background:#0a0c10}
+
+    /* Tiny floating setup button */
+    #setupBtn{position:fixed; right:12px; top:12px; z-index:30; background:#0e1117; color:#e6e6e6; border:1px solid #263241; border-radius:999px; padding:10px 14px; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.45); font-weight:600}
+    #backdrop{position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:19; display:none}
+    #backdrop.show{display:block}
+    #panel{position:fixed; right:10px; top:60px; z-index:20; background:linear-gradient(180deg, #0f1115, #0c0e13); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:12px; width:min(520px, calc(100vw - 20px)); display:none; box-shadow:0 16px 40px rgba(0,0,0,.6)}
+    #panel.show{display:block}
+    #panel h3{margin:0 0 10px 0; font-size:13px; color:#9aa4ad; letter-spacing:.18em; text-transform:uppercase}
+    .row{display:flex; gap:8px; align-items:center; margin-bottom:8px}
+    .row input{flex:1; min-width:0; padding:8px 10px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid var(--ring)}
+    .row button{padding:8px 10px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid var(--ring); cursor:pointer}
+    .presets{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px}
+    .preset{padding:6px 10px; border-radius:999px; background:#0b0d12; color:var(--ink); border:1px solid var(--ring); cursor:pointer}
+    .tiny{font-size:12px; color:#9aa4ad}
+  </style>
+</head>
+<body>
+  <button id="setupBtn" title="Set deck URLs">URLs</button>
+  <div id="backdrop"></div>
+  <div id="panel" role="dialog" aria-modal="false">
+    <h3>Deck URLs</h3>
+    <div class="row"><label class="tiny" for="urlA" style="min-width:42px">Deck A</label><input id="urlA" placeholder="URL for Deck A" /><button id="applyA">Load A</button></div>
+    <div class="row"><label class="tiny" for="urlB" style="min-width:42px">Deck B</label><input id="urlB" placeholder="URL for Deck B" /><button id="applyB">Load B</button></div>
+    <div class="presets">
+      <button class="preset" data-a="smith-968.html" data-b="smith-137.html">A:968 • B:137</button>
+      <button class="preset" data-a="smith-255.html" data-b="smith-968.html">A:255 • B:968</button>
+      <button class="preset" data-a="smith-968.html" data-b="smith-968.html">A:968 • B:968</button>
+    </div>
+    <div class="tiny" style="margin-top:8px">Tip: you can enter any webpage URL (same-origin loads best). Query params also work: <code>?a=smith-968.html&b=smith-255.html</code></div>
+  </div>
+
+  <div id="wrap">
+    <div class="pad"><iframe id="deckA" src="smith-968.html" allow="autoplay; microphone" allowfullscreen></iframe></div>
+    <div class="pad"><iframe id="deckB" src="smith-137.html" allow="autoplay; microphone" allowfullscreen></iframe></div>
+  </div>
+
+<script>
+(function(){
+  const $ = sel => document.querySelector(sel);
+  const deckA = $('#deckA');
+  const deckB = $('#deckB');
+  const setupBtn = $('#setupBtn');
+  const panel = $('#panel');
+  const urlA = $('#urlA');
+  const urlB = $('#urlB');
+  const applyA = $('#applyA');
+  const applyB = $('#applyB');
+  const backdrop = $('#backdrop');
+
+  function setSrc(which, url){
+    try{
+      if (!/^https?:\/\//i.test(url) && !url.startsWith('smith-') && !url.endsWith('.html')){
+        // help relative URLs: if user typed just a word, append .html
+        url = url + '.html';
+      }
+      if (which==='A'){ deckA.src = url; urlA.value = url; }
+      else { deckB.src = url; urlB.value = url; }
+    }catch(e){ console.warn('setSrc failed', e); }
+  }
+
+  function parseParams(){
+    const u = new URL(location.href);
+    const a = u.searchParams.get('a');
+    const b = u.searchParams.get('b');
+    if (a) setSrc('A', a);
+    if (b) setSrc('B', b);
+  }
+
+  function togglePanel(force){
+    const show = (typeof force==='boolean') ? force : !panel.classList.contains('show');
+    panel.classList.toggle('show', show);
+    backdrop.classList.toggle('show', show);
+  }
+  setupBtn.addEventListener('click', ()=> togglePanel());
+  backdrop.addEventListener('click', ()=> togglePanel(false));
+  applyA.addEventListener('click', ()=> setSrc('A', urlA.value.trim()));
+  applyB.addEventListener('click', ()=> setSrc('B', urlB.value.trim()));
+
+  panel.addEventListener('click', (e)=>{
+    const p = e.target.closest('.preset'); if (!p) return;
+    const a = p.getAttribute('data-a'); const b = p.getAttribute('data-b');
+    setSrc('A', a); setSrc('B', b);
+  });
+
+  // Keyboard shortcut: "e" to toggle panel
+  document.addEventListener('keydown', (e)=>{ if(e.key.toLowerCase()==='e'){ panel.classList.toggle('show'); }});
+
+  // Initialize form values and open panel once on first load
+  urlA.value = deckA.src; urlB.value = deckB.src;
+  parseParams();
+  // Make the panel visible by default so it's easy to find where to paste URLs
+  togglePanel(true);
+})();
+</script>
+</body>
+</html>

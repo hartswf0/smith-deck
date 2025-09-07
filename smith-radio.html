@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Smith Chart Radio • Resonance Instrument</title>
+  <style>
+    :root{
+      --bg:#0b0c0f; --panel:#0f1115; --ink:#e6e6e6; --muted:#9aa4ad; --accent:#67e8f9; --accent2:#a7f3d0;
+      --grid1:#213042; --grid2:#2d3b4d; --good:#34d399; --warn:#fbbf24; --bad:#f87171;
+      --card:#0d1016; --line:#1e293b; --shadow:0 12px 30px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding-bottom:env(safe-area-inset-bottom)}
+    #app{position:fixed;inset:0;display:grid;grid-template-rows:1fr auto}
+    canvas{display:block;width:100%;height:100%;touch-action:none}
+
+    .hud{position:absolute;top:12px;right:12px;left:auto;bottom:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:min(460px, calc(100vw - 24px));pointer-events:none}
+    .pill{pointer-events:auto;background:rgba(15,17,21,.8);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.06);border-radius:999px;padding:8px 12px;display:flex;align-items:center;gap:8px;box-shadow:var(--shadow)}
+    .badge{font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted)}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .pill b{font-variant-numeric:tabular-nums}
+    #mag{display:inline-block;min-width:6ch;text-align:right}
+    #ang{display:inline-block;min-width:6ch;text-align:right}
+    #wet{display:inline-block;min-width:4ch;text-align:right}
+    #fq{display:inline-block;min-width:14ch;text-align:right}
+    .status-dot{width:10px;height:10px;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.05) inset;transition:background-color .2s ease, box-shadow .2s ease}
+    .eq{width:12px;height:10px;display:inline-flex;gap:2px}
+    .eq span{width:2px;background:var(--accent);animation:beat 0.8s ease-in-out infinite}
+    .eq span:nth-child(2){animation-delay:.1s}
+    .eq span:nth-child(3){animation-delay:.2s}
+    @keyframes beat{0%,100%{transform:scaleY(.4);opacity:.6}50%{transform:scaleY(1);opacity:1}}
+
+    .panel{background:linear-gradient(180deg, rgba(14,17,23,.95), rgba(14,17,23,.95));border-top:1px solid rgba(255,255,255,.06);box-shadow:var(--shadow)}
+    .controls{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;padding:12px;max-width:1200px;margin-inline:auto}
+    .row{display:flex;flex-direction:column;gap:6px}
+    .sp12{grid-column:span 12}.sp6{grid-column:span 6}.sp4{grid-column:span 4}.sp3{grid-column:span 3}
+    .controls label{font-size:12px;color:var(--muted)}
+    input[type="number"],input[type="text"],select{width:100%;background:#0c0e13;color:var(--ink);border:1px solid #1f2937;border-radius:10px;padding:8px 10px;font-variant-numeric:tabular-nums}
+    input[type="range"]{width:100%}
+    .btn{cursor:pointer;user-select:none;background:#0c0e13;color:var(--ink);border:1px solid #1f2937;border-radius:12px;padding:10px 12px;display:flex;align-items:center;justify-content:center}
+    .btn.primary{background:#0f172a;border-color:#233042}
+    .toggle{display:flex;align-items:center;gap:8px}
+
+    .help{position:absolute;right:12px;top:60px;background:rgba(15,17,21,.92);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px;width:min(420px,calc(100vw-24px));box-shadow:var(--shadow);font-size:13px;line-height:1.35;display:none;z-index:60}
+    .help.show{display:block}
+
+    @media (max-width:860px){.sp6{grid-column:span 12}.sp4{grid-column:span 6}.sp3{grid-column:span 6}}
+    @media (max-width:860px){ .hud{max-width:min(70vw, 520px)} }
+    /* Hide non-essential pills on small screens */
+    @media (max-width:860px){ .pill.opt{display:none} }
+    @media (max-width:860px){ .panel{ padding-bottom: 84px; } }
+    .visually-hidden{position:absolute!important;height:1px;width:1px;overflow:hidden;clip:rect(1px,1px,1px,1px);white-space:nowrap}
+
+    /* Mobile bottom dock */
+    .bottom-dock{position:fixed;left:0;right:0;bottom:0;height:72px;background:rgba(0,0,0,.9);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,.08);display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));z-index:50}
+    .dock-btn{width:44px;height:44px;border-radius:12px;border:1px solid #1f2937;background:#0c0e13;color:#e6e6e6;display:flex;align-items:center;justify-content:center;font-weight:700}
+    .dock-status{display:flex;flex-direction:column;min-width:0}
+    .dock-status .label{font-size:11px;color:var(--muted)}
+    .dock-status .value{font-size:14px;font-weight:700;color:#e6fff6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #dockVol{width:160px;-webkit-appearance:none;appearance:none;height:10px;background:#1f2937;border-radius:6px}
+    #dockVol::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;border-radius:50%;background:#67e8f9;border:1px solid #0b0c0f}
+    @media (min-width:861px){ .bottom-dock{ display:none } }
+  </style>
+</head>
+<body>
+<div id="app">
+  <canvas id="chart" aria-label="Interactive Smith Chart" role="img"></canvas>
+
+  <div class="hud">
+    <div class="pill" title="Transport Status"><div id="statusDot" class="status-dot" style="background:var(--warn)"></div><span class="badge">Status</span><b id="statusText">Stopped</b></div>
+    <div class="pill" title="Now Playing"><span class="badge">Now</span><b id="nowPlaying">—</b><span id="eq" class="eq" aria-hidden="true" style="display:none"><span></span><span></span><span></span></span></div>
+    <div class="pill" title="Reflection Coefficient (|Γ|)"><div class="dot" style="background:var(--accent)"></div><span class="badge">|Γ|</span><b id="mag">0.000</b></div>
+    <div class="pill" title="Angle of Γ in degrees"><div class="dot" style="background:var(--accent2)"></div><span class="badge">∠Γ</span><b id="ang">0.0°</b></div>
+    <div class="pill opt" title="Filter"><span class="badge">Fc/Q</span><b id="fq">—</b></div>
+    <div class="pill opt" title="Wet/Dry"><span class="badge">Wet</span><b id="wet">000%</b></div>
+    <div class="pill opt" title="Source"><span class="badge">SRC</span><b id="src">Synth</b></div>
+    <div class="pill opt" title="Help"><button id="helpBtn" class="btn">Help</button></div>
+  </div>
+
+  <div class="help" id="helpBox">
+    <b>Smith Chart Radio — how to play</b>
+    <ul>
+      <li>Tap/drag <i>inside the circle</i> to place Γ. Radius ≈ wet/dry; angle ≈ stereo pan; x/y ≈ filter Fc & Q.</li>
+      <li>Pinch = zoom grid. Rotate two fingers = phase sweep (phaser‑like).</li>
+      <li>Choose a <i>Web Radio</i> stream or stay on <i>Synth</i>. The stream is analyzed & processed live.</li>
+      <li>Some streams may fail due to CORS/autoplay policies. If so, try another or load a local file.</li>
+    </ul>
+    <div class="badge">Routing</div>
+    <div>Source → Biquad(Bandpass) → Delay/Convolver → Wet/Dry → Output. Γ maps to these parameters.</div>
+  </div>
+
+  <div class="panel">
+    <div class="controls">
+      <div class="row sp3"><label>Source</label>
+        <select id="source">
+          <option value="synth">Synth (440Hz)</option>
+          <option value="stream:https://ice4.somafm.com/groovesalad-128-mp3">SomaFM Groove Salad (mp3)</option>
+          <option value="stream:https://streams.ilovemusic.de/iloveradio1.mp3">I Love Radio (mp3)</option>
+          <option value="stream:https://stream.live.vc.bbcmedia.co.uk/bbc_radio_one">BBC R1 (may block CORS)</option>
+        </select>
+      </div>
+      <div class="row sp3"><label>Custom URL (mp3/aac)</label><input id="url" type="text" placeholder="https://example.com/stream.mp3"></div>
+      <div class="row sp3"><label>Local file</label><input id="file" type="file" accept="audio/*"></div>
+      <div class="row sp3"><label>Gain</label><input id="gain" type="range" min="0" max="1" step="0.01" value="0.7"></div>
+
+      <div class="row sp3"><label>Wave</label>
+        <select id="wave">
+          <option>sine</option><option>square</option><option>sawtooth</option><option>triangle</option>
+        </select>
+      </div>
+      <div class="row sp3"><label>Pitch (Hz)</label><input id="pitch" type="number" value="440" min="50" max="4000"></div>
+      <div class="row sp3"><label>Delay (ms)</label><input id="delay" type="range" min="0" max="800" step="1" value="120"></div>
+      <div class="row sp3"><label>Reverb</label><input id="reverb" type="range" min="0" max="1" step="0.01" value="0.2"></div>
+      <div class="row sp3"><label>Chart Depth</label><input id="depth" type="range" min="0" max="1" step="0.01" value="0.7"></div>
+
+      <div class="row sp12"><button id="play" class="btn primary">▶︎ Play</button></div>
+    </div>
+  </div>
+</div>
+<div id="live" class="visually-hidden" aria-live="polite"></div>
+
+<!-- Mobile Bottom Dock -->
+<div class="bottom-dock" id="dock">
+  <button id="dockPlay" class="dock-btn" title="Play/Pause">▶︎</button>
+  <div class="dock-status"><span class="label">Now</span><span id="dockNow" class="value">Idle</span></div>
+  <input id="dockVol" type="range" min="0" max="1" step="0.01" />
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const canvas = $('#chart');
+  const ctx = canvas.getContext('2d');
+  let DPR = Math.min(2, window.devicePixelRatio || 1);
+  let W=0,H=0,CX=0,CY=0,R=0; // layout
+
+  const ui = {
+    mag: $('#mag'), ang: $('#ang'), fq: $('#fq'), wet: $('#wet'), src: $('#src'),
+    statusDot: $('#statusDot'), statusText: $('#statusText'), nowPlaying: $('#nowPlaying'), eq: $('#eq'), live: $('#live'),
+    helpBtn: $('#helpBtn'), helpBox: $('#helpBox'),
+    source: $('#source'), url: $('#url'), file: $('#file'), gain: $('#gain'),
+    wave: $('#wave'), pitch: $('#pitch'), delay: $('#delay'), reverb: $('#reverb'), depth: $('#depth'),
+    play: $('#play'),
+    dock: $('#dock'), dockPlay: $('#dockPlay'), dockNow: $('#dockNow'), dockVol: $('#dockVol'),
+  };
+
+  // Complex helpers
+  const C = {
+    add:(a,b)=>({re:a.re+b.re, im:a.im+b.im}),
+    sub:(a,b)=>({re:a.re-b.re, im:a.im-b.im}),
+    mul:(a,b)=>({re:a.re*b.re - a.im*b.im, im:a.re*b.im + a.im*b.re}),
+    div:(a,b)=>{const d=b.re*b.re+b.im*b.im||1e-18;return{re:(a.re*b.re+a.im*b.im)/d,im:(a.im*b.re-a.re*b.im)/d}},
+    mag:(a)=>Math.hypot(a.re,a.im), ang:(a)=>Math.atan2(a.im,a.re),
+  };
+
+  // State in Gamma plane (unit circle)
+  const state = {
+    gamma:{re:0,im:0}, hiGrid:true, zoom:1,
+    phase:0, // gesture rotation
+    // Audio mapping cache
+    fc: 1200, Q: 4, wet: 0.0, pan: 0.0, depth: 0.7,
+    isReady:false, isPlaying:false, loading:false, currentLabel:'—'
+  };
+
+  // ---------- Audio graph ----------
+  let AC, master, wetGain, dryGain, panNode, biquad, delay, delayFB, revSend, rev, analyser, srcNode=null, osc=null, media=null, fileNode=null;
+  let mediaEl = null; // <audio>
+
+  // ---- Haptics ----
+  const vibe = (pattern)=>{ try{ if (navigator.vibrate) navigator.vibrate(pattern); }catch{} };
+
+  function setStatus(kind, note){
+    // kind: 'stopped'|'playing'|'buffering'|'paused'|'error'
+    const map = {
+      stopped:{col:'var(--warn)', txt:'Stopped'},
+      paused:{col:'#94a3b8', txt:'Paused'},
+      playing:{col:'var(--good)', txt:'Playing'},
+      buffering:{col:'#fbbf24', txt:'Buffering…'},
+      error:{col:'var(--bad)', txt:'Error'}
+    };
+    const m = map[kind]||map.stopped;
+    ui.statusDot.style.background = m.col;
+    ui.statusText.textContent = note? `${m.txt} — ${note}` : m.txt;
+    ui.eq.style.display = (kind==='playing') ? 'inline-flex' : 'none';
+    ui.live.textContent = ui.statusText.textContent;
+    // Dock UI sync
+    if (ui.dockNow) ui.dockNow.textContent = (ui.nowPlaying.textContent && kind!=='stopped') ? ui.nowPlaying.textContent : (kind==='playing' ? 'Playing' : 'Idle');
+    if (ui.dockPlay) ui.dockPlay.textContent = (kind==='playing') ? '⏸' : '▶︎';
+  }
+
+  function makeAudio() {
+    if (AC) return;
+    AC = new (window.AudioContext||window.webkitAudioContext)();
+    master = AC.createGain(); master.gain.value = parseFloat(ui.gain.value);
+    analyser = AC.createAnalyser(); analyser.fftSize = 2048;
+    const splitter = AC.createChannelSplitter(2);
+
+    // FX
+    biquad = AC.createBiquadFilter(); biquad.type = 'bandpass'; biquad.frequency.value = state.fc; biquad.Q.value = state.Q;
+    delay = AC.createDelay(2.0); delay.delayTime.value = parseFloat(ui.delay.value)/1000;
+    delayFB = AC.createGain(); delayFB.gain.value = 0.2; // feedback loop gain
+
+    revSend = AC.createGain(); revSend.gain.value = parseFloat(ui.reverb.value);
+    rev = AC.createConvolver(); rev.buffer = makeImpulse(AC, 2.5, 2.5);
+
+    panNode = AC.createStereoPanner(); panNode.pan.value = state.pan;
+    wetGain = AC.createGain(); dryGain = AC.createGain(); wetGain.gain.value = state.wet; dryGain.gain.value = 1 - state.wet;
+
+    // Routing: source -> [dry + wet(biquad->delay->reverb)] -> pan -> master -> analyser -> destination
+    // Placeholders (source connects later)
+    biquad.connect(delay); delay.connect(revSend); revSend.connect(rev); rev.connect(wetGain);
+    // Feedback loop: delay -> delayFB -> delay
+    delay.connect(delayFB); delayFB.connect(delay);
+    // Also short path from biquad to wet (pre-delay blend)
+    biquad.connect(wetGain);
+
+    const mergerWetDry = AC.createGain(); // just a summing junction
+    wetGain.connect(mergerWetDry); dryGain.connect(mergerWetDry);
+    mergerWetDry.connect(panNode);
+    panNode.connect(master);
+    master.connect(analyser);
+    analyser.connect(AC.destination);
+    state.isReady = true; setStatus('paused');
+  }
+
+  function makeImpulse(ac, seconds=2, decay=2){
+    const rate = ac.sampleRate; const len = rate * seconds; const buf = ac.createBuffer(2, len, rate);
+    for(let ch=0; ch<2; ch++){
+      const d = buf.getChannelData(ch);
+      for(let i=0;i<len;i++){ d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, decay); }
+    }
+    return buf;
+  }
+
+  function connectSource(kind){
+    disconnectSource();
+    if (kind === 'synth'){
+      osc = AC.createOscillator(); const g = AC.createGain(); g.gain.value = 0.3;
+      osc.type = ui.wave.value; osc.frequency.value = clamp(+ui.pitch.value, 50, 4000);
+      osc.connect(g); g.connect(dryGain); g.connect(biquad);
+      osc.start();
+      ui.src.textContent = 'Synth';
+      state.currentLabel = `Synth ${ui.wave.value} ${ui.pitch.value}Hz`;
+      ui.nowPlaying.textContent = state.currentLabel;
+      setStatus(state.isPlaying ? 'playing' : 'paused', 'Synth');
+      vibe([8,12,8]);
+    } else if (kind.startsWith('stream:')){
+      const u = kind.slice(7);
+      if (isBlockedUrl(u)) { flash('Blocked: YouTube URLs are not supported. Please use direct MP3/AAC streams.'); setStatus('error','Blocked URL'); return; }
+      mediaEl = new Audio(); mediaEl.crossOrigin = 'anonymous'; mediaEl.src = u;
+      mediaEl.loop = true; mediaEl.preload = 'none';
+      mediaEl.addEventListener('error', () => { flash('Stream error or blocked by CORS/autoplay'); setStatus('error','Stream'); vibe([30,50,30]); });
+      mediaEl.addEventListener('waiting', ()=>{ setStatus('buffering'); });
+      mediaEl.addEventListener('stalled', ()=>{ setStatus('buffering'); });
+      mediaEl.addEventListener('canplay', () => { mediaEl.play().catch(()=>{}); });
+      mediaEl.addEventListener('playing', ()=>{ state.isPlaying=true; setStatus('playing','Stream'); vibe([8,12,8]); });
+      mediaEl.addEventListener('pause', ()=>{ state.isPlaying=false; setStatus('paused'); });
+      media = AC.createMediaElementSource(mediaEl);
+      media.connect(dryGain); media.connect(biquad);
+      ui.src.textContent = 'Web Radio';
+      ui.nowPlaying.textContent = hostnameOf(u) || 'Web Radio';
+      mediaEl.play().catch(()=>{});
+    } else if (kind === 'file'){
+      // fileNode created in file input handler
+      if (fileNode){ fileNode.connect(dryGain); fileNode.connect(biquad); ui.src.textContent = 'File'; setStatus(state.isPlaying ? 'playing':'paused','File'); vibe([8,12,8]); }
+    }
+  }
+  function disconnectSource(){
+    if (osc){ try{osc.stop();}catch{} osc.disconnect(); osc=null; }
+    if (media){ media.disconnect(); media=null; }
+    if (mediaEl){ try{mediaEl.pause();}catch{} mediaEl.src=''; mediaEl=null; }
+    if (fileNode){ try{fileNode.disconnect();}catch{} fileNode=null; }
+    state.isPlaying=false; setStatus('stopped');
+  }
+
+  // ---------- Smith chart / drawing ----------
+  function resize(){
+    const rect = canvas.getBoundingClientRect();
+    DPR = Math.min(2, window.devicePixelRatio||1);
+    W = Math.round(rect.width*DPR); H = Math.round(rect.height*DPR);
+    canvas.width=W; canvas.height=H; canvas.style.width=rect.width+'px'; canvas.style.height=rect.height+'px';
+    ctx.setTransform(1,0,0,1,0,0); ctx.scale(DPR,DPR);
+    const pad=16; const s = Math.min(rect.width, rect.height)-pad*2; R = (s/2)*state.zoom; CX = rect.width/2; CY = rect.height/2 - 10;
+    draw();
+  }
+
+  function drawGrid(){
+    // background
+    const grad = ctx.createRadialGradient(CX,CY,R*0.1,CX,CY,R*1.2);
+    grad.addColorStop(0,'#0b0c0f'); grad.addColorStop(1,'#0a0c10');
+    ctx.fillStyle=grad; ctx.fillRect(0,0,canvas.width/DPR,canvas.height/DPR);
+
+    ctx.save();
+    ctx.beginPath(); ctx.arc(CX,CY,R,0,Math.PI*2); ctx.clip();
+
+    const rMaj=[0,0.2,0.5,1,2,5]; const xMaj=[0.2,0.5,1,2,5];
+    const rMin= state.hiGrid ? [0.1,0.3,0.7,1.5,3,7] : []; const xMin= state.hiGrid ? [0.1,0.3,0.7,1.5,3,7] : [];
+
+    function circle(cx,cy,rr,lw,col){ ctx.beginPath(); ctx.lineWidth=lw; ctx.strokeStyle=col; ctx.arc(CX + R*cx, CY - R*cy, R*rr, 0, Math.PI*2); ctx.stroke(); }
+    const colMin=getCSS('--grid1'), colMaj=getCSS('--grid2');
+
+    ctx.globalAlpha=.7; rMin.forEach(r=>{ circle(r/(r+1),0,1/(r+1),1,colMin); }); xMin.forEach(x=>{ const rad=1/Math.abs(x), cy=1/x; circle(1,cy,rad,1,colMin); circle(1,-cy,rad,1,colMin); });
+    ctx.globalAlpha=1; rMaj.forEach(r=>{ circle(r/(r+1),0,1/(r+1),1.5,colMaj); }); xMaj.forEach(x=>{ const rad=1/Math.abs(x), cy=1/x; circle(1,cy,rad,1.5,colMaj); circle(1,-cy,rad,1.5,colMaj); });
+
+    // boundary & axis
+    ctx.globalAlpha=1; ctx.lineWidth=2; ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.beginPath(); ctx.arc(CX,CY,R,0,Math.PI*2); ctx.stroke();
+    ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(CX-R,CY); ctx.lineTo(CX+R,CY); ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawData(){
+    const g = state.gamma; const m = clamp(C.mag(g),0,1); const a = C.ang(g);
+    // VSWR circle
+    ctx.save(); ctx.setLineDash([6,6]); ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.beginPath(); ctx.arc(CX,CY,R*m,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    // Load point
+    plotMarker(g, getCSS('--accent'), 4, 'Γ');
+    ctx.restore();
+
+    // HUD (stable widths)
+    ui.mag.textContent = m.toFixed(3);
+    ui.ang.textContent = fmtSignedDeg(a*180/Math.PI);
+    ui.fq.textContent = fmtFcQ(state.fc, state.Q);
+    ui.wet.textContent = pad3(Math.round(state.wet*100))+'%';
+  }
+
+  function plotMarker(g, color, r=3, label){
+    const p = {x: CX + R*g.re, y: CY - R*g.im}; if (C.mag(g)>1.0001) return;
+    ctx.beginPath(); ctx.fillStyle=color; ctx.arc(p.x,p.y,r,0,Math.PI*2); ctx.fill();
+    ctx.font='12px system-ui,-apple-system,Segoe UI,Roboto'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillStyle='rgba(255,255,255,.85)'; ctx.fillText(label, p.x+6, p.y);
+  }
+
+  function drawSpectrum(){
+    if (!analyser) return;
+    const w = 220, h = 70, x = 12, y = 12; // small inset scope
+    const data = new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(data);
+    ctx.save(); ctx.globalAlpha=.9; ctx.fillStyle='rgba(0,0,0,.35)'; ctx.fillRect(x,y,w,h); ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.strokeRect(x,y,w,h);
+    ctx.beginPath(); ctx.moveTo(x, y+h);
+    for(let i=0;i<w;i++){
+      const idx = Math.floor(i/data.length * data.length);
+      const v = data[idx]/255; const yy = y+h - v*h;
+      if (i===0) ctx.moveTo(x,yy); else ctx.lineTo(x+i,yy);
+    }
+    ctx.strokeStyle='rgba(103,232,249,.9)'; ctx.lineWidth=1.5; ctx.stroke(); ctx.restore();
+  }
+
+  function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); drawGrid(); drawSpectrum(); drawData(); }
+
+  function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  const clamp = (v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+  const pad3 = (n)=> String(n).padStart(3,'0');
+  const fmtSignedDeg = (deg)=>{
+    const s = (deg>=0? '+':'−');
+    const v = Math.abs(deg).toFixed(1).padStart(4,'0');
+    return `${s}${v}°`;
+  };
+  const fmtFcQ = (fc,q)=>{
+    const f = Math.round(fc).toString().padStart(4,' ');
+    const qq = q.toFixed(2).padStart(5,' ');
+    return `${f} Hz / Q ${qq}`;
+  };
+
+  // ---------- Gestures & mapping ----------
+  let dragging=false;
+  canvas.addEventListener('pointerdown', e=>{ dragging=true; setFromEvent(e); vibe(6); });
+  canvas.addEventListener('pointermove', e=>{ if(dragging) setFromEvent(e); });
+  window.addEventListener('pointerup', ()=> { dragging=false; });
+
+  function setFromEvent(e){
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left), y=(e.clientY - rect.top);
+    const g = {re:(x-CX)/R, im:-(y-CY)/R}; const m = Math.hypot(g.re,g.im);
+    if (m<=1){ state.gamma=g; mapGammaToAudio(); draw(); }
+  }
+
+  // Two-finger rotate/zoom
+  let t0=null;
+  canvas.addEventListener('touchstart', e=>{ if(e.touches.length===2){ t0 = measureTwo(e); } }, {passive:false});
+  canvas.addEventListener('touchmove', e=>{
+    if(e.touches.length===2 && t0){ e.preventDefault(); const t1 = measureTwo(e);
+      // zoom
+      const scale = t1.dist / t0.dist; if (Math.abs(scale-1)>0.02){ state.zoom = clamp(state.zoom*scale, .6, 2.0); resize(); }
+      // rotation -> phase sweep
+      const dAng = t1.ang - t0.ang; state.phase += dAng; applyPhaseToAudio(); t0=t1;
+    }
+  }, {passive:false});
+  window.addEventListener('touchend', ()=>{ t0=null; });
+
+  function measureTwo(e){ const [a,b] = [e.touches[0], e.touches[1]]; const dx=b.clientX-a.clientX, dy=b.clientY-a.clientY; return {dist:Math.hypot(dx,dy), ang:Math.atan2(dy,dx)}; }
+
+  function mapGammaToAudio(){
+    // Radius -> wet; Angle -> pan; x-> Fc, y-> Q (bandpass)
+    const g = state.gamma; const r = clamp(Math.hypot(g.re,g.im),0,1); const ang = Math.atan2(g.im,g.re);
+    const d = clamp(state.depth, 0, 1);
+    // Wet/pan scale with depth
+    state.wet = clamp(r * (0.3 + 0.7*d), 0, 1);
+    state.pan = clamp((ang/Math.PI) * (0.3 + 0.7*d), -1, 1); // -π..π → -1..1
+
+    // Map normalized coords to musical filter space
+    // x in [-1..1] → Fc in [80..6000] (perceptual map)
+    const normX = clamp((g.re+1)/2, 0, 1); // 0..1
+    const fc = 80 * Math.pow(6000/80, normX); // exponential map
+    state.fc = fc;
+    // y in [-1..1] → Q in [0.2..20]
+    const normY = Math.abs(g.im); state.Q = 0.2 + normY * (5 + 15*d); // depth influences max Q
+
+    if (biquad){ biquad.frequency.setTargetAtTime(state.fc, AC.currentTime, 0.01); biquad.Q.setTargetAtTime(state.Q, AC.currentTime, 0.02); }
+    if (wetGain && dryGain){ wetGain.gain.setTargetAtTime(state.wet, AC.currentTime, 0.02); dryGain.gain.setTargetAtTime(1-state.wet, AC.currentTime, 0.02); }
+    if (panNode){ panNode.pan.setTargetAtTime(state.pan, AC.currentTime, 0.02); }
+    // Map radius to FX: more radius -> more reverb, more delay feedback, slight delay time push
+    if (revSend){ const baseRev = parseFloat(ui.reverb.value); const targetRev = clamp(baseRev*(0.4 + 0.6*r*(0.5+0.5*d)), 0, 1); revSend.gain.setTargetAtTime(targetRev, AC.currentTime, 0.05); }
+    if (delay){ const baseDelay = parseFloat(ui.delay.value)/1000; const add = 0.25 * r * d; delay.delayTime.setTargetAtTime(clamp(baseDelay + add, 0, 2), AC.currentTime, 0.05); }
+    if (delayFB){ const fb = clamp(0.1 + 0.7*r*d, 0, 0.95); delayFB.gain.setTargetAtTime(fb, AC.currentTime, 0.05); }
+  }
+
+  function applyPhaseToAudio(){
+    // Use phase to mod delay slightly for phaser‑ish sweep
+    if (!delay) return; const base = parseFloat(ui.delay.value)/1000; const mod = 0.03 * Math.sin(state.phase);
+    delay.delayTime.setTargetAtTime(clamp(base+mod, 0, 2), AC.currentTime, 0.05);
+  }
+
+  // ---------- UI wiring ----------
+  ui.helpBtn.addEventListener('click', ()=> ui.helpBox.classList.toggle('show'));
+
+  ui.play.addEventListener('click', async ()=>{
+    makeAudio();
+    if (!state.isPlaying) {
+      if (AC.state === 'suspended') await AC.resume();
+      let srcSel = ui.source.value;
+      if (ui.url.value.trim()) srcSel = 'stream:' + ui.url.value.trim();
+      if (srcSel.startsWith('stream:')){
+        const u = srcSel.slice(7); if (isBlockedUrl(u)) { flash('Blocked: YouTube URLs are not supported.'); setStatus('error','Blocked URL'); return; }
+      }
+      if (ui.file.files && ui.file.files[0]){
+        const f = ui.file.files[0]; const el = new Audio(); el.src = URL.createObjectURL(f); el.crossOrigin='anonymous'; el.addEventListener('canplay',()=>{el.play().catch(()=>{});}); mediaEl = el; fileNode = AC.createMediaElementSource(el); connectSource('file'); el.play().catch(()=>{});
+      } else {
+        connectSource(srcSel);
+      }
+      state.isPlaying = true; ui.play.textContent = '⏸︎ Pause';
+      mapGammaToAudio(); draw();
+      if ('mediaSession' in navigator){ try{ navigator.mediaSession.playbackState = 'playing'; }catch{} }
+    } else {
+      // Pause
+      try{ if (mediaEl) mediaEl.pause(); }catch{}
+      try{ if (AC && AC.state==='running') await AC.suspend(); }catch{}
+      state.isPlaying = false; setStatus('paused'); ui.play.textContent = '▶︎ Play'; vibe(10);
+      if ('mediaSession' in navigator){ try{ navigator.mediaSession.playbackState = 'paused'; }catch{} }
+    }
+  });
+
+  // Dock controls
+  ui.dockPlay?.addEventListener('click', ()=> ui.play.click());
+  // Sync volumes both ways
+  if (ui.dockVol){ ui.dockVol.value = ui.gain.value; }
+  ui.gain.addEventListener('input', ()=>{ if (ui.dockVol) ui.dockVol.value = ui.gain.value; });
+  ui.dockVol?.addEventListener('input', ()=>{ ui.gain.value = ui.dockVol.value; if (master) master.gain.value = +ui.dockVol.value; });
+
+  ui.source.addEventListener('change', ()=>{ if(!AC) return; let v=ui.source.value; if (ui.url.value.trim()) v='stream:'+ui.url.value.trim(); if (v.startsWith('stream:') && isBlockedUrl(v.slice(7))) { flash('Blocked: YouTube URLs are not supported.'); setStatus('error','Blocked URL'); return; } connectSource(v); });
+  ui.url.addEventListener('change', ()=>{ if(!AC) return; const u=ui.url.value.trim(); if(u){ if (isBlockedUrl(u)) { flash('Blocked: YouTube URLs are not supported.'); setStatus('error','Blocked URL'); return; } connectSource('stream:'+u); }});
+  ui.file.addEventListener('change', ()=>{ if(!AC) return; const f=ui.file.files[0]; if(!f) return; const el=new Audio(); el.src=URL.createObjectURL(f); el.crossOrigin='anonymous'; el.addEventListener('canplay',()=>{el.play().catch(()=>{});}); mediaEl=el; fileNode=AC.createMediaElementSource(el); connectSource('file'); });
+
+  ui.wave.addEventListener('change', ()=>{ if(osc) osc.type = ui.wave.value; });
+  ui.pitch.addEventListener('input', ()=>{ if(osc) osc.frequency.setTargetAtTime(clamp(+ui.pitch.value,50,4000), AC.currentTime, 0.02); });
+  ui.gain.addEventListener('input', ()=>{ if(master) master.gain.value = +ui.gain.value; });
+  ui.delay.addEventListener('input', ()=>{ if(delay) delay.delayTime.setTargetAtTime(+ui.delay.value/1000, AC.currentTime, 0.02); });
+  ui.reverb.addEventListener('input', ()=>{ if(revSend) revSend.gain.setTargetAtTime(+ui.reverb.value, AC.currentTime, 0.02); });
+  ui.depth.addEventListener('input', ()=>{ state.depth = +ui.depth.value; mapGammaToAudio(); });
+
+  window.addEventListener('resize', resize, {passive:true}); resize();
+
+  function flash(msg){ const pill=document.createElement('div'); pill.className='pill'; pill.textContent=msg; pill.style.position='absolute'; pill.style.left='12px'; pill.style.top='12px'; pill.style.zIndex='20'; document.body.appendChild(pill); setTimeout(()=>pill.remove(), 1800); }
+
+  function hostnameOf(u){ try{ return new URL(u).hostname; }catch{ return ''; } }
+  function isBlockedUrl(u){ try{ const h = new URL(u).hostname.replace(/^www\./,''); return h.endsWith('youtube.com') || h.endsWith('youtu.be'); }catch{ return false; } }
+
+  // Media Session metadata for better OS UI
+  if ('mediaSession' in navigator){
+    try{
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'Smith Chart Radio', artist: 'Local Synth / Stream', album: 'Resonance Instrument'
+      });
+      navigator.mediaSession.setActionHandler('play', ()=>{ ui.play.click(); });
+      navigator.mediaSession.setActionHandler('pause', ()=>{ ui.play.click(); });
+    }catch{}
+  }
+})();
+</script>
+</body>
+</html>

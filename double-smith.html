@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RF Audio Explorer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff88;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+
+        .app-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .header {
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+            border-bottom: 2px solid #00ff88;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px #00ff88;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 10px #00ff88; }
+            to { text-shadow: 0 0 20px #00ff88, 0 0 30px #00ff88; }
+        }
+
+        .decks-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .decks-container {
+                flex-direction: row;
+                height: calc(100vh - 100px);
+            }
+        }
+
+        .deck {
+            flex: 1;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 2px solid #0066cc;
+            border-radius: 15px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 102, 204, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .deck:hover {
+            border-color: #00ff88;
+            box-shadow: 0 8px 32px rgba(0, 255, 136, 0.4);
+        }
+
+        .deck.deck-a {
+            border-color: #ff6b6b;
+        }
+
+        .deck.deck-b {
+            border-color: #4ecdc4;
+        }
+
+        .deck-title {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            z-index: 10;
+        }
+
+        .deck-a .deck-title {
+            color: #ff6b6b;
+        }
+
+        .deck-b .deck-title {
+            color: #4ecdc4;
+        }
+
+        .smith-chart {
+            width: 100%;
+            height: 300px;
+            margin: 40px 0 20px 0;
+            position: relative;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        @media (min-width: 768px) {
+            .smith-chart {
+                height: 350px;
+            }
+        }
+
+        .grid-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.3;
+            transition: opacity 0.3s ease;
+        }
+
+        .grid-overlay.detailed {
+            opacity: 0.6;
+        }
+
+        .impedance-marker {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #00ff88, #004d33);
+            border: 2px solid #ffffff;
+            transform: translate(-50%, -50%);
+            cursor: grab;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.8);
+            transition: all 0.1s ease;
+            z-index: 5;
+        }
+
+        .impedance-marker:active {
+            cursor: grabbing;
+            transform: translate(-50%, -50%) scale(1.2);
+        }
+
+        .spectrum-display {
+            height: 120px;
+            background: #000;
+            border: 2px solid #ff6b6b;
+            border-radius: 8px;
+            margin: 15px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .spectrum-bars {
+            display: flex;
+            height: 100%;
+            align-items: flex-end;
+            padding: 5px;
+            gap: 2px;
+        }
+
+        .spectrum-bar {
+            flex: 1;
+            background: linear-gradient(to top, #ff6b6b, #ffaa00, #00ff88);
+            border-radius: 2px 2px 0 0;
+            transition: height 0.1s ease;
+            min-height: 2px;
+        }
+
+        .controls-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .control-group {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .control-label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .toggle-switch {
+            width: 60px;
+            height: 30px;
+            background: #333;
+            border-radius: 15px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-switch.active {
+            background: #00ff88;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: white;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(30px);
+        }
+
+        .frequency-slider {
+            width: 100%;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .frequency-slider::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #00ff88;
+            border-radius: 50%;
+            top: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            cursor: grab;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 8px;
+            background: #333;
+            border: none;
+            color: #888;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 12px;
+        }
+
+        .mode-btn.active {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .preset-slots {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+
+        .preset-slot {
+            min-width: 60px;
+            height: 60px;
+            background: #222;
+            border: 2px solid #444;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .preset-slot.filled {
+            border-color: #00ff88;
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .preset-slot:hover {
+            border-color: #00ff88;
+            transform: scale(1.05);
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: #00ff88;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            border: 1px solid #00ff88;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .tooltip.visible {
+            opacity: 1;
+        }
+
+        .waveform-display {
+            height: 80px;
+            background: #000;
+            border: 1px solid #4ecdc4;
+            border-radius: 4px;
+            margin: 10px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .oscillator-wave {
+            width: 100%;
+            height: 100%;
+            stroke: #4ecdc4;
+            fill: none;
+            stroke-width: 2;
+        }
+
+        @media (max-width: 767px) {
+            .deck {
+                min-height: 500px;
+            }
+            
+            .controls-panel {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .reflection-marker {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #ff6b6b;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulse 2s infinite;
+            z-index: 4;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 0.5; transform: translate(-50%, -50%) scale(1.2); }
+            100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .vswr-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #00ff88;
+            border: 1px solid #00ff88;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <h1>RF AUDIO EXPLORER</h1>
+        </div>
+        
+        <div class="decks-container">
+            <!-- Deck A: RF Sampler -->
+            <div class="deck deck-a">
+                <div class="deck-title">DECK A: RF SAMPLER</div>
+                <div class="vswr-indicator" id="vswr-a">VSWR: 1.2:1</div>
+                
+                <canvas class="smith-chart" id="smith-a" width="400" height="300"></canvas>
+                <div class="grid-overlay" id="grid-a"></div>
+                <div class="impedance-marker" id="marker-a" style="left: 50%; top: 50%;"></div>
+                <div class="reflection-marker" id="reflection-a" style="left: 60%; top: 40%;"></div>
+                
+                <div class="spectrum-display">
+                    <div class="spectrum-bars" id="spectrum-a"></div>
+                </div>
+                
+                <div class="controls-panel">
+                    <div class="control-group">
+                        <div class="control-label">Frequency</div>
+                        <div class="frequency-slider" id="freq-slider-a"></div>
+                        <div style="margin-top: 10px; font-size: 12px; color: #ff6b6b;" id="freq-display-a">88.5 MHz</div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Mode</div>
+                        <div class="mode-selector">
+                            <button class="mode-btn active" data-mode="fm">FM</button>
+                            <button class="mode-btn" data-mode="am">AM</button>
+                            <button class="mode-btn" data-mode="ssb">SSB</button>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Auto Scan</div>
+                        <div class="toggle-switch" id="autoscan-a"></div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Detail Grid</div>
+                        <div class="toggle-switch" id="grid-toggle-a"></div>
+                    </div>
+                </div>
+                
+                <div class="preset-slots">
+                    <div class="preset-slot" data-slot="1">1</div>
+                    <div class="preset-slot" data-slot="2">2</div>
+                    <div class="preset-slot" data-slot="3">3</div>
+                    <div class="preset-slot" data-slot="4">4</div>
+                    <div class="preset-slot" data-slot="5">5</div>
+                </div>
+            </div>
+            
+            <!-- Deck B: Signal Shaper -->
+            <div class="deck deck-b">
+                <div class="deck-title">DECK B: SIGNAL SHAPER</div>
+                <div class="vswr-indicator" id="vswr-b">Q: 2.5</div>
+                
+                <canvas class="smith-chart" id="smith-b" width="400" height="300"></canvas>
+                <div class="grid-overlay" id="grid-b"></div>
+                <div class="impedance-marker" id="marker-b" style="left: 40%; top: 60%;"></div>
+                
+                <div class="waveform-display">
+                    <svg class="oscillator-wave" id="waveform-b" viewBox="0 0 400 80">
+                        <path d="M0,40 Q100,10 200,40 Q300,70 400,40" class="oscillator-wave"/>
+                    </svg>
+                </div>
+                
+                <div class="controls-panel">
+                    <div class="control-group">
+                        <div class="control-label">Pitch</div>
+                        <div class="frequency-slider" id="pitch-slider"></div>
+                        <div style="margin-top: 10px; font-size: 12px; color: #4ecdc4;" id="pitch-display">440 Hz</div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Filter</div>
+                        <div class="frequency-slider" id="filter-slider"></div>
+                        <div style="margin-top: 10px; font-size: 12px; color: #4ecdc4;" id="filter-display">2.5 kHz</div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Resonance</div>
+                        <div class="frequency-slider" id="resonance-slider"></div>
+                        <div style="margin-top: 10px; font-size: 12px; color: #4ecdc4;" id="resonance-display">0.5</div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Wave Shape</div>
+                        <div class="mode-selector">
+                            <button class="mode-btn active" data-wave="sine">SIN</button>
+                            <button class="mode-btn" data-wave="saw">SAW</button>
+                            <button class="mode-btn" data-wave="square">SQR</button>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Monitor</div>
+                        <div class="toggle-switch" id="monitor-b"></div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Effects</div>
+                        <div class="toggle-switch active" id="effects-b"></div>
+                    </div>
+                </div>
+                
+                <div class="preset-slots">
+                    <div class="preset-slot filled" data-slot="1">1</div>
+                    <div class="preset-slot" data-slot="2">2</div>
+                    <div class="preset-slot" data-slot="3">3</div>
+                    <div class="preset-slot" data-slot="4">4</div>
+                    <div class="preset-slot" data-slot="5">5</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tooltip" id="tooltip"></div>
+    </div>
+
+    <script>
+        // App State
+        const appState = {
+            deckA: {
+                frequency: 88.5,
+                mode: 'fm',
+                autoScan: false,
+                detailGrid: false,
+                impedance: { real: 50, imag: 0 },
+                vswr: 1.2
+            },
+            deckB: {
+                pitch: 440,
+                filter: 2500,
+                resonance: 0.5,
+                waveShape: 'sine',
+                monitor: false,
+                effects: true,
+                impedance: { real: 75, imag: -25 },
+                q: 2.5
+            },
+            presets: {},
+            touch: {
+                active: false,
+                startX: 0,
+                startY: 0,
+                pinching: false,
+                rotating: false
+            }
+        };
+
+        // Smith Chart Drawing
+        function drawSmithChart(canvasId, deckType) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(centerX, centerY) - 20;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Background
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Main circle
+            ctx.strokeStyle = deckType === 'a' ? '#ff6b6b' : '#4ecdc4';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Grid lines
+            ctx.strokeStyle = deckType === 'a' ? 'rgba(255, 107, 107, 0.3)' : 'rgba(78, 205, 196, 0.3)';
+            ctx.lineWidth = 1;
+            
+            // Resistance circles
+            for (let r = 0.2; r <= 5; r *= 2) {
+                const rRadius = radius / (1 + r);
+                const rCenterX = centerX + radius * r / (1 + r);
+                ctx.beginPath();
+                ctx.arc(rCenterX, centerY, rRadius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            // Reactance arcs
+            for (let x = -5; x <= 5; x += 0.5) {
+                if (x === 0) continue;
+                const xRadius = radius / Math.abs(x);
+                const xCenterY = centerY - radius / x;
+                ctx.beginPath();
+                ctx.arc(centerX + radius, xCenterY, xRadius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            // Center lines
+            ctx.strokeStyle = deckType === 'a' ? '#ff6b6b' : '#4ecdc4';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(centerX - radius, centerY);
+            ctx.lineTo(centerX + radius, centerY);
+            ctx.moveTo(centerX, centerY - radius);
+            ctx.lineTo(centerX, centerY + radius);
+            ctx.stroke();
+            
+            // Labels
+            ctx.fillStyle = deckType === 'a' ? '#ff6b6b' : '#4ecdc4';
+            ctx.font = '10px Courier New';
+            ctx.fillText('0', centerX - radius - 15, centerY + 5);
+            ctx.fillText('∞', centerX + radius + 5, centerY + 5);
+            ctx.fillText('+jX', centerX + 5, centerY - radius - 5);
+            ctx.fillText('-jX', centerX + 5, centerY + radius + 15);
+        }
+
+        // Spectrum Animation
+        function updateSpectrum() {
+            const spectrumBars = document.getElementById('spectrum-a');
+            if (!spectrumBars.children.length) {
+                for (let i = 0; i < 64; i++) {
+                    const bar = document.createElement('div');
+                    bar.className = 'spectrum-bar';
+                    spectrumBars.appendChild(bar);
+                }
+            }
+            
+            Array.from(spectrumBars.children).forEach((bar, i) => {
+                const height = Math.random() * 80 + 10 + Math.sin(Date.now() * 0.001 + i * 0.1) * 20;
+                bar.style.height = height + '%';
+            });
+        }
+
+        // Waveform Drawing
+        function updateWaveform(shape) {
+            const svg = document.getElementById('waveform-b');
+            const path = svg.querySelector('path');
+            let d = '';
+            
+            switch (shape) {
+                case 'sine':
+                    d = 'M0,40 ';
+                    for (let x = 0; x <= 400; x += 10) {
+                        const y = 40 + Math.sin(x * 0.02) * 30;
+                        d += `L${x},${y} `;
+                    }
+                    break;
+                case 'saw':
+                    d = 'M0,70 L100,10 L100,70 L200,10 L200,70 L300,10 L300,70 L400,10';
+                    break;
+                case 'square':
+                    d = 'M0,10 L100,10 L100,70 L200,70 L200,10 L300,10 L300,70 L400,70';
+                    break;
+            }
+            
+            path.setAttribute('d', d);
+        }
+
+        // Touch Handlers
+        function addTouchHandlers() {
+            const markers = document.querySelectorAll('.impedance-marker');
+            
+            markers.forEach(marker => {
+                marker.addEventListener('mousedown', startDrag);
+                marker.addEventListener('touchstart', startDrag);
+                
+                function startDrag(e) {
+                    e.preventDefault();
+                    const rect = marker.parentElement.getBoundingClientRect();
+                    const isTouch = e.type === 'touchstart';
+                    const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+                    const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+                    
+                    appState.touch.active = true;
+                    appState.touch.startX = clientX - rect.left;
+                    appState.touch.startY = clientY - rect.top;
+                    
+                    const mousemove = isTouch ? 'touchmove' : 'mousemove';
+                    const mouseup = isTouch ? 'touchend' : 'mouseup';
+                    
+                    function drag(e) {
+                        if (!appState.touch.active) return;
+                        
+                        const moveClientX = isTouch ? e.touches[0].clientX : e.clientX;
+                        const moveClientY = isTouch ? e.touches[0].clientY : e.clientY;
+                        const newX = moveClientX - rect.left;
+                        const newY = moveClientY - rect.top;
+                        
+                        const centerX = rect.width / 2;
+                        const centerY = rect.height / 2;
+                        const radius = Math.min(centerX, centerY) - 20;
+                        
+                        const dx = newX - centerX;
+                        const dy = newY - centerY;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance <= radius) {
+                            marker.style.left = (newX / rect.width * 100) + '%';
+                            marker.style.top = (newY / rect.height * 100) + '%';
+                            
+                            // Update impedance values
+                            const real = 50 * (1 + dx / radius);
+                            const imag = 50 * (dy / radius);
+                            
+                            if (marker.id === 'marker-a') {
+                                appState.deckA.impedance = { real, imag };
+                                updateVSWR('a');
+                            } else {
+                                appState.deckB.impedance = { real, imag };
+                                updateParameters('b');
+                            }
+                        }
+                    }
+                    
+                    function stopDrag() {
+                        appState.touch.active = false;
+                        document.removeEventListener(mousemove, drag);
+                        document.removeEventListener(mouseup, stopDrag);
+                    }
+                    
+                    document.addEventListener(mousemove, drag);
+                    document.addEventListener(mouseup, stopDrag);
+                }
+            });
+        }
+
+        // Control Handlers
+        function addControlHandlers() {
+            // Toggle switches
+            document.querySelectorAll('.toggle-switch').forEach(toggle => {
+                toggle.addEventListener('click', () => {
+                    toggle.classList.toggle('active');
+                    
+                    if (toggle.id === 'grid-toggle-a') {
+                        appState.deckA.detailGrid = toggle.classList.contains('active');
+                        document.getElementById('grid-a').classList.toggle('detailed', appState.deckA.detailGrid);
+                    }
+                });
+            });
+            
+            // Mode buttons
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const group = btn.parentElement;
+                    group.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    if (btn.dataset.mode) {
+                        appState.deckA.mode = btn.dataset.mode;
+                    }
+                    
+                    if (btn.dataset.wave) {
+                        appState.deckB.waveShape = btn.dataset.wave;
+                        updateWaveform(btn.dataset.wave);
+                    }
+                });
+            });
+            
+            // Preset slots
+            document.querySelectorAll('.preset-slot').forEach(slot => {
+                slot.addEventListener('click', () => {
+                    const slotNum = slot.dataset.slot;
+                    if (slot.classList.contains('filled')) {
+                        loadPreset(slotNum);
+                    } else {
+                        savePreset(slotNum);
+                        slot.classList.add('filled');
+                    }
+                });
+            });
+        }
+
+        // Parameter Updates
+        function updateVSWR(deck) {
+            const impedance = appState[`deck${deck.toUpperCase()}`].impedance;
+            const vswr = Math.max(impedance.real / 50, 50 / impedance.real);
+            appState[`deck${deck.toUpperCase()}`].vswr = vswr;
+            document.getElementById(`vswr-${deck}`).textContent = `VSWR: ${vswr.toFixed(1)}:1`;
+        }
+
+        function updateParameters(deck) {
+            if (deck === 'b') {
+                const impedance = appState.deckB.impedance;
+                const distance = Math.sqrt(impedance.real * impedance.real + impedance.imag * impedance.imag);
+                appState.deckB.q = Math.max(0.1, distance / 50);
+                document.getElementById('vswr-b').textContent = `Q: ${appState.deckB.q.toFixed(1)}`;
+            }
+        }
+
+        // Preset Management
+        function savePreset(slot) {
+            appState.presets[slot] = {
+                deckA: { ...appState.deckA },
+                deckB: { ...appState.deckB }
+            };
+            
+            // Simulate haptic feedback with visual feedback
+            const slotElement = document.querySelector(`[data-slot="${slot}"]`);
+            slotElement.style.transform = 'scale(1.2)';
+            setTimeout(() => slotElement.style.transform = 'scale(1)', 150);
+        }
+
+        function loadPreset(slot) {
+            if (appState.presets[slot]) {
+                Object.assign(appState.deckA, appState.presets[slot].deckA);
+                Object.assign(appState.deckB, appState.presets[slot].deckB);
+                updateUI();
+            }
+        }
+
+        function updateUI() {
+            // Update frequency display
+            document.getElementById('freq-display-a').textContent = `${appState.deckA.frequency} MHz`;
+            document.getElementById('pitch-display').textContent = `${appState.deckB.pitch} Hz`;
+            document.getElementById('filter-display').textContent = `${(appState.deckB.filter / 1000).toFixed(1)} kHz`;
+            document.getElementById('resonance-display').textContent = appState.deckB.resonance.toFixed(1);
+            
+            // Update waveform
+            updateWaveform(appState.deckB.waveShape);
+        }
+
+        // Animation Loop
+        function animate() {
+            updateSpectrum();
+            
+            // Animate reflection markers
+            const time = Date.now() * 0.001;
+            const reflectionA = document.getElementById('reflection-a');
+            const reflectionB = document.getElementById('reflection-b');
+            
+            if (reflectionA) {
+                const angle = time * 0.5;
+                const x = 50 + Math.cos(angle) * 20;
+                const y = 50 + Math.sin(angle) * 20;
+                reflectionA.style.left = x + '%';
+                reflectionA.style.top = y + '%';
+            }
+            
+            requestAnimationFrame(animate);
+        }
+
+        // Tooltip System
+        function setupTooltips() {
+            const tooltip = document.getElementById('tooltip');
+            const elements = document.querySelectorAll('[data-tooltip]');
+            
+            elements.forEach(el => {
+                el.addEventListener('mouseenter', (e) => showTooltip(e, el.dataset.tooltip));
+                el.addEventListener('mouseleave', hideTooltip);
+                el.addEventListener('mousemove', moveTooltip);
+            });
+            
+            function showTooltip(e, text) {
+                tooltip.textContent = text;
+                tooltip.classList.add('visible');
+                moveTooltip(e);
+            }
+            
+            function hideTooltip() {
+                tooltip.classList.remove('visible');
+            }
+            
+            function moveTooltip(e) {
+                tooltip.style.left = (e.clientX + 10) + 'px';
+                tooltip.style.top = (e.clientY - 30) + 'px';
+            }
+        }
+
+        // Multi-touch Gesture Support
+        function setupGestures() {
+            const smithCharts = document.querySelectorAll('.smith-chart');
+            
+            smithCharts.forEach(canvas => {
+                let touches = [];
+                let initialDistance = 0;
+                let initialAngle = 0;
+                
+                canvas.addEventListener('touchstart', handleTouchStart);
+                canvas.addEventListener('touchmove', handleTouchMove);
+                canvas.addEventListener('touchend', handleTouchEnd);
+                
+                function handleTouchStart(e) {
+                    e.preventDefault();
+                    touches = Array.from(e.touches);
+                    
+                    if (touches.length === 2) {
+                        initialDistance = getDistance(touches[0], touches[1]);
+                        initialAngle = getAngle(touches[0], touches[1]);
+                        appState.touch.pinching = true;
+                        appState.touch.rotating = true;
+                    }
+                }
+                
+                function handleTouchMove(e) {
+                    e.preventDefault();
+                    touches = Array.from(e.touches);
+                    
+                    if (touches.length === 2 && (appState.touch.pinching || appState.touch.rotating)) {
+                        const currentDistance = getDistance(touches[0], touches[1]);
+                        const currentAngle = getAngle(touches[0], touches[1]);
+                        
+                        if (appState.touch.pinching) {
+                            const scale = currentDistance / initialDistance;
+                            handlePinchZoom(canvas, scale);
+                        }
+                        
+                        if (appState.touch.rotating) {
+                            const rotation = currentAngle - initialAngle;
+                            handleRotation(canvas, rotation);
+                        }
+                    }
+                }
+                
+                function handleTouchEnd(e) {
+                    if (e.touches.length < 2) {
+                        appState.touch.pinching = false;
+                        appState.touch.rotating = false;
+                    }
+                }
+                
+                function getDistance(touch1, touch2) {
+                    const dx = touch1.clientX - touch2.clientX;
+                    const dy = touch1.clientY - touch2.clientY;
+                    return Math.sqrt(dx * dx + dy * dy);
+                }
+                
+                function getAngle(touch1, touch2) {
+                    return Math.atan2(touch2.clientY - touch1.clientY, touch2.clientX - touch1.clientX);
+                }
+                
+                function handlePinchZoom(canvas, scale) {
+                    // Zoom spectrum display
+                    const spectrum = canvas.parentElement.querySelector('.spectrum-display');
+                    if (spectrum) {
+                        const currentScale = parseFloat(spectrum.dataset.scale || '1');
+                        const newScale = Math.max(0.5, Math.min(3, currentScale * scale));
+                        spectrum.style.transform = `scaleY(${newScale})`;
+                        spectrum.dataset.scale = newScale;
+                    }
+                }
+                
+                function handleRotation(canvas, rotation) {
+                    // Phase shift effect
+                    const deckType = canvas.id.includes('a') ? 'a' : 'b';
+                    const marker = document.getElementById(`marker-${deckType}`);
+                    
+                    if (marker) {
+                        const rect = canvas.getBoundingClientRect();
+                        const centerX = rect.width / 2;
+                        const centerY = rect.height / 2;
+                        const currentX = parseFloat(marker.style.left) / 100 * rect.width;
+                        const currentY = parseFloat(marker.style.top) / 100 * rect.height;
+                        
+                        const dx = currentX - centerX;
+                        const dy = currentY - centerY;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        const currentAngle = Math.atan2(dy, dx);
+                        const newAngle = currentAngle + rotation * 0.1;
+                        
+                        const newX = centerX + distance * Math.cos(newAngle);
+                        const newY = centerY + distance * Math.sin(newAngle);
+                        
+                        marker.style.left = (newX / rect.width * 100) + '%';
+                        marker.style.top = (newY / rect.height * 100) + '%';
+                    }
+                }
+            });
+        }
+
+        // Frequency Scanning
+        function startAutoScan() {
+            if (appState.deckA.autoScan) {
+                const bands = [88.1, 89.7, 91.5, 93.9, 96.5, 99.1, 101.7, 104.3, 107.9];
+                let currentIndex = 0;
+                
+                const scanInterval = setInterval(() => {
+                    if (!appState.deckA.autoScan) {
+                        clearInterval(scanInterval);
+                        return;
+                    }
+                    
+                    appState.deckA.frequency = bands[currentIndex];
+                    document.getElementById('freq-display-a').textContent = `${appState.deckA.frequency} MHz`;
+                    
+                    // Visual feedback
+                    const freqSlider = document.getElementById('freq-slider-a');
+                    freqSlider.style.background = `linear-gradient(to right, #ff6b6b ${(currentIndex / bands.length) * 100}%, #333 0%)`;
+                    
+                    currentIndex = (currentIndex + 1) % bands.length;
+                }, 2000);
+            }
+        }
+
+        // Audio Context Setup (Simulated)
+        function initAudioContext() {
+            // Simulated audio parameters that would connect to Web Audio API
+            const audioParams = {
+                oscillator: null,
+                filter: null,
+                reverb: null,
+                delay: null,
+                distortion: null
+            };
+            
+            // Visual feedback for audio changes
+            document.addEventListener('input', (e) => {
+                if (e.target.classList.contains('frequency-slider')) {
+                    const slider = e.target;
+                    const rect = slider.getBoundingClientRect();
+                    const percent = ((e.clientX - rect.left) / rect.width) * 100;
+                    
+                    // Visual slider update
+                    slider.style.background = `linear-gradient(to right, #00ff88 ${percent}%, #333 0%)`;
+                    
+                    // Parameter updates based on slider
+                    if (slider.id === 'pitch-slider') {
+                        appState.deckB.pitch = 80 + (percent / 100) * 800;
+                        document.getElementById('pitch-display').textContent = `${Math.round(appState.deckB.pitch)} Hz`;
+                    }
+                }
+            });
+        }
+
+        // Responsive Layout Handler
+        function handleResize() {
+            const decks = document.querySelectorAll('.deck');
+            const container = document.querySelector('.decks-container');
+            
+            if (window.innerWidth < 768) {
+                // Mobile: Stack vertically
+                container.style.flexDirection = 'column';
+                decks.forEach(deck => {
+                    deck.style.minHeight = '500px';
+                });
+            } else {
+                // Desktop: Side by side
+                container.style.flexDirection = 'row';
+                decks.forEach(deck => {
+                    deck.style.minHeight = 'auto';
+                });
+            }
+            
+            // Redraw Smith charts with new dimensions
+            setTimeout(() => {
+                drawSmithChart('smith-a', 'a');
+                drawSmithChart('smith-b', 'b');
+            }, 100);
+        }
+
+        // Sonification Effects
+        function triggerSonification(type, intensity) {
+            // Visual representation of audio feedback
+            const effect = document.createElement('div');
+            effect.style.position = 'fixed';
+            effect.style.width = '20px';
+            effect.style.height = '20px';
+            effect.style.borderRadius = '50%';
+            effect.style.background = type === 'vswr' ? '#ff6b6b' : '#4ecdc4';
+            effect.style.left = Math.random() * window.innerWidth + 'px';
+            effect.style.top = Math.random() * window.innerHeight + 'px';
+            effect.style.pointerEvents = 'none';
+            effect.style.zIndex = '9999';
+            effect.style.opacity = intensity;
+            
+            document.body.appendChild(effect);
+            
+            // Animate and remove
+            effect.style.transition = 'all 1s ease-out';
+            effect.style.transform = 'scale(3)';
+            effect.style.opacity = '0';
+            
+            setTimeout(() => {
+                if (effect.parentNode) {
+                    effect.parentNode.removeChild(effect);
+                }
+            }, 1000);
+        }
+
+        // State Sharing
+        function generateShareableLink() {
+            const state = btoa(JSON.stringify({
+                deckA: appState.deckA,
+                deckB: appState.deckB
+            }));
+            
+            const url = `${window.location.origin}${window.location.pathname}?state=${state}`;
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: 'RF Audio Explorer State',
+                    url: url
+                });
+            } else {
+                navigator.clipboard.writeText(url).then(() => {
+                    // Visual feedback
+                    const feedback = document.createElement('div');
+                    feedback.textContent = 'Link copied!';
+                    feedback.style.position = 'fixed';
+                    feedback.style.top = '20px';
+                    feedback.style.right = '20px';
+                    feedback.style.background = '#00ff88';
+                    feedback.style.color = '#000';
+                    feedback.style.padding = '10px 20px';
+                    feedback.style.borderRadius = '5px';
+                    feedback.style.zIndex = '10000';
+                    
+                    document.body.appendChild(feedback);
+                    setTimeout(() => feedback.remove(), 3000);
+                });
+            }
+        }
+
+        // Load State from URL
+        function loadStateFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            const stateParam = params.get('state');
+            
+            if (stateParam) {
+                try {
+                    const state = JSON.parse(atob(stateParam));
+                    Object.assign(appState.deckA, state.deckA);
+                    Object.assign(appState.deckB, state.deckB);
+                    updateUI();
+                } catch (e) {
+                    console.warn('Invalid state parameter in URL');
+                }
+            }
+        }
+
+        // Initialize App
+        function init() {
+            // Draw initial Smith charts
+            drawSmithChart('smith-a', 'a');
+            drawSmithChart('smith-b', 'b');
+            
+            // Setup event handlers
+            addTouchHandlers();
+            addControlHandlers();
+            setupTooltips();
+            setupGestures();
+            
+            // Initialize audio context
+            initAudioContext();
+            
+            // Setup responsive behavior
+            window.addEventListener('resize', handleResize);
+            handleResize();
+            
+            // Load state from URL if present
+            loadStateFromURL();
+            
+            // Start animation loop
+            animate();
+            
+            // Initial UI update
+            updateUI();
+            updateWaveform('sine');
+            
+            // Setup auto-scan toggle
+            document.getElementById('autoscan-a').addEventListener('click', function() {
+                appState.deckA.autoScan = this.classList.contains('active');
+                if (appState.deckA.autoScan) {
+                    startAutoScan();
+                }
+            });
+            
+            // VSWR monitoring
+            setInterval(() => {
+                if (appState.deckA.vswr > 2.0) {
+                    triggerSonification('vswr', 0.8);
+                }
+                if (appState.deckB.q > 3.0) {
+                    triggerSonification('resonance', 0.6);
+                }
+            }, 3000);
+            
+            // Add keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.key === ' ') {
+                    e.preventDefault();
+                    document.getElementById('autoscan-a').click();
+                }
+                if (e.key >= '1' && e.key <= '5') {
+                    const slot = document.querySelector(`[data-slot="${e.key}"]`);
+                    if (slot) slot.click();
+                }
+                if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    generateShareableLink();
+                }
+            });
+        }
+
+        // Start the app
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

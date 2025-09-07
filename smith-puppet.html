@@ -1,0 +1,2306 @@
+<!DOCTYPE html>
+ <html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Smith Chart Sonifier</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+
+        :root {
+            --neon-blue: #00e5ff;
+            --neon-green: #00ff99;
+            --neon-red: #ff3366;
+            --neon-purple: #cc33ff;
+            --dark-background: #0d0d1a;
+            --control-bg: rgba(0, 0, 0, 0.7); /* Slightly darker for better contrast */
+            --text-color: #eee;
+            --button-text-color: var(--dark-background); /* Used for text on active colored buttons */
+        }
+
+        /* Version stamp */
+        #sgStamp{position:fixed;left:12px;top:8px;z-index:10000;background:rgba(0,0,0,.55);border:1px solid rgba(0,229,255,.35);border-radius:999px;padding:4px 10px;color:#8ff;font:12px/1.2 'Space Mono', monospace;pointer-events:none}
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Space Mono', monospace;
+            background-color: var(--dark-background);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        #smithChartCanvas {
+            flex-grow: 1; /* Takes all available vertical space */
+            background-color: var(--dark-background);
+            cursor: crosshair;
+            touch-action: none; /* Prevent browser touch actions */
+            min-height: 200px; /* Ensure canvas has a minimum height */
+        }
+
+        #controls-container { /* New container for all bottom controls */
+            position: relative; /* Relative to flow, or absolute if needed */
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--control-bg);
+            padding: 10px;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.3);
+            z-index: 100;
+            display: flex;
+            flex-direction: column; /* Stack shareUrl and global-controls vertically */
+            align-items: center; /* Center contents horizontally */
+            gap: 10px;
+            flex-shrink: 0; /* Prevent container from shrinking */
+        }
+
+        #global-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); /* Responsive columns */
+            gap: 15px;
+            width: 100%;
+            max-width: 1000px; /* Limit max width for desktop */
+            justify-items: center; /* Center items within grid cells */
+            padding-bottom: 5px; /* Space before action buttons */
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .control-group label {
+            font-size: 0.9em;
+            color: var(--neon-green);
+            white-space: nowrap; /* Prevent label from wrapping */
+        }
+
+        .control-group input[type="range"] {
+            width: 140px;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 8px;
+            background: rgba(0, 229, 255, 0.2);
+            outline: none;
+            border-radius: 4px;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--neon-blue);
+        }
+
+        .control-group input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--neon-blue);
+        }
+
+        #action-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 5px;
+            flex-wrap: wrap; /* Allow buttons to wrap on small screens */
+            justify-content: center;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        /* Unified Pill Button Styling (default/inactive) */
+        .pill-btn{
+          background:#0b1d1d;
+          border:1px solid var(--neon-blue);
+          color:#e5faff;
+          border-radius:999px;
+          padding:10px 14px;
+          cursor:pointer;
+          box-shadow:0 0 10px rgba(0,229,255,.35);
+          transition:background .15s ease, box-shadow .15s ease, transform .05s ease, color .15s ease, border-color .15s ease;
+        }
+        .pill-btn:hover{
+          box-shadow:0 0 12px rgba(0,229,255,.5);
+        }
+        .pill-btn:active{
+          transform: translateY(1px);
+        }
+
+        /* Listen Pills - Active states, using the specific `listen-active` class */
+        #listenMix.listen-active { /* Mix is main blue */
+          background: var(--neon-blue);
+          color: var(--dark-background);
+          border-color: var(--neon-blue);
+          box-shadow: 0 0 15px var(--neon-blue);
+        }
+        #listenRadio.listen-active { /* Radio is green */
+          background: var(--neon-green);
+          color: var(--dark-background);
+          border-color: var(--neon-green);
+          box-shadow: 0 0 15px var(--neon-green);
+        }
+        #listenSynth.listen-active { /* Synth is purple */
+          background: var(--neon-purple);
+          color: var(--dark-background);
+          border-color: var(--neon-purple);
+          box-shadow: 0 0 15px var(--neon-purple);
+        }
+
+        /* Mic Input Toggle - Active state */
+        #micInputToggle.active { /* Mic points are red */
+          background: var(--neon-red);
+          color: var(--dark-background);
+          border-color: var(--neon-red);
+          box-shadow: 0 0 15px var(--neon-red);
+        }
+
+        /* Learning Mode Toggle - Active state */
+        #learningModeToggle.active { /* Learning mode is chart-wide, use main blue */
+          background: var(--neon-blue);
+          color: var(--dark-background);
+          border-color: var(--neon-blue);
+          box-shadow: 0 0 15px var(--neon-blue);
+        }
+        /* Puppet Mode Toggle - Active state */
+        #puppetToggle.active { /* Puppet mode is spectral drive, use main blue */
+            background: var(--neon-blue);
+            color: var(--dark-background);
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 15px var(--neon-blue);
+        }
+        /* Vocoder Toggle - Active state */
+        #vocoderToggle.active { /* Vocoder is a vocal effect, use purple */
+            background: var(--neon-purple);
+            color: var(--dark-background);
+            border-color: var(--neon-purple);
+            box-shadow: 0 0 15px var(--neon-purple);
+        }
+
+        /* Record Toggle - Recording state */
+        #recordToggle.recording { /* Recording is red */
+          background: var(--neon-red);
+          color: var(--dark-background);
+          border-color: var(--neon-red);
+          box-shadow: 0 0 15px var(--neon-red);
+        }
+
+
+        #learningModeOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            color: var(--text-color);
+            display: none; /* Hidden by default */
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 200;
+            font-size: 1.2em;
+            text-align: center;
+            padding: 20px;
+        }
+
+        #learningModeOverlay.active {
+            display: flex;
+        }
+
+        #learningModeContent {
+            background: rgba(0, 0, 0, 0.85);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 25px var(--neon-blue);
+            max-width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        #learningModeContent h2 {
+            color: var(--neon-blue);
+            margin-top: 0;
+        }
+
+        #closeLearningMode {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: var(--neon-red);
+            font-size: 1.5em;
+            cursor: pointer;
+        }
+
+        #learningModeContent button {
+            background: var(--neon-purple);
+            color: var(--text-color);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 0 8px rgba(204, 51, 255, 0.5);
+            margin: 5px; /* Add margin for spacing */
+        }
+        #learningModeContent button:hover {
+            background: #e066ff;
+            box-shadow: 0 0 12px #e066ff;
+        }
+
+        @media (max-width: 768px) {
+            #controls-container {
+                padding: 8px;
+                gap: 8px;
+            }
+            #global-controls {
+                grid-template-columns: repeat(2, 1fr); /* Two columns on mobile */
+                gap: 10px;
+            }
+            .control-group input[type="range"] {
+                width: 100px;
+            }
+            #action-buttons {
+                gap: 10px;
+                flex-direction: column; /* Stack action buttons on mobile */
+                max-width: 300px; /* Limit width */
+            }
+            #action-buttons button {
+                max-width: none; /* Allow buttons to take full width */
+            }
+            #learningModeContent {
+                font-size: 1em;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="smithChartCanvas"></canvas>
+
+    <!-- Quick action glyph buttons -->
+    <div id="quickButtons" style="position:fixed;top:8px;right:10px;z-index:10001;display:flex;gap:6px;align-items:center">
+      <button id="btnFullscreen" aria-label="Toggle Fullscreen" title="Fullscreen" style="background:rgba(0,0,0,.45);border:1px solid rgba(0,229,255,.35);color:#8ff;border-radius:10px;padding:6px 8px;font:16px/1 'Space Mono', monospace;cursor:pointer;box-shadow:0 0 8px rgba(0,229,255,.25)">⛶</button>
+      <button id="btnToggleMenu" aria-label="Show/Hide Menu" title="Show/Hide Menu" style="background:rgba(0,0,0,.45);border:1px solid rgba(0,229,255,.35);color:#8ff;border-radius:10px;padding:6px 8px;font:16px/1 'Space Mono', monospace;cursor:pointer;box-shadow:0 0 8px rgba(0,229,255,.25)">☰</button>
+    </div>
+
+    <div id="sgStamp">Smith Graph • ai_studio_code (92).html • v0.3.0</div>
+
+    <div id="controls-container">
+        <!-- Removed: Share URL Input and Copy Button -->
+
+    <!-- Listen Controls -->
+    <div id="vizBar" style="position:static;display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin:6px 0 10px 0;pointer-events:auto">
+      <button data-listen="mix"   id="listenMix"   class="pill-btn">Mix</button>
+      <button data-listen="radio" id="listenRadio" class="pill-btn">Radio</button>
+      <button data-listen="synth" id="listenSynth" class="pill-btn">Synth</button>
+      <span style="width:8px"></span>
+      <button id="autoMatch"      class="pill-btn">Auto Match</button>
+      <label style="display:flex;gap:6px;align-items:center;color:#8ff;margin-left:4px;font:12px 'Space Mono', monospace">
+        <input type="checkbox" id="followToggle"> Follow
+      </label>
+    </div>
+
+        <!-- Prominent Radio Bar -->
+        <div id="radioBar" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;width:100%;max-width:1000px">
+            <label style="color:var(--neon-green)">Radio • <span id="radioStatus">Stopped</span></label>
+            <select id="radioSource" style="min-width:220px;background:rgba(0,0,0,.5);border:1px solid var(--neon-blue);color:var(--text-color);padding:6px 8px;border-radius:4px">
+                <option value="off">Off</option>
+                <option value="https://ice4.somafm.com/groovesalad-128-mp3">SomaFM Groove Salad</option>
+                <option value="https://streams.ilovemusic.de/iloveradio1.mp3">I Love Radio</option>
+                <option value="https://stream.live.vc.bbcmedia.co.uk/bbc_radio_one">BBC R1 (may block CORS)</option>
+                <option value="custom-url">Add Custom Stream URL...</option>
+            </select>
+            <div id="customUrlInputContainer" style="display:none; gap: 5px; align-items: center;">
+                <input type="text" id="dynamicRadioUrl" placeholder="Enter stream URL" style="flex:1;min-width:150px;max-width:300px;background:rgba(0,0,0,.5);border:1px solid var(--neon-blue);color:var(--text-color);padding:6px 8px;border-radius:4px">
+                <button id="loadCustomRadioBtn" class="pill-btn" style="padding: 6px 12px; font-size: 0.8em; box-shadow:none; border-color:var(--neon-green)">Load</button>
+            </div>
+            <span id="radioNow" style="font-size:.9em;color:var(--neon-blue);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis">—</span>
+        </div>
+
+        <div id="global-controls">
+            <div class="control-group">
+                <label for="reverbFeedback">Line Length (s): <span id="reverbFeedbackValue">0.5</span></label>
+                <input type="range" id="reverbFeedback" min="0" max="2" value="0.5" step="0.01">
+            </div>
+            <div class="control-group">
+                <label for="reverbWetDry">Reflectivity: <span id="reverbWetDryValue">0.3</span></label>
+                <input type="range" id="reverbWetDry" min="0" max="1" value="0.3" step="0.01">
+            </div>
+            <div class="control-group">
+                <label for="z0">Z₀ (Ω): <span id="z0Value">50</span></label>
+                <input type="range" id="z0" min="10" max="600" value="50" step="1">
+            </div>
+            <div class="control-group">
+                <label for="baseFreq">Base Freq (Hz): <span id="baseFreqValue">440</span></label>
+                <input type="range" id="baseFreq" min="50" max="1000" value="440" step="1">
+            </div>
+            <div class="control-group">
+                <label for="baseCutoff">Base Cutoff (Hz): <span id="baseCutoffValue">2000</span></label>
+                <input type="range" id="baseCutoff" min="100" max="8000" value="2000" step="10">
+            </div>
+            <div class="control-group">
+                <label for="inputGain">Mic Gain: <span id="inputGainValue">0.5</span></label>
+                <input type="range" id="inputGain" min="0" max="1" value="0.5" step="0.01">
+            </div>
+            <div class="control-group">
+                <label for="blendMode">Blend Mode</label>
+                <select id="blendMode" style="width:160px;background:rgba(0,0,0,.5);border:1px solid var(--neon-blue);color:var(--text-color);padding:4px 6px;border-radius:4px">
+                    <option value="crossfade">Crossfade</option>
+                    <option value="multiply">Multiply (AM)</option>
+                    <option value="screen">Screen (Sum)</option>
+                    <option value="difference">Difference</option>
+                    <option value="duck">Sidechain Duck</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label for="blendAmount">Blend Amount: <span id="blendAmountValue">0.40</span></label>
+                <input type="range" id="blendAmount" min="0" max="1" value="0.4" step="0.01">
+            </div>
+            
+        </div>
+
+        <div id="action-buttons">
+            <button id="micInputToggle" class="pill-btn">Mic Input OFF</button>
+            <button id="learningModeToggle" class="pill-btn">Learning Mode OFF</button>
+            <button id="recordToggle" class="pill-btn">Record</button>
+            <!-- Add two buttons to your action bar -->
+            <button id="puppetToggle" class="pill-btn">Puppet Mode OFF</button>
+            <button id="vocoderToggle" class="pill-btn">Vocoder OFF</button>
+            <select id="vocoderBands" style="background:rgba(0,0,0,.5);border:1px solid var(--neon-blue);color:var(--text-color);padding:6px 8px;border-radius:999px">
+                <option value="16">16 bands</option>
+                <option value="24" selected>24 bands</option>
+                <option value="32">32 bands</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="learningModeOverlay">
+        <div id="learningModeContent">
+            <button id="closeLearningMode">×</button>
+            <h2>Learning Mode: Explore Impedance Concepts</h2>
+            <p><strong>Impedance Matching Pathways:</strong> Drag a point, then click a pathway button to see the impedance transform. The goal is to reach the center (perfect match, Γ=0, VSWR=1).</p>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; flex-wrap: wrap;">
+                <button data-path="lMatch" title="L-Match Tuner">L-Match</button>
+                <button data-path="stubTuner" title="Single-Stub Tuner">Stub Tuner</button>
+            </div>
+            <p><strong>Key Resonant Circles:</strong> Observe the effect of these areas on sound.</p>
+            <ul style="text-align: left; max-width: 400px; margin: 0 auto 20px;">
+                <li><strong>Center (Γ=0, VSWR=1):</strong> Pure tone, low amplitude.</li>
+                <li><strong>Outer Circle (|Γ|=1):</strong> Max amplitude, complex timbre, pure reactance.</li>
+                <li><strong>Constant Resistance Circles:</strong> Moving horizontally changes frequency, maintaining timbre character.</li>
+                <li><strong>Constant Reactance Arcs:</strong> Moving vertically changes timbre, maintaining frequency character.</li>
+            </ul>
+            <p><strong>Musical Sequences:</strong> Explore pre-defined impedance paths and hear their sonic journey.</p>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; flex-wrap: wrap;">
+                <button data-sequence="radialOut">Radial Out</button>
+                <button data-sequence="circleSweep">Circle Sweep</button>
+            </div>
+            <p><strong>Challenge:</strong> Can you find a path to the center that generates a pleasing musical phrase?</p>
+        </div>
+    </div>
+
+    <script>
+        // Ensure AudioContext is only created after user interaction
+        let audioContext;
+        let isAudioInitialized = false;
+
+        const canvas = document.getElementById('smithChartCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Elements
+        const controlsContainer = document.getElementById('controls-container');
+        const globalControls = document.getElementById('global-controls');
+
+        const reverbFeedbackSlider = document.getElementById('reverbFeedback');
+        const reverbFeedbackValue = document.getElementById('reverbFeedbackValue');
+        const reverbWetDrySlider = document.getElementById('reverbWetDry');
+        const reverbWetDryValue = document.getElementById('reverbWetDryValue');
+        const z0Slider = document.getElementById('z0');
+        const z0Value = document.getElementById('z0Value');
+        const baseFreqSlider = document.getElementById('baseFreq');
+        const baseFreqValue = document.getElementById('baseFreqValue');
+        const baseCutoffSlider = document.getElementById('baseCutoff');
+        const baseCutoffValue = document.getElementById('baseCutoffValue');
+        const micInputToggle = document.getElementById('micInputToggle');
+        const inputGainSlider = document.getElementById('inputGain');
+        const inputGainValue = document.getElementById('inputGainValue');
+        const learningModeToggle = document.getElementById('learningModeToggle');
+        const learningModeOverlay = document.getElementById('learningModeOverlay');
+        const closeLearningModeBtn = document.getElementById('closeLearningMode');
+        const learningModeContent = document.getElementById('learningModeContent');
+        const recordToggle = document.getElementById('recordToggle');
+        // Listen controls
+        const listenButtons = Array.from(document.querySelectorAll('#vizBar [data-listen]'));
+        // Blend UI
+        const blendModeSel = document.getElementById('blendMode');
+        const blendAmountSlider = document.getElementById('blendAmount');
+        const blendAmountValue = document.getElementById('blendAmountValue');
+        // Radio UI
+        const radioSourceSel = document.getElementById('radioSource');
+        // Removed radioUrlInput and radioPlayBtn
+        const customUrlInputContainer = document.getElementById('customUrlInputContainer');
+        const dynamicRadioUrl = document.getElementById('dynamicRadioUrl');
+        const loadCustomRadioBtn = document.getElementById('loadCustomRadioBtn');
+        const radioStatusSpan = document.getElementById('radioStatus');
+        const radioNowSpan = document.getElementById('radioNow');
+        // Local file support (injected)
+        let localFileInput = null;
+
+        // Quick buttons
+        const btnFullscreen = document.getElementById('btnFullscreen');
+        const btnToggleMenu = document.getElementById('btnToggleMenu');
+
+        // Global State
+        let Z0 = parseFloat(z0Slider.value); // Normalization impedance
+        let BASE_FREQ = parseFloat(baseFreqSlider.value); // Base oscillator frequency
+        let BASE_CUTOFF = parseFloat(baseCutoffSlider.value); // Base filter cutoff
+        let REVERB_FEEDBACK = parseFloat(reverbFeedbackSlider.value); // Delay time
+        let REVERB_WET_DRY = parseFloat(reverbWetDrySlider.value); // Delay wet/dry mix (feedback gain)
+        let INPUT_GAIN = parseFloat(inputGainSlider.value);
+
+        let smithChartRadius; // Radius of the outer circle
+        let center = { x: 0, y: 0 }; // Center of the canvas
+
+        let activePoints = new Map(); // Map touch_id to {x, y, voice}
+        let micInputEnabled = false;
+        let micStream = null;
+        let analyserNode, frequencyData, inputSource, micGainNode;
+
+        let learningModeActive = false;
+        let learningAnimation = null; // Stores current learning animation interval/timeout
+
+        let isRecording = false;
+        let mediaRecorder;
+        let recordedChunks = [];
+        let destinationStream; // For recording output
+
+        // Listen routing state
+        let listenMode = 'mix';
+        let radioSoloGain, synthSoloGain;
+        // Auto-match/follow
+        let followTimer = null;
+
+        // --- Global variables for Puppet Mode and Vocoder ---
+        let puppetOn = false;
+        let puppetTimer = null;
+        let vocoderOn = false;
+        let vocoder = null;
+        // --- End of new global variables ---
+
+        // --- Listen Mode Helpers (DEFINED BEFORE initAudio) ---
+        function applyListenRouting() {
+          if (!masterGain || !mixBus || !radioSoloGain || !synthSoloGain) return;
+          console.log('[Listen] apply', listenMode);
+          if (listenMode === 'mix') {
+            mixBus.gain.setTargetAtTime(1, audioContext.currentTime, 0.02);
+            radioSoloGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+            synthSoloGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+          } else if (listenMode === 'radio') {
+            mixBus.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+            radioSoloGain.gain.setTargetAtTime(1, audioContext.currentTime, 0.02);
+            synthSoloGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+          } else { // synth
+            mixBus.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+            radioSoloGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+            synthSoloGain.gain.setTargetAtTime(1, audioContext.currentTime, 0.02);
+          }
+          setTimeout(() => {
+            console.log('[Listen] now', listenMode, {
+              mixGain: mixBus.gain.value,
+              radioSolo: radioSoloGain.gain.value,
+              synthSolo: synthSoloGain.gain.value
+            });
+          }, 50);
+        }
+
+        async function setListenMode(mode) {
+          listenMode = mode;
+          const buttons = Array.from(document.querySelectorAll('#vizBar [data-listen]'));
+          buttons.forEach(b => {
+              // Toggling specific listen-active class for precise styling
+              b.classList.toggle('listen-active', b.dataset.listen === mode);
+              // Ensure other listen buttons lose 'listen-active'
+              if (b.dataset.listen !== mode) {
+                  b.classList.remove('listen-active');
+              }
+          });
+          try { if (audioContext?.state === 'suspended') { await audioContext.resume(); console.log('[Listen] resumed AudioContext'); } } catch {}
+          try { if (mode !== 'synth' && mediaEl && mediaEl.paused) { await mediaEl.play(); console.log('[Listen] ensured radio playing'); } } catch (e) { console.warn('[Listen] media play failed', e); }
+          console.log('[Listen] pressed', mode);
+          applyListenRouting();
+        }
+
+        // --- Audio Engine Components ---
+        let masterGain, monitorGain;
+        let delayNode, feedbackGainNode, wetGainNode, dryGainNode;
+        // Mix buses
+        let synthOutGain, radioOutGain, mixBus, limiter;
+        // Envelope follower (synth) and analyzers for visuals
+        let synthAnalyser, synthBuffer, synthMeterGain;
+        let radioAnalyser, mixAnalyser;
+        let envPrev = 0;
+        let blendMode = 'crossfade';
+        let blendAmount = 0.4;
+        // Radio chain
+        let mediaEl = null, mediaNode = null;
+        let radioFilter = null, radioPreGain = null, radioDryGain = null, radioWetGain = null, radioPanner = null;
+        let radioEnabled = false;
+        let lastGamma = { x: 0, y: 0 };
+        // Rotary rings state
+        let activeRing = null; // 'synth' | 'radio' | null
+        let ringSynthAngle = 0; // 0..2π
+        let ringRadioAngle = 0; // 0..2π
+        let ringSynthTrim = 1.0; // 0.1..1.0
+        let ringRadioTrim = 1.0; // 0.1..1.0
+        let ringSynthDetent = -1, ringRadioDetent = -1;
+        const RING_DETENTS_COARSE = 36; // 10° per detent (~2.8%)
+        const RING_DETENTS_FINE = 180; // 2° per detent (fine)
+        let ringSnapMode = 'coarse'; // 'coarse' | 'fine' | 'free'
+        // Haptics
+        function vibe(ms=8){ try{ if (navigator.vibrate) navigator.vibrate(ms); }catch{} }
+
+        // --- Envelope Follower and Blend Engine ---
+        function ensureSynthAnalyser(){
+            if (synthAnalyser) return;
+            synthAnalyser = audioContext.createAnalyser();
+            synthAnalyser.fftSize = 512;
+            synthBuffer = new Uint8Array(synthAnalyser.frequencyBinCount);
+            // Tap the synth bus BEFORE blend scaling so envelope remains strong
+            synthMeterGain = audioContext.createGain(); synthMeterGain.gain.value = 1;
+            if (synthOutGain){ try{ synthOutGain.connect(synthMeterGain); }catch{} }
+            synthMeterGain.connect(synthAnalyser);
+            // Set up additional analyzers once
+            if (!radioAnalyser){ radioAnalyser = audioContext.createAnalyser(); radioAnalyser.fftSize = 512; }
+            if (!mixAnalyser){ mixAnalyser = audioContext.createAnalyser(); mixAnalyser.fftSize = 512; }
+            try{ if (radioPanner) radioPanner.connect(radioAnalyser); }catch{}
+            try{ if (mixBus) mixBus.connect(mixAnalyser); }catch{}
+        }
+
+        function getSynthEnv(){
+            if (!synthAnalyser) return 0;
+            synthAnalyser.getByteTimeDomainData(synthBuffer);
+            // RMS of centered signal
+            let sum=0; for(let i=0;i<synthBuffer.length;i++){ const v=(synthBuffer[i]-128)/128; sum+=v*v; }
+            let rms = Math.sqrt(sum/synthBuffer.length); // 0..~1
+            // scale up a bit and apply attack/release smoothing
+            const raw = Math.min(1, rms*2.0);
+            const atk = 0.3;  // faster rise
+            const rel = 0.08; // slower fall
+            const a = raw > envPrev ? atk : rel;
+            envPrev = envPrev + a*(raw - envPrev);
+            return envPrev;
+        }
+
+        function applyBlendMode(){
+            if (!isAudioInitialized) return;
+            ensureSynthAnalyser();
+            const env = getSynthEnv();
+            const amt = blendAmount;
+            switch (blendMode){
+                case 'crossfade':{
+                    // True bus crossfade around 0.5 with trim
+                    const t = amt; // 0..1
+                    const radioLevel = ringRadioTrim * (1 - t);
+                    const synthLevel = ringSynthTrim * (0.2 + 0.8*t);
+                    if (radioPreGain) radioPreGain.gain.setTargetAtTime(radioLevel, audioContext.currentTime, 0.03);
+                    if (synthOutGain) synthOutGain.gain.setTargetAtTime(synthLevel, audioContext.currentTime, 0.03);
+                    // ambience follows crossfade to keep space
+                    radioWetGain.gain.setTargetAtTime(Math.max(0, REVERB_WET_DRY*(0.7 - 0.6*t)), audioContext.currentTime, 0.05);
+                    wetGainNode.gain.setTargetAtTime(Math.min(1, REVERB_WET_DRY*(0.6 + 0.8*t)), audioContext.currentTime, 0.05);
+                    break;}
+                case 'multiply':{
+                    // Radio carved by synth envelope — stronger curve
+                    const k = Math.pow(env, 0.6); // perceptual emphasis
+                    const lvl = (1-amt) + amt*(k);
+                    if (radioPreGain) radioPreGain.gain.setTargetAtTime(lvl*ringRadioTrim, audioContext.currentTime, 0.03);
+                    // also reduce radio wet when synth is hot to add punch
+                    if (radioWetGain) radioWetGain.gain.setTargetAtTime(REVERB_WET_DRY * (1 - 0.7*amt*k), audioContext.currentTime, 0.05);
+                    break;}
+                case 'screen':{
+                    // Additive feel: lift both buses and ambience; limiter catches peaks
+                    const lift = 1 + 1.2*amt;
+                    if (synthOutGain) synthOutGain.gain.setTargetAtTime(ringSynthTrim*lift, audioContext.currentTime, 0.05);
+                    if (radioPreGain) radioPreGain.gain.setTargetAtTime(ringRadioTrim*lift, audioContext.currentTime, 0.05);
+                    wetGainNode.gain.setTargetAtTime(Math.min(1, REVERB_WET_DRY*(0.8 + 0.8*amt)), audioContext.currentTime, 0.05);
+                    radioWetGain.gain.setTargetAtTime(Math.min(1, REVERB_WET_DRY*(0.7 + 0.9*amt)), audioContext.currentTime, 0.05);
+                    break;}
+                case 'difference':{
+                    if (!applyBlendMode.phaseFlipper && dryGainNode && mixBus){
+                        const inverter = audioContext.createGain(); inverter.gain.value = -1;
+                        try{ dryGainNode.disconnect(mixBus);}catch{}
+                        dryGainNode.connect(inverter); inverter.connect(mixBus);
+                        applyBlendMode.phaseFlipper = inverter;
+                    }
+                    // reduce radio wet to make difference more audible
+                    radioWetGain.gain.setTargetAtTime(Math.max(0, REVERB_WET_DRY*(0.4 - 0.35*amt)), audioContext.currentTime, 0.05);
+                    break;}
+                case 'duck':{
+                    // Exponential depth for obvious pump
+                    const depth = Math.pow(amt, 0.5);
+                    const duck = Math.max(0, 1 - depth*Math.pow(env, 0.6));
+                    if (radioPreGain) radioPreGain.gain.setTargetAtTime(duck*ringRadioTrim, audioContext.currentTime, 0.03);
+                    if (radioWetGain) radioWetGain.gain.setTargetAtTime(duck*REVERB_WET_DRY, audioContext.currentTime, 0.03);
+                    break;}
+            }
+        }
+
+        if (blendModeSel){
+          blendModeSel.addEventListener('change', ()=>{
+            blendMode = blendModeSel.value; 
+            if (blendMode!=='difference' && applyBlendMode.phaseFlipper && dryGainNode && mixBus){
+              try{ applyBlendMode.phaseFlipper.disconnect(); }catch{} 
+              try{ dryGainNode.disconnect(); }catch{} 
+              dryGainNode.connect(mixBus); 
+              applyBlendMode.phaseFlipper=null;
+            }
+          });
+        }
+        if (blendAmountSlider){
+          blendAmountSlider.addEventListener('input', ()=>{ 
+            blendAmount = parseFloat(blendAmountSlider.value)||0; 
+            if (blendAmountValue) blendAmountValue.textContent = blendAmount.toFixed(2); 
+          });
+          // initialize label
+          if (blendAmountValue) blendAmountValue.textContent = (parseFloat(blendAmountSlider.value)||0).toFixed(2);
+        }
+
+        // Voice Object for polyphony
+        class Voice {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+
+                this.osc = audioContext.createOscillator();
+                this.filter = audioContext.createBiquadFilter();
+                this.gain = audioContext.createGain();
+
+                // Connect nodes
+                this.osc.connect(this.filter);
+                this.filter.connect(this.gain);
+                this.gain.connect(synthOutGain); // route to synth bus (wet/dry handled upstream)
+
+                // Initial parameters (will be updated immediately by updateParameters)
+                this.osc.type = 'sine';
+                this.filter.type = 'lowpass';
+                this.osc.start();
+
+                this.updateParameters(x, y);
+            }
+
+            // Updates audio parameters based on normalized Smith Chart coordinates
+            updateParameters(normX, normY) {
+                const r = Math.sqrt(normX * normX + normY * normY); // Distance from center (|Γ|)
+                const angle = Math.atan2(normY, normX); // Angle (∠Γ)
+
+                // Calculate Reflection Coefficient Gamma (Γ)
+                const gamma = { real: normX, imag: normY };
+
+                // Calculate Normalized Impedance (Z_norm) from Gamma
+                const denom = (1 - gamma.real) * (1 - gamma.real) + gamma.imag * gamma.imag;
+                const Z_norm = {
+                    real: ((1 + gamma.real) * (1 - gamma.real) + gamma.imag * gamma.imag) / denom,
+                    imag: (gamma.imag * (1 - gamma.real) + gamma.imag * (1 + gamma.real)) / denom
+                };
+
+                // Z_real, Z_imag are calculated but not directly used for audio parameters.
+                // const Z_real = Z_norm.real * Z0;
+                // const Z_imag = Z_norm.imag * Z0;
+
+                // VSWR = (1 + |Γ|) / (1 - |Γ|)
+                // const VSWR = (1 + r) / (1 - r); // Not used directly in current mapping but could be
+
+                // --- Mapping to Audio Parameters ---
+                // Pitch (Oscillator Frequency): Vertical axis (Y)
+                // From -1 to 1 for full range. Y=0 is BASE_FREQ
+                const pitchRange = 2; // e.g., 2 octaves up/down
+                let freq = BASE_FREQ * Math.pow(2, normY * pitchRange);
+                this.osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+
+                // Filter Cutoff Frequency: Horizontal axis (X)
+                // From -1 to 1 for full range. X=0 is BASE_CUTOFF
+                const cutoffRange = 0.8; // How much range to vary the cutoff (e.g., 80% of base)
+                let cutoff = BASE_CUTOFF * (1 + normX * cutoffRange);
+                cutoff = Math.max(50, Math.min(audioContext.sampleRate / 2, cutoff)); // Clamp
+                this.filter.frequency.setValueAtTime(cutoff, audioContext.currentTime);
+
+                // Amplitude / Gain: Distance from center (|Γ|)
+                // Closer to center (|Γ| ~ 0) -> lower amplitude, perfect match
+                // Further from center (|Γ| ~ 1) -> higher amplitude, mismatch
+                const minGain = 0.05;
+                const maxGain = 0.5;
+                let gain = minGain + r * (maxGain - minGain);
+                this.gain.gain.setValueAtTime(gain, audioContext.currentTime);
+
+                // Filter Q / Resonance Depth: Distance from center (|Γ|)
+                // Higher VSWR (further from center) -> higher Q
+                const minQ = 0.5;
+                const maxQ = 10;
+                let q = minQ + r * (maxQ - minQ);
+                this.filter.Q.setValueAtTime(q, audioContext.currentTime);
+
+                // Harmonic Timbre: Reflection Coefficient (Γ)
+                // Using a PeriodicWave to synthesize complex timbres based on Γ
+                const numHarmonics = 16;
+                const real = new Float32Array(numHarmonics + 1);
+                const imag = new Float32Array(numHarmonics + 1);
+
+                real[0] = 0; // DC offset
+                imag[0] = 0;
+
+                // Base timbre from |Γ| (magnitude)
+                // Closer to center (r=0), more sine-like (fundamental only)
+                // Further out (r=1), more complex (many harmonics)
+                const fundamentalAmplitude = 1 - r * 0.5; // Reduce fundamental as r increases
+                real[1] = fundamentalAmplitude; // Fundamental component
+
+                // Modulate other harmonics based on angle and magnitude
+                for (let i = 2; i <= numHarmonics; i++) {
+                    let amp = r * (1 / (i * i)); // Example: Inverse square law for harmonics, scaled by r
+                    let phaseShift = angle * i / Math.PI; // Shift phase based on angle and harmonic number
+
+                    real[i] = amp * Math.cos(phaseShift);
+                    imag[i] = amp * Math.sin(phaseShift);
+                }
+
+                // If |Γ| is very high, push more towards a 'square' or 'saw' like sound
+                if (r > 0.8) {
+                    for (let i = 2; i <= numHarmonics; i++) {
+                        if (i % 2 !== 0) { // Odd harmonics for square-like
+                            const additionalAmp = (r - 0.8) * (1 / i);
+                            real[i] += additionalAmp * Math.cos(angle * i / Math.PI);
+                            imag[i] += additionalAmp * Math.sin(angle * i / Math.PI);
+                        }
+                    }
+                }
+
+                const wave = audioContext.createPeriodicWave(real, imag, { disableNormalization: false });
+                this.osc.setPeriodicWave(wave);
+            }
+
+            stop() {
+                this.osc.stop();
+                this.osc.disconnect();
+                this.filter.disconnect();
+                this.gain.disconnect();
+            }
+        }
+
+        // --- Audio Initialization ---
+        function initAudio() {
+            if (isAudioInitialized) return;
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Destination for recording
+            destinationStream = audioContext.createMediaStreamDestination();
+
+            masterGain = audioContext.createGain();
+            // Limiter (soft compressor) before master
+            const compressor = audioContext.createDynamicsCompressor();
+            compressor.threshold.value = -8; compressor.knee.value = 12; compressor.ratio.value = 2; compressor.attack.value = 0.003; compressor.release.value = 0.25;
+            limiter = compressor;
+
+            mixBus = audioContext.createGain();
+            mixBus.connect(limiter);
+            limiter.connect(masterGain);
+            masterGain.gain.value = 0.5; // Overall default output level
+            // Monitor path (can be muted when mixing externally)
+            monitorGain = audioContext.createGain();
+            monitorGain.gain.value = 1.0; // monitor on by default
+            masterGain.connect(monitorGain);
+            monitorGain.connect(audioContext.destination);
+            masterGain.connect(destinationStream); // for recording
+
+            // Delay/Reverb setup (simplified feedback delay)
+            delayNode = audioContext.createDelay(2); // Max 2 seconds delay
+            feedbackGainNode = audioContext.createGain();
+            wetGainNode = audioContext.createGain();
+            dryGainNode = audioContext.createGain();
+
+            // Connect delay chain: dry path and wet (delayed) path
+            // Voices will go to synthOutGain, not straight to master
+            synthOutGain = audioContext.createGain(); synthOutGain.gain.value = 1;
+            synthOutGain.connect(wetGainNode); // wet path
+            synthOutGain.connect(dryGainNode); // dry path
+
+            dryGainNode.connect(mixBus); // Dry mix to mixBus
+            wetGainNode.connect(delayNode); // Wet sound to delay
+            delayNode.connect(feedbackGainNode); // Delay output to feedback gain
+            feedbackGainNode.connect(delayNode); // Feedback loop!
+            feedbackGainNode.connect(mixBus); // Feedback to mixBus
+
+            // Initial settings for delay
+            delayNode.delayTime.setValueAtTime(REVERB_FEEDBACK, audioContext.currentTime);
+            feedbackGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); // wet/dry acts as feedback here
+            wetGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); // amount of signal sent to delay
+            dryGainNode.gain.setValueAtTime(1 - REVERB_WET_DRY, audioContext.currentTime); // amount of signal sent direct
+
+            // --- Radio processing chain (nodes created here; source connects later) ---
+            radioFilter = audioContext.createBiquadFilter();
+            radioFilter.type = 'lowpass';
+            radioFilter.frequency.value = BASE_CUTOFF;
+            radioFilter.Q.value = 1;
+            radioPreGain = audioContext.createGain();
+            radioPreGain.gain.value = 0.6; // slightly lower baseline to avoid drowning synth
+            radioDryGain = audioContext.createGain(); radioDryGain.gain.value = 0.5;
+            radioWetGain = audioContext.createGain(); radioWetGain.gain.value = 0.25;
+            radioPanner = audioContext.createStereoPanner(); radioPanner.pan.value = 0;
+
+            // Route: radioFilter -> radioPreGain -> (radioDryGain->radioPanner->master) + (radioWetGain->delayNode)
+            radioFilter.connect(radioPreGain);
+            radioPreGain.connect(radioDryGain); radioDryGain.connect(radioPanner);
+            radioPanner.connect(mixBus);
+            radioPreGain.connect(radioWetGain); radioWetGain.connect(delayNode);
+
+            radioOutGain = audioContext.createGain(); radioOutGain.gain.value = 1; // placeholder if needed later
+
+            // Solo outputs
+            radioSoloGain = audioContext.createGain(); radioSoloGain.gain.value = 0; radioPanner.connect(radioSoloGain); radioSoloGain.connect(masterGain);
+            synthSoloGain = audioContext.createGain(); synthSoloGain.gain.value = 0; dryGainNode.connect(synthSoloGain); synthSoloGain.connect(masterGain);
+
+            isAudioInitialized = true;
+            console.log("Audio Context Initialized");
+            setListenMode('mix'); // sets routing and the pressed visual
+        }
+
+        // --- Auto Match / Follow functions ---
+        function getRadioPeakHz(){
+          try {
+            if (!radioAnalyser || !audioContext) return null;
+            const data = new Uint8Array(radioAnalyser.frequencyBinCount);
+            radioAnalyser.getByteFrequencyData(data);
+            let maxV=0,maxI=0; for(let i=0;i<data.length;i++){ if(data[i]>maxV){maxV=data[i];maxI=i;} }
+            return (maxI/data.length)*(audioContext.sampleRate/2);
+          } catch { return null; }
+        }
+
+        // --- Puppet Mode Helpers (place with other audio helpers, after getRadioPeakHz()) ---
+        // Spectral centroid + energy -> normalized Gamma (x,y)
+        function spectralFeatures(analyser){
+          if (!analyser) return null;
+          const data = new Uint8Array(analyser.frequencyBinCount);
+          analyser.getByteFrequencyData(data);
+          let num=0, den=0, sum=0;
+          for (let i=0;i<data.length;i++){
+            const mag = data[i];
+            const f = (i/data.length)*(audioContext.sampleRate/2);
+            num += f*mag; den += mag; sum += mag;
+          }
+          if (den<1) return {centroid: 0, energy: 0};
+          const centroid = num/den;                 // Hz
+          const energy = sum/(255*data.length);     // 0..1
+          return {centroid, energy};
+        }
+
+        // Map features to a point on the Smith chart
+        function featuresToGamma(feat){
+          const f = Math.max(50, Math.min(8000, feat.centroid||BASE_FREQ));
+          // map freq to x in [-1,1] around BASE_CUTOFF domain
+          const normX = Math.tanh((f-BASE_CUTOFF)/(BASE_CUTOFF*0.6));
+          // map energy to radius (0..0.95), use last angle to create inertia
+          const r = Math.min(0.95, 0.15 + 0.8*(feat.energy||0));
+          // angle follows sign of normX + small vertical bias from radio ring
+          const ang = (normX*0.8*Math.PI) + 0.12*Math.sin(ringRadioAngle*2);
+          return {x: r*Math.cos(ang), y: r*Math.sin(ang)};
+        }
+
+        function startPuppet(){
+          if (puppetTimer) return;
+          // Prefer mix analyser (combined) else radioAnalyser
+          // mixAnalyser is connected to the full mix bus, which includes radio/mic/local file
+          const ana = mixAnalyser || radioAnalyser;
+          puppetTimer = setInterval(()=>{
+            if (!ana || audioContext.state === 'suspended') return;
+            const feat = spectralFeatures(ana);
+            const g = featuresToGamma(feat);
+            lastGamma = {x:g.x, y:g.y};
+            // Ghost a learning voice to “sing” the path (quiet)
+            if (!activePoints.has('puppet') && isAudioInitialized){
+              const v = new Voice(g.x, g.y);
+              v.gain.gain.setTargetAtTime(0.15, audioContext.currentTime, 0.03);
+              activePoints.set('puppet', {x: normalizedGammaToScreen(g.x,g.y).x, y: normalizedGammaToScreen(g.x,g.y).y, voice: v});
+            } else if (activePoints.get('puppet')){
+              const {x,y} = normalizedGammaToScreen(g.x, g.y);
+              const p = activePoints.get('puppet'); p.x=x; p.y=y; p.voice.updateParameters(g.x, g.y);
+            }
+          }, 33); // ~30fps
+          console.log('Puppet Mode started');
+        }
+        function stopPuppet(){
+          if (puppetTimer){ clearInterval(puppetTimer); puppetTimer=null; }
+          if (activePoints.has('puppet')){ try{ activePoints.get('puppet').voice.stop(); }catch{} activePoints.delete('puppet'); }
+          console.log('Puppet Mode stopped');
+        }
+        // --- End of Puppet Mode Helpers ---
+
+        function autoMatchOnce(){
+          const hz = getRadioPeakHz(); if(!hz || hz<50) return;
+          const freq = Math.max(50, Math.min(1000, Math.round(hz)));
+          baseFreqSlider.value = freq; baseFreqValue.textContent = freq; BASE_FREQ = freq;
+          const cutoff = Math.max(100, Math.min(8000, Math.round(hz*3)));
+          baseCutoffSlider.value = cutoff; baseCutoffValue.textContent = cutoff; BASE_CUTOFF = cutoff;
+          activePoints.forEach(p => { const {x,y} = screenToNormalizedGamma(p.x,p.y); p.voice.updateParameters(x,y); });
+        }
+        function setFollow(on){ if(followTimer){clearInterval(followTimer);followTimer=null;} if(on){followTimer=setInterval(autoMatchOnce,2000);} }
+
+        // --- Simple Channel Vocoder (voicebox) ---
+        function buildVocoder(bands=24){
+          if (!isAudioInitialized) initAudio();
+          if (vocoder) { try{ vocoder.out.disconnect?.(); vocoder.carrierLP.disconnect?.(); vocoder.saw.stop?.(); vocoder.noise.stop?.(); vocoder.modulatorAnalyser.disconnect?.(); }catch{} vocoder=null; }
+
+          const ctx = audioContext;
+          const bandEdges = [];
+          const fmin = 120, fmax = Math.min(6000, ctx.sampleRate/2 - 200);
+          // Log spaced
+          for (let i=0;i<=bands;i++){
+            const t = i/bands;
+            bandEdges.push( fmin * Math.pow(fmax/fmin, t) );
+          }
+
+          // Carrier: mix of noise + saw
+          const carrierGain = ctx.createGain(); carrierGain.gain.value = 0.9;
+          // saw
+          const saw = ctx.createOscillator(); saw.type='sawtooth'; saw.frequency.value = BASE_FREQ;
+          const sawGain = ctx.createGain(); sawGain.gain.value = 0.35;
+          saw.connect(sawGain).connect(carrierGain); saw.start();
+
+          // noise
+          const bsz = 2*ctx.sampleRate, noiseBuf = ctx.createBuffer(1, bsz, ctx.sampleRate);
+          const ch = noiseBuf.getChannelData(0); for(let i=0;i<bsz;i++) ch[i]=Math.random()*2-1;
+          const noise = ctx.createBufferSource(); noise.buffer=noiseBuf; noise.loop=true;
+          const noiseFilter = ctx.createBiquadFilter(); noiseFilter.type='bandpass'; noiseFilter.frequency.value=1200; noiseFilter.Q.value=0.7;
+          const noiseGain = ctx.createGain(); noiseGain.gain.value = 0.65;
+          noise.connect(noiseFilter).connect(noiseGain).connect(carrierGain); noise.start();
+
+          // Small de-esser on carrier
+          const carrierLP = ctx.createBiquadFilter(); carrierLP.type='lowpass'; carrierLP.frequency.value = 8000;
+          carrierGain.connect(carrierLP);
+
+          // Modulator tap (prefer mic > radio > mix)
+          const modTap = ctx.createGain(); modTap.gain.value=1;
+          // Wire best available source into modTap
+          try{
+            if (inputSource) inputSource.connect(modTap); // Mic
+            else if (radioPanner) radioPanner.connect(modTap); // Radio/Local File
+            else mixBus.connect(modTap); // Full mix
+          }catch(e){ console.warn("Vocoder modulator connection failed, falling back:", e); mixBus.connect(modTap); }
+
+          // Dedicated analyser for the modulator's overall energy (for tickVocoder)
+          const modulatorAnalyser = ctx.createAnalyser();
+          modulatorAnalyser.fftSize = 256;
+          modulatorAnalyser.smoothingTimeConstant = 0.3; // Responsive
+          modTap.connect(modulatorAnalyser);
+
+          // Per-band analysis + control
+          const outGain = ctx.createGain(); outGain.gain.value = 0.9;
+          const bandNodes = [];
+          for (let i=0;i<bands;i++){
+            const f1 = bandEdges[i], f2 = bandEdges[i+1];
+            const fc = Math.sqrt(f1*f2);
+            const bw = f2 - f1;
+            const q = Math.max(0.707, fc / bw);
+
+            // Modulator analysis (only used for visual or a true AudioWorklet vocoder)
+            // In this lightweight setup, we use the global modulatorAnalyser for gain.
+            // The filters are still connected for the graph, but their envelope is not read per-band.
+            const mBP = ctx.createBiquadFilter(); mBP.type='bandpass'; mBP.frequency.value=fc; mBP.Q.value=q;
+            const rect = ctx.createWaveShaper();
+            rect.curve = new Float32Array([ -1,0,1 ]); // poor-man absolute value
+            const envLP = ctx.createBiquadFilter(); envLP.type='lowpass'; envLP.frequency.value= 40; // envelope smooth
+
+            modTap.connect(mBP).connect(rect).connect(envLP);
+
+            // Carrier shaping
+            const cBP = ctx.createBiquadFilter(); cBP.type='bandpass'; cBP.frequency.value=fc; cBP.Q.value=q;
+            const vca = ctx.createGain(); vca.gain.value = 0;
+
+            carrierLP.connect(cBP).connect(vca).connect(outGain);
+
+            // Tie envelope to vca -- in this lightweight version, we will use a global energy
+            bandNodes.push({envLP, vca}); // envLP is just connected for the graph, not read directly
+          }
+
+          // Send vocoder to your existing ambience bus
+          outGain.connect(wetGainNode);   // into delay/reverb
+          outGain.connect(dryGainNode);   // also dry to mix
+          // Also to synthSoloGain when in synth listen
+          outGain.connect(synthSoloGain);
+
+          vocoder = { bands: bandNodes, carrierLP, saw, noise, out: outGain, modulatorAnalyser };
+          console.log(`Vocoder built with ${bands} bands.`);
+          return vocoder;
+        }
+
+        // Update vocoder gains each frame (called from draw loop)
+        // NOTE: This is a lightweight approximation. For true per-band envelope following
+        // without an AudioWorklet, you'd need ScriptProcessorNode (deprecated/inefficient)
+        // or a custom AudioWorklet. Here, we use the modulator's overall energy to scale
+        // all vocoder bands, creating a "robot voice" effect that follows the modulator's volume.
+        function tickVocoder(){
+          if (!vocoder || !isAudioInitialized || !vocoder.modulatorAnalyser) return;
+          const t = audioContext.currentTime;
+          const tau = 0.025; // smoothing for VCA updates
+
+          const data = new Uint8Array(vocoder.modulatorAnalyser.frequencyBinCount);
+          vocoder.modulatorAnalyser.getByteFrequencyData(data);
+          let sum = 0; for(let i=0;i<data.length;i++) sum += data[i];
+          const avgEnergy = sum / data.length / 255; // 0..1 average energy
+
+          // Scale this global energy to control all VCA gains
+          const gainScale = 1.5; // Overall amplitude boost
+          const minGain = 0.005; // Ensure it's not totally silent
+          const targetGain = minGain + Math.pow(avgEnergy, 0.8) * gainScale; // Apply power curve for sensitivity
+
+          for (const b of vocoder.bands){
+            b.vca.gain.setTargetAtTime(targetGain, t, tau);
+          }
+        }
+        // --- End of Simple Channel Vocoder ---
+
+        // --- Smith Chart Drawing Functions ---
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            // Subtract height of controls-container for remaining canvas height
+            canvas.height = window.innerHeight - controlsContainer.offsetHeight;
+            smithChartRadius = Math.min(canvas.width, canvas.height) * 0.4;
+            center = { x: canvas.width / 2, y: canvas.height / 2 };
+            drawSmithChart();
+        }
+
+        function drawSmithChart() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Outer circle (|Γ|=1)
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, smithChartRadius, 0, 2 * Math.PI);
+            ctx.strokeStyle = varToRgba('--neon-blue', 0.8);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Resistance Circles (r_norm)
+            const resistanceValues = [0, 0.2, 0.5, 1, 2, 5, 10]; // Normalized resistance
+            resistanceValues.forEach(r_norm => {
+                const gammaMag = (1 - r_norm) / (1 + r_norm); // Magnitude of reflection coefficient
+                if (gammaMag < 0 || gammaMag > 1) return;
+
+                const circleCenter_x = center.x + smithChartRadius * gammaMag;
+                const circleRadius = smithChartRadius * (1 - gammaMag);
+
+                ctx.beginPath();
+                ctx.arc(circleCenter_x, center.y, circleRadius, 0, 2 * Math.PI);
+                ctx.strokeStyle = varToRgba('--neon-green', 0.2 + gammaMag * 0.4);
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                if (learningModeActive && r_norm !== 0 && r_norm !== 10) { // Avoid clutter for 0 and very high
+                    ctx.fillStyle = varToRgba('--neon-green', 0.8);
+                    ctx.font = '10px Space Mono';
+                    // Position label dynamically to avoid overlapping the line too much
+                    const labelX = circleCenter_x + circleRadius * Math.cos(Math.PI * 0.1); // Slightly off center-right
+                    const labelY = center.y + circleRadius * Math.sin(Math.PI * 0.1);
+                    ctx.fillText(`${r_norm * Z0}Ω`, labelX, labelY);
+                }
+            });
+
+            // Reactance Arcs (x_norm)
+            const reactanceValues = [0.2, 0.5, 1, 2, 5]; // Normalized reactance
+            reactanceValues.forEach(x_norm => {
+                // Inductive (upper half)
+                const cx_ind = center.x + smithChartRadius;
+                const cy_ind = center.y + smithChartRadius / x_norm;
+                const r_ind = smithChartRadius / x_norm;
+                ctx.beginPath();
+                ctx.arc(cx_ind, cy_ind, r_ind, Math.PI - Math.acos(smithChartRadius / r_ind), Math.PI);
+                ctx.strokeStyle = varToRgba('--neon-red', 0.2 + x_norm * 0.1);
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                if (learningModeActive) {
+                    ctx.fillStyle = varToRgba('--neon-red', 0.8);
+                    ctx.font = '10px Space Mono';
+                    const labelX = cx_ind + r_ind * Math.cos(Math.PI * 0.8);
+                    const labelY = cy_ind + r_ind * Math.sin(Math.PI * 0.8);
+                    ctx.fillText(`+j${x_norm * Z0}`, labelX, labelY);
+                }
+
+                // Capacitive (lower half)
+                const cx_cap = center.x + smithChartRadius;
+                const cy_cap = center.y - smithChartRadius / x_norm;
+                const r_cap = smithChartRadius / x_norm;
+                ctx.beginPath();
+                ctx.arc(cx_cap, cy_cap, r_cap, Math.PI, Math.PI + Math.acos(smithChartRadius / r_cap));
+                ctx.strokeStyle = varToRgba('--neon-purple', 0.2 + x_norm * 0.1);
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                if (learningModeActive) {
+                    ctx.fillStyle = varToRgba('--neon-purple', 0.8);
+                    ctx.font = '10px Space Mono';
+                    const labelX = cx_cap + r_cap * Math.cos(Math.PI * 1.2);
+                    const labelY = cy_cap + r_cap * Math.sin(Math.PI * 1.2);
+                    ctx.fillText(`-j${x_norm * Z0}`, labelX, labelY);
+                }
+            });
+
+            // Horizontal line (X_norm = 0)
+            ctx.beginPath();
+            ctx.moveTo(center.x - smithChartRadius, center.y);
+            ctx.lineTo(center.x + smithChartRadius, center.y);
+            ctx.strokeStyle = varToRgba('--neon-blue', 0.5);
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Center crosshair
+            ctx.beginPath();
+            ctx.moveTo(center.x - 5, center.y);
+            ctx.lineTo(center.x + 5, center.y);
+            ctx.moveTo(center.x, center.y - 5);
+            ctx.lineTo(center.x, center.y + 5);
+            ctx.strokeStyle = varToRgba('--neon-blue', 0.8);
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Rotary rings (outside edge)
+            const r1 = smithChartRadius * 1.08; // synth ring inner radius
+            const r2 = smithChartRadius * 1.16; // radio ring outer radius
+            const ringBandWidth = 14; // Approximate visual width of the active ring area
+            const r1_mid = r1 + ringBandWidth/2 - 2; // Adjusted midpoint for synth ring
+            const r2_mid = r2 - ringBandWidth/2 + 2; // Adjusted midpoint for radio ring arc
+
+
+            // Synth ring background stroke
+            ctx.beginPath(); ctx.arc(center.x, center.y, r1_mid, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-purple', 0.2); ctx.lineWidth = ringBandWidth; ctx.stroke();
+            // Synth ring filled arc (value indicator)
+            ctx.beginPath(); ctx.arc(center.x, center.y, r1_mid, 0, ringSynthAngle); ctx.strokeStyle = varToRgba('--neon-purple', 0.8); ctx.lineWidth = ringBandWidth; ctx.stroke();
+            // Synth ring outline
+            ctx.beginPath(); ctx.arc(center.x, center.y, r1, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-purple', 0.4); ctx.lineWidth = 2; ctx.stroke();
+
+
+            // Radio ring background stroke
+            ctx.beginPath(); ctx.arc(center.x, center.y, r2_mid, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-green', 0.2); ctx.lineWidth = ringBandWidth; ctx.stroke();
+            // Radio ring filled arc (value indicator)
+            ctx.beginPath(); ctx.arc(center.x, center.y, r2_mid, 0, ringRadioAngle); ctx.strokeStyle = varToRgba('--neon-green', 0.8); ctx.lineWidth = ringBandWidth; ctx.stroke();
+            // Radio ring outline
+            ctx.beginPath(); ctx.arc(center.x, center.y, r2, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-green', 0.4); ctx.lineWidth = 2; ctx.stroke();
+
+
+            // detent ticks (still drawn on outer edge of each band)
+            const tickCount = 100; // 1% minor ticks
+            const tickLen = 6;
+            ctx.lineWidth = 2;
+            for(let i=0;i<tickCount;i++){
+                const a = i * (2*Math.PI/tickCount);
+                const major10 = (i % 10 === 0); // every 10%
+                
+                // synth ring ticks (purple)
+                let x1_s = center.x + (r1 - (major10?14:tickLen)) * Math.cos(a), y1_s = center.y + (r1 - (major10?14:tickLen)) * Math.sin(a);
+                let x2_s = center.x + r1 * Math.cos(a), y2_s = center.y + r1 * Math.sin(a);
+                ctx.beginPath(); ctx.moveTo(x1_s,y1_s); ctx.lineTo(x2_s,y2_s); ctx.strokeStyle = varToRgba('--neon-purple', major10?0.5:0.25); ctx.stroke();
+                
+                // radio ring ticks (green)
+                let x1_r = center.x + (r2 + (major10?14:tickLen)) * Math.cos(a); y1_r = center.y + (r2 + (major10?14:tickLen)) * Math.sin(a);
+                let x2_r = center.x + r2 * Math.cos(a); y2_r = center.y + r2 * Math.sin(a);
+                ctx.beginPath(); ctx.moveTo(x1_r,y1_r); ctx.lineTo(x2_r,y2_r); ctx.strokeStyle = varToRgba('--neon-green', major10?0.5:0.25); ctx.stroke();
+
+                if (major10){
+                    const label = `${i}%`;
+                    ctx.font = '11px Space Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+                    // synth label slightly inward
+                    const lx1 = center.x + (r1 - 24) * Math.cos(a), ly1 = center.y + (r1 - 24) * Math.sin(a);
+                    ctx.fillStyle = varToRgba('--neon-purple', 0.8); ctx.fillText(label, lx1, ly1);
+                    // radio label slightly outward
+                    const lx2 = center.x + (r2 + 24) * Math.cos(a), ly2 = center.y + (r2 + 24) * Math.sin(a);
+                    ctx.fillStyle = varToRgba('--neon-green', 0.8); ctx.fillText(label, lx2, ly2);
+                }
+            }
+            // handles
+            const hsx = center.x + r1_mid * Math.cos(ringSynthAngle);
+            const hsy = center.y + r1_mid * Math.sin(ringSynthAngle);
+            const hrx = center.x + r2_mid * Math.cos(ringRadioAngle);
+            const hry = center.y + r2_mid * Math.sin(ringRadioAngle);
+
+            ctx.beginPath(); ctx.arc(hsx, hsy, 6, 0, 2*Math.PI); ctx.fillStyle = varToRgba('--neon-purple', 0.9); ctx.shadowColor = varToRgba('--neon-purple', 1); ctx.shadowBlur=12; ctx.fill(); ctx.shadowBlur=0;
+            ctx.beginPath(); ctx.arc(hrx, hry, 6, 0, 2*Math.PI); ctx.fillStyle = varToRgba('--neon-green', 0.9); ctx.shadowColor = varToRgba('--neon-green', 1); ctx.shadowBlur=12; ctx.fill(); ctx.shadowBlur=0;
+
+            // Display numeric trim values near handles
+            ctx.font = '12px Space Mono';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Synth trim value
+            const synthValueText = `${Math.round(ringSynthTrim * 100)}%`;
+            const synthTextOffset = 15; // Distance from handle
+            ctx.fillStyle = varToRgba('--neon-purple', 1);
+            ctx.fillText(synthValueText, hsx + synthTextOffset * Math.cos(ringSynthAngle), hsy + synthTextOffset * Math.sin(ringSynthAngle));
+
+            // Radio trim value
+            const radioValueText = `${Math.round(ringRadioTrim * 100)}%`;
+            const radioTextOffset = 15; // Distance from handle
+            ctx.fillStyle = varToRgba('--neon-green', 1);
+            ctx.fillText(radioValueText, hrx + radioTextOffset * Math.cos(ringRadioAngle), hry + radioTextOffset * Math.sin(ringRadioAngle));
+
+
+            // Draw active points
+            activePoints.forEach((pointData) => {
+                drawActivePoint(pointData.x, pointData.y, varToRgba('--neon-blue', 1));
+            });
+
+            // Draw mic input points
+            if (micInputEnabled && frequencyData) {
+                drawMicInputPoints();
+            }
+            // Update blend each frame using analyser envelope
+            if (isAudioInitialized) applyBlendMode();
+
+            // Mini spectrums: Radio (green), Synth (purple), Mix (blue)
+            if (isAudioInitialized){
+                const panelW = Math.min(260, canvas.width*0.32), panelH = 60;
+                const gap = 8; let ox = 12, oy = 12;
+                drawSpectrumPanel(radioAnalyser, ox, oy, panelW, panelH, varToRgba('--neon-green', 0.9)); oy += panelH+gap;
+                drawSpectrumPanel(synthAnalyser, ox, oy, panelW, panelH, varToRgba('--neon-purple', 0.9)); oy += panelH+gap;
+                drawSpectrumPanel(mixAnalyser,   ox, oy, panelW, panelH, varToRgba('--neon-blue', 0.9));
+            }
+            // Call the vocoder updater once per frame
+            if (vocoderOn) tickVocoder();
+        }
+
+        function drawSpectrumPanel(analyser, x, y, w, h, color){
+            if (!analyser) return;
+            const data = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(data);
+            // background
+            ctx.save();
+            ctx.globalAlpha = 0.9; ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x,y,w,h);
+            ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.strokeRect(x,y,w,h);
+            // plot
+            ctx.beginPath();
+            const len = data.length; const step = Math.max(1, Math.floor(len / w));
+            for(let i=0;i<w;i++){
+                const idx = Math.min(len-1, i*step);
+                const v = data[idx]/255; const yy = y + h - v*h;
+                if (i===0) ctx.moveTo(x, yy); else ctx.lineTo(x+i, yy);
+            }
+            ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+            ctx.restore();
+        }
+
+        function updateRingFromPoint(which, dx, dy){
+            const ang = Math.atan2(dy, dx); // -π..π
+            let a = (ang>=0? ang : (2*Math.PI+ang)); // 0..2π
+            // choose snapping granularity
+            let detCount = (ringSnapMode==='fine') ? RING_DETENTS_FINE : (ringSnapMode==='coarse' ? RING_DETENTS_COARSE : 0);
+            let det = -1, snapped = a;
+            if (detCount>0){
+                det = Math.round(a / (2*Math.PI/detCount));
+                snapped = det * (2*Math.PI/detCount);
+            }
+            // haptics when crossing detents
+            if (which==='synth'){
+                if (detCount>0 && ringSynthDetent !== det){ ringSynthDetent = det; vibe(6); }
+                ringSynthAngle = snapped; ringSynthTrim = Math.max(0, Math.min(1, snapped/(2*Math.PI)));
+            } else { // radio
+                if (detCount>0 && ringRadioDetent !== det){ ringRadioDetent = det; vibe(6); }
+                ringRadioAngle = snapped; ringRadioTrim = Math.max(0, Math.min(1, snapped/(2*Math.PI))); 
+            }
+        }
+
+        function drawActivePoint(x, y, color) {
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 15;
+            ctx.fill();
+            ctx.shadowBlur = 0; // Reset shadow
+        }
+
+        function drawMicInputPoints() {
+            const bufferLength = analyserNode.frequencyBinCount;
+            analyserNode.getByteFrequencyData(frequencyData);
+
+            let peaks = [];
+            for (let i = 0; i < bufferLength; i++) {
+                const freq = i * audioContext.sampleRate / bufferLength / 2; // Real frequency in Hz
+                const amplitude = frequencyData[i] / 255; // Normalize 0-1
+
+                // Simple peak detection
+                if (amplitude > 0.1 && freq > 100 && freq < 10000 && // Filter out very low/high noise
+                    (i === 0 || frequencyData[i] > frequencyData[i - 1]) &&
+                    (i === bufferLength - 1 || frequencyData[i] > frequencyData[i + 1])) {
+                    peaks.push({ freq, amplitude });
+                }
+            }
+
+            // Draw top N peaks
+            peaks.sort((a, b) => b.amplitude - a.amplitude);
+            const numPeaksToDraw = Math.min(peaks.length, 5); // Draw up to 5 dominant peaks
+
+            for (let i = 0; i < numPeaksToDraw; i++) {
+                const peak = peaks[i];
+                // Map frequency to angle (like reactance) and amplitude to radius (like |Γ|)
+                // Higher freq -> more inductive (upper chart), lower freq -> more capacitive (lower chart)
+                // Louder -> further from center (higher |Γ|)
+                const freqNormalized = Math.min(1, Math.max(0, (peak.freq - 100) / 7900)); // Normalize freq (100-8000Hz) to 0-1
+                const ampNormalized = Math.min(1, Math.max(0, (peak.amplitude - 0.1) / 0.9)); // Normalize amplitude (>0.1) to 0-1
+
+                // Map freqNormalized to an angle that spans the upper and lower halves,
+                // e.g., 0.5 (mid-freq) maps to 0 radians (horizontal), 0 (low) maps to -PI/2 (bottom), 1 (high) maps to PI/2 (top)
+                const angle = freqNormalized * Math.PI - Math.PI / 2;
+                const radius = smithChartRadius * ampNormalized * 0.9; // Map amplitude to max 90% of smithChartRadius
+
+                const screenX = center.x + radius * Math.cos(angle);
+                const screenY = center.y - radius * Math.sin(angle); // Y-axis inverted for canvas
+
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, 8 + ampNormalized * 5, 0, 2 * Math.PI); // Size based on amplitude
+                ctx.fillStyle = varToRgba('--neon-red', 0.8 * ampNormalized);
+                ctx.shadowColor = varToRgba('--neon-red', 1);
+                ctx.shadowBlur = 10 + ampNormalized * 10;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        // Helper to convert CSS variable to RGBA for canvas
+        function varToRgba(varName, alpha = 1) {
+            const color = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+            const r = parseInt(color.slice(1, 3), 16);
+            const g = parseInt(color.slice(3, 5), 16);
+            const b = parseInt(color.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+
+        // --- Coordinate Conversions ---
+        function screenToNormalizedGamma(screenX, screenY) {
+            const relativeX = screenX - center.x;
+            const relativeY = screenY - center.y;
+
+            // Normalize to -1 to 1 range based on smithChartRadius
+            let normX = relativeX / smithChartRadius;
+            let normY = relativeY / smithChartRadius;
+
+            // Clamp to outer circle for |Γ| <= 1
+            const mag = Math.sqrt(normX * normX + normY * normY);
+            if (mag > 1) {
+                normX /= mag;
+                normY /= mag;
+            }
+            return { x: normX, y: normY };
+        }
+
+        function normalizedGammaToScreen(normX, normY) {
+            const screenX = center.x + normX * smithChartRadius;
+            const screenY = center.y + normY * smithChartRadius;
+            return { x: screenX, y: screenY };
+        }
+
+        // --- Event Handlers ---
+        function handlePointerDown(event) {
+            event.preventDefault(); // Prevent scrolling/zooming
+            initAudio(); // Initialize audio context on first interaction
+
+            const rect = canvas.getBoundingClientRect();
+            let clientX, clientY, pointerId;
+
+            if (event.touches) { // Multi-touch
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+                pointerId = event.touches[0].identifier;
+            } else { // Mouse
+                clientX = event.clientX;
+                clientY = event.clientY;
+                pointerId = 'mouse';
+            }
+
+            // Set snap mode from modifiers (desktop)
+            if (!event.touches){ ringSnapMode = event.altKey ? 'free' : (event.shiftKey ? 'fine' : 'coarse'); }
+
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            // Check ring hits first
+            const dx = x - center.x, dy = y - center.y; const dist = Math.hypot(dx, dy);
+            const r1 = smithChartRadius * 1.08; // inner edge of synth ring
+            const r2 = smithChartRadius * 1.16; // outer edge of radio ring
+            const ringBandWidth = 14; // Approximate visual width of the active ring area
+            const r1_mid = r1 + ringBandWidth/2 -2; // mid-radius for synth ring
+            const r2_mid = r2 - ringBandWidth/2 +2; // mid-radius for radio ring arc
+
+
+            if (Math.abs(dist - r2_mid) <= ringBandWidth/2 + 5){ activeRing = 'radio'; updateRingFromPoint('radio', dx, dy); drawSmithChart(); return; }
+            if (Math.abs(dist - r1_mid) <= ringBandWidth/2 + 5){ activeRing = 'synth'; updateRingFromPoint('synth', dx, dy); drawSmithChart(); return; }
+
+
+            // If puppet mode is on, we don't allow manual interaction to create new points
+            if (puppetOn) return;
+
+            const { x: normX, y: normY } = screenToNormalizedGamma(x, y);
+            const voice = new Voice(normX, normY);
+            activePoints.set(pointerId, { x: x, y: y, voice: voice });
+            lastGamma = { x: normX, y: normY }; updateRadioFromGamma();
+
+            drawSmithChart(); // Redraw to show new point
+        }
+
+        function handlePointerMove(event) {
+            event.preventDefault();
+            if (!isAudioInitialized) return;
+
+            // If puppet mode is on, manual interaction for movement is disabled
+            if (puppetOn && !activeRing) return;
+
+            if (event.touches) {
+                for (let i = 0; i < event.touches.length; i++) {
+                    const touch = event.touches[i];
+                    const rect = canvas.getBoundingClientRect();
+                    const x = touch.clientX - rect.left; const y = touch.clientY - rect.top;
+                    if (activeRing){ const dx=x-center.x, dy=y-center.y; updateRingFromPoint(activeRing, dx, dy); drawSmithChart(); continue; }
+                    if (activePoints.has(touch.identifier)) {
+                        const { x: normX, y: normY } = screenToNormalizedGamma(x, y);
+                        const pointData = activePoints.get(touch.identifier);
+                        pointData.x = x;
+                        pointData.y = y;
+                        pointData.voice.updateParameters(normX, normY);
+                        lastGamma = { x: normX, y: normY }; updateRadioFromGamma();
+                    }
+                }
+            } else if (event.buttons === 1) { // Left mouse button pressed
+                const rect = canvas.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+                // Update snap mode live by modifiers
+                ringSnapMode = event.altKey ? 'free' : (event.shiftKey ? 'fine' : 'coarse');
+                if (activeRing){ const dx=x-center.x, dy=y-center.y; updateRingFromPoint(activeRing, dx, dy); drawSmithChart(); return; }
+                if (activePoints.has('mouse')){
+                    const { x: normX, y: normY } = screenToNormalizedGamma(x, y);
+                    const pointData = activePoints.get('mouse');
+                    pointData.x = x;
+                    pointData.y = y;
+                    pointData.voice.updateParameters(normX, normY);
+                    lastGamma = { x: normX, y: normY }; updateRadioFromGamma();
+                }
+            }
+        }
+
+        function handlePointerUp(event) {
+            event.preventDefault();
+            if (!isAudioInitialized) return;
+
+            // If puppet mode is on, manual interaction for movement is disabled
+            if (puppetOn && !activeRing) return;
+
+            if (event.touches) { // For touchend/touchcancel
+                let activeTouchIds = new Set();
+                for(let i=0; i<event.touches.length; i++) {
+                    activeTouchIds.add(event.touches[i].identifier);
+                }
+                activePoints.forEach((pointData, id) => {
+                    // Only stop manually created points, not puppet/learning points
+                    if (!activeTouchIds.has(id) && id !== 'puppet' && id !== 'learning' && id !== 'sequence') {
+                         pointData.voice.stop();
+                         activePoints.delete(id);
+                    }
+                });
+                if (event.touches.length===0) activeRing=null;
+            } else { // Mouse up
+                const pointerId = 'mouse';
+                // Only stop manually created points, not puppet/learning points
+                if (activePoints.has(pointerId) && pointerId !== 'puppet' && pointerId !== 'learning' && pointerId !== 'sequence') {
+                    activePoints.get(pointerId).voice.stop();
+                    activePoints.delete(pointerId);
+                }
+                activeRing=null;
+            }
+
+            drawSmithChart();
+        }
+
+        // --- UI Control Handlers ---
+        reverbFeedbackSlider.addEventListener('input', () => {
+            REVERB_FEEDBACK = parseFloat(reverbFeedbackSlider.value);
+            reverbFeedbackValue.textContent = REVERB_FEEDBACK.toFixed(2);
+            if (isAudioInitialized) {
+                delayNode.delayTime.setValueAtTime(REVERB_FEEDBACK, audioContext.currentTime);
+            }
+        });
+
+        reverbWetDrySlider.addEventListener('input', () => {
+            REVERB_WET_DRY = parseFloat(reverbWetDrySlider.value);
+            reverbWetDryValue.textContent = REVERB_WET_DRY.toFixed(2);
+            if (isAudioInitialized) {
+                feedbackGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime);
+                wetGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime);
+                dryGainNode.gain.setValueAtTime(1 - REVERB_WET_DRY, audioContext.currentTime);
+                // keep radio wet/dry proportionally aligned
+                if (radioWetGain && radioDryGain) {
+                    radioWetGain.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime);
+                    radioDryGain.gain.setValueAtTime(1 - REVERB_WET_DRY, audioContext.currentTime);
+                }
+            }
+        });
+
+        z0Slider.addEventListener('input', () => {
+            Z0 = parseFloat(z0Slider.value);
+            z0Value.textContent = Z0;
+            drawSmithChart(); // Redraw chart as Z0 affects labels
+            // Update active voices with new Z0
+            activePoints.forEach(pointData => {
+                const { x, y } = screenToNormalizedGamma(pointData.x, pointData.y);
+                pointData.voice.updateParameters(x, y);
+            });
+        });
+
+        baseFreqSlider.addEventListener('input', () => {
+            BASE_FREQ = parseFloat(baseFreqSlider.value);
+            baseFreqValue.textContent = BASE_FREQ;
+            activePoints.forEach(pointData => {
+                const { x, y } = screenToNormalizedGamma(pointData.x, pointData.y);
+                pointData.voice.updateParameters(x, y);
+            });
+            if (vocoder) vocoder.saw.frequency.setValueAtTime(BASE_FREQ, audioContext.currentTime);
+        });
+
+        baseCutoffSlider.addEventListener('input', () => {
+            BASE_CUTOFF = parseFloat(baseCutoffSlider.value);
+            baseCutoffValue.textContent = BASE_CUTOFF;
+            activePoints.forEach(pointData => {
+                const { x, y } = screenToNormalizedGamma(pointData.x, pointData.y);
+                pointData.voice.updateParameters(x, y);
+            });
+            updateRadioFromGamma();
+        });
+
+        inputGainSlider.addEventListener('input', () => {
+            INPUT_GAIN = parseFloat(inputGainSlider.value);
+            inputGainValue.textContent = INPUT_GAIN.toFixed(2);
+            if (micGainNode) {
+                micGainNode.gain.setValueAtTime(INPUT_GAIN, audioContext.currentTime);
+            }
+        });
+
+        // --- Radio Controls ---
+        let customUrlOption = document.createElement('option');
+        customUrlOption.value = 'custom-loaded'; // Value when a custom URL is loaded
+        customUrlOption.textContent = 'Custom Stream (Loaded)';
+        customUrlOption.style.display = 'none'; // Hidden until a custom URL is loaded
+
+        function setRadioStatus(text){ radioStatusSpan.textContent = text; }
+        function hostnameOf(u){ try{ return new URL(u).hostname; }catch{ return ''; } }
+        function isBlockedUrl(u){ try{ const h=new URL(u).hostname.replace(/^www\./,''); return h.endsWith('youtube.com')||h.endsWith('youtu.be'); }catch{ return false; } }
+
+        function connectRadio(url){
+            if (!audioContext) initAudio();
+            disconnectRadio();
+            if (!url){
+                setRadioStatus('Stopped');
+                radioEnabled=false;
+                radioSourceSel.value = 'off'; // Ensure dropdown reflects 'off'
+                radioNowSpan.textContent = '—';
+                return;
+            }
+            if (isBlockedUrl(url)){
+                setRadioStatus('Blocked');
+                alert('YouTube/Vimeo URLs are typically blocked by CORS. Please use direct MP3/AAC stream links.');
+                radioSourceSel.value = 'off'; // Reset to off if blocked
+                radioNowSpan.textContent = '—';
+                return;
+            }
+
+            mediaEl = new Audio(); mediaEl.crossOrigin='anonymous'; mediaEl.src = url; mediaEl.loop = true; mediaEl.preload='none';
+            mediaEl.addEventListener('error', (e)=> {
+                console.error('Media element error:', e);
+                setRadioStatus('Error loading stream');
+                radioSourceSel.value = 'off'; // Reset to off on error
+                radioNowSpan.textContent = '—';
+            });
+            mediaEl.addEventListener('waiting', ()=> setRadioStatus('Buffering…'));
+            mediaEl.addEventListener('stalled', ()=> setRadioStatus('Buffering…'));
+            mediaEl.addEventListener('playing', ()=> setRadioStatus('Playing'));
+            mediaEl.addEventListener('pause', ()=> setRadioStatus('Paused'));
+            mediaNode = audioContext.createMediaElementSource(mediaEl);
+            mediaNode.connect(radioFilter);
+            radioNowSpan.textContent = hostnameOf(url) || 'Stream';
+
+            mediaEl.play().then(() => {
+                radioEnabled = true;
+                // If a custom URL was just loaded, set the dropdown to reflect it
+                if (url === dynamicRadioUrl.value && dynamicRadioUrl.value !== '') {
+                    if (!radioSourceSel.querySelector(`option[value="custom-loaded"]`)) {
+                        radioSourceSel.appendChild(customUrlOption);
+                    }
+                    customUrlOption.style.display = 'block';
+                    radioSourceSel.value = 'custom-loaded';
+                    customUrlInputContainer.style.display = 'none'; // Hide custom input after successful load
+                }
+            }).catch((e)=>{
+                console.warn('[Radio] Autoplay failed or stream error:', e);
+                setRadioStatus('Error: Play failed/blocked (CORS?)');
+                radioEnabled = false;
+                // If custom URL failed, keep custom input visible for retry
+                if (url === dynamicRadioUrl.value) {
+                    customUrlInputContainer.style.display = 'flex';
+                }
+                radioSourceSel.value = 'off';
+                radioNowSpan.textContent = '—';
+            });
+        }
+
+        function disconnectRadio(){
+            try{ if (mediaEl){ mediaEl.pause(); mediaEl.src=''; } }catch{}
+            try{ if (mediaNode){ mediaNode.disconnect(); } }catch{}
+            mediaEl=null; mediaNode=null; radioEnabled=false;
+            if (radioSourceSel.value === 'custom-loaded') {
+                radioSourceSel.value = 'custom-url'; // Revert to 'Add Custom URL' to show input
+            }
+        }
+
+        radioSourceSel.addEventListener('change', ()=>{
+            initAudio(); // Ensure audio context is ready on first interaction
+            const selectedValue = radioSourceSel.value;
+
+            if (selectedValue === 'off'){
+                disconnectRadio();
+                setRadioStatus('Stopped');
+                radioNowSpan.textContent='—';
+                customUrlInputContainer.style.display = 'none'; // Hide custom input
+                if (radioSourceSel.querySelector(`option[value="custom-loaded"]`)) {
+                    radioSourceSel.removeChild(customUrlOption); // Remove "Custom Stream (Loaded)"
+                }
+            } else if (selectedValue === 'custom-url'){
+                // Show custom URL input field
+                customUrlInputContainer.style.display = 'flex';
+                dynamicRadioUrl.value = ''; // Clear previous input
+                dynamicRadioUrl.focus();
+                setRadioStatus('Enter stream URL');
+            } else if (selectedValue === 'custom-loaded') {
+                // Do nothing, stream is already active (or user re-selected it)
+                // If they manually select it after an error, allow them to retry with 'Load' button
+                customUrlInputContainer.style.display = 'flex'; // show input to allow re-loading or checking URL
+                dynamicRadioUrl.focus();
+            }
+            else {
+                // A predefined stream is selected
+                customUrlInputContainer.style.display = 'none';
+                if (radioSourceSel.querySelector(`option[value="custom-loaded"]`)) {
+                    radioSourceSel.removeChild(customUrlOption); // Remove "Custom Stream (Loaded)"
+                }
+                connectRadio(selectedValue);
+            }
+        });
+
+        loadCustomRadioBtn.addEventListener('click', () => {
+            const url = dynamicRadioUrl.value.trim();
+            if (url) {
+                console.log('[Radio] Loading custom URL:', url);
+                connectRadio(url);
+            } else {
+                setRadioStatus('Please enter a URL');
+            }
+        });
+
+
+        function updateRadioFromGamma(){
+            if (!isAudioInitialized || !radioFilter) return;
+            const x = lastGamma.x, y = lastGamma.y; // -1..1
+            const r = Math.min(1, Math.hypot(x,y));
+            const angle = Math.atan2(y,x);
+            // Cutoff
+            const cutoffRange = 0.8; let cutoff = BASE_CUTOFF * (1 + x * cutoffRange); cutoff = Math.max(80, Math.min(audioContext.sampleRate/2, cutoff));
+            radioFilter.frequency.setValueAtTime(cutoff, audioContext.currentTime);
+            // Q
+            const q = 0.5 + r * 9.5; radioFilter.Q.setValueAtTime(q, audioContext.currentTime);
+            // Pan from angle
+            const pan = Math.max(-1, Math.min(1, angle/Math.PI)); radioPanner.pan.setValueAtTime(pan, audioContext.currentTime);
+            // Wet/dry from radius and global wet/dry
+            const wet = Math.min(1, Math.max(0, REVERB_WET_DRY * (0.3 + 0.7*r))); const dry = 1 - wet;
+            radioWetGain.gain.setValueAtTime(wet, audioContext.currentTime);
+            radioDryGain.gain.setValueAtTime(dry, audioContext.currentTime);
+            // Feedback gets a little boost with radius
+            const fb = Math.min(0.95, Math.max(0, REVERB_WET_DRY * (0.2 + 0.6*r))); feedbackGainNode.gain.setValueAtTime(fb, audioContext.currentTime);
+        }
+
+
+        micInputToggle.addEventListener('click', async () => {
+            initAudio(); // Ensure audio context is running
+            micInputEnabled = !micInputEnabled;
+            if (micInputEnabled) {
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    inputSource = audioContext.createMediaStreamSource(micStream);
+                    analyserNode = audioContext.createAnalyser();
+                    micGainNode = audioContext.createGain();
+                    micGainNode.gain.setValueAtTime(INPUT_GAIN, audioContext.currentTime);
+
+                    analyserNode.fftSize = 2048;
+                    frequencyData = new Uint8Array(analyserNode.frequencyBinCount);
+
+                    inputSource.connect(micGainNode);
+                    micGainNode.connect(analyserNode);
+                    analyserNode.connect(mixBus); // Route mic input through mixBus for blend/effects
+
+                    micInputToggle.textContent = 'Mic Input ON';
+                    micInputToggle.classList.add('active'); // Add 'active' class
+
+                    // If vocoder is on, reconnect modulator to include new mic input
+                    if (vocoderOn) buildVocoder(parseInt(vocoderBandsSel.value,10)||24);
+
+                } catch (err) {
+                    console.error('Error accessing microphone:', err);
+                    alert('Could not access microphone. Please ensure permissions are granted.');
+                    micInputEnabled = false;
+                    micInputToggle.textContent = 'Mic Input OFF';
+                    micInputToggle.classList.remove('active'); // Remove 'active' class
+                }
+            } else {
+                if (micStream) {
+                    micStream.getTracks().forEach(track => track.stop());
+                    if (inputSource) inputSource.disconnect();
+                    if (micGainNode) micGainNode.disconnect();
+                    if (analyserNode) analyserNode.disconnect();
+                    micStream = null;
+                    inputSource = null;
+                    analyserNode = null;
+                    micGainNode = null;
+                    frequencyData = null; // Clear frequency data
+                }
+                micInputToggle.textContent = 'Mic Input OFF';
+                micInputToggle.classList.remove('active'); // Remove 'active' class
+                // If vocoder is on, reconnect modulator without mic input
+                if (vocoderOn) buildVocoder(parseInt(vocoderBandsSel.value,10)||24);
+            }
+        });
+
+        learningModeToggle.addEventListener('click', () => {
+            learningModeActive = !learningModeActive;
+            learningModeToggle.textContent = `Learning Mode ${learningModeActive ? 'ON' : 'OFF'}`;
+            learningModeToggle.classList.toggle('active', learningModeActive);
+            learningModeOverlay.classList.toggle('active', learningModeActive);
+            drawSmithChart(); // Redraw chart with or without labels
+        });
+
+        closeLearningModeBtn.addEventListener('click', () => {
+            learningModeActive = false;
+            learningModeToggle.textContent = 'Learning Mode OFF';
+            learningModeToggle.classList.remove('active');
+            learningModeOverlay.classList.remove('active');
+            clearLearningAnimation();
+            drawSmithChart();
+        });
+
+        // Learning Mode Pathways/Sequences
+        learningModeContent.addEventListener('click', (event) => {
+            if (event.target.tagName === 'BUTTON') {
+                const pathType = event.target.dataset.path;
+                const sequenceType = event.target.dataset.sequence;
+                if (pathType) {
+                    runLearningPath(pathType);
+                } else if (sequenceType) {
+                    runLearningSequence(sequenceType);
+                }
+            }
+        });
+
+        function clearLearningAnimation() {
+            if (learningAnimation) {
+                clearInterval(learningAnimation);
+                learningAnimation = null;
+            }
+            activePoints.forEach((pointData, id) => {
+                if (id === 'learning' || id === 'sequence') { // Only stop learning mode voices
+                    pointData.voice.stop();
+                    activePoints.delete(id);
+                }
+            });
+            drawSmithChart();
+        }
+
+        function runLearningPath(type) {
+            clearLearningAnimation();
+            initAudio();
+
+            let startGamma = { real: 0.8, imag: 0.5 }; // Example starting point (normalized)
+
+            // Convert to screen coordinates
+            let { x: startX, y: startY } = normalizedGammaToScreen(startGamma.real, startGamma.imag);
+            const voice = new Voice(startGamma.real, startGamma.imag);
+            activePoints.set('learning', { x: startX, y: startY, voice: voice });
+
+            let step = 0;
+            const maxSteps = 100;
+
+            learningAnimation = setInterval(() => {
+                if (step > maxSteps) {
+                    clearLearningAnimation();
+                    return;
+                }
+
+                let currentGamma;
+                if (type === 'lMatch') {
+                    // Simplified L-match: tries to move towards (0,0) with some reactive component
+                    // This is a conceptual animation, not an accurate circuit simulation.
+                    const progress = step / maxSteps;
+                    const targetReal = 0;
+                    const targetImag = 0;
+
+                    // Example: slowly reduce real part, then adjust imag part
+                    let newReal = startGamma.real * (1 - progress);
+                    let newImag = startGamma.imag * (1 - progress); // Simple linear path
+
+                    // More complex path for L-match:
+                    // If we need to add series L/C, it moves along constant resistance circles.
+                    // If we need to add shunt L/C, it moves along constant conductance circles (not drawn).
+                    // For now, a simplified spiral towards center:
+                    const spiralFactor = Math.pow(1 - progress, 2); // Faster approach at the end
+                    currentGamma = {
+                        real: startGamma.real * spiralFactor,
+                        imag: startGamma.imag * spiralFactor
+                    };
+
+                } else if (type === 'stubTuner') {
+                    // Similar simplified path for stub tuner
+                    const progress = step / maxSteps;
+                    const angleSweep = Math.sin(progress * Math.PI) * Math.PI * 0.5; // Oscillate imag a bit
+                    const radiusShrink = 0.8 * (1 - progress); // Shrink radius
+
+                    currentGamma = {
+                        real: (0.8 * Math.cos(angleSweep)) * radiusShrink,
+                        imag: (0.8 * Math.sin(angleSweep)) * radiusShrink
+                    };
+                }
+
+
+                let { x: screenX, y: screenY } = normalizedGammaToScreen(currentGamma.real, currentGamma.imag);
+                activePoints.get('learning').x = screenX;
+                activePoints.get('learning').y = screenY;
+                activePoints.get('learning').voice.updateParameters(currentGamma.real, currentGamma.imag); // FIXED: Changed second arg from currentGamma.real to currentGamma.imag
+
+                drawSmithChart();
+                step++;
+            }, 50); // Every 50ms
+        }
+
+        function runLearningSequence(type) {
+            clearLearningAnimation();
+            initAudio();
+
+            let points = [];
+            if (type === 'radialOut') {
+                for (let i = 0; i <= 100; i++) {
+                    let r = i / 100;
+                    points.push({ real: r * 0.7, imag: r * 0.3 }); // Diagonally out
+                }
+            } else if (type === 'circleSweep') {
+                for (let i = 0; i <= 100; i++) {
+                    let angle = (i / 100) * 2 * Math.PI;
+                    let r = 0.7; // Constant magnitude
+                    points.push({ real: r * Math.cos(angle), imag: r * Math.sin(angle) });
+                }
+            }
+
+            let sequenceStep = 0;
+            const voice = new Voice(points[0].real, points[0].imag);
+            activePoints.set('sequence', { x: 0, y: 0, voice: voice }); // Placeholder screen coords
+
+            learningAnimation = setInterval(() => {
+                if (sequenceStep >= points.length) {
+                    clearLearningAnimation();
+                    return;
+                }
+
+                const currentGamma = points[sequenceStep];
+                let { x: screenX, y: screenY } = normalizedGammaToScreen(currentGamma.real, currentGamma.imag);
+                activePoints.get('sequence').x = screenX;
+                activePoints.get('sequence').y = screenY;
+                activePoints.get('sequence').voice.updateParameters(currentGamma.real, currentGamma.imag);
+
+                drawSmithChart();
+                sequenceStep++;
+            }, 100); // Step every 100ms
+        }
+
+        // --- Recording Functionality ---
+        recordToggle.addEventListener('click', () => {
+            initAudio(); // Ensure audio context is running
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        function startRecording() {
+            recordedChunks = [];
+            const options = { mimeType: 'audio/webm; codecs=opus' }; // WebM with Opus is widely supported
+
+            try {
+                mediaRecorder = new MediaRecorder(destinationStream.stream, options);
+            } catch (e) {
+                console.error('MediaRecorder creation failed:', e);
+                alert('Recording is not supported in this browser or an error occurred.');
+                return;
+            }
+
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                document.body.appendChild(a);
+                a.style = 'display: none';
+                a.href = url;
+                a.download = `smith_chart_sonifier_${new Date().toISOString()}.webm`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                recordedChunks = [];
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+            recordToggle.textContent = 'Recording...';
+            recordToggle.classList.add('recording');
+            console.log('Recording started');
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                isRecording = false;
+                recordToggle.textContent = 'Record';
+                recordToggle.classList.remove('recording');
+                console.log('Recording stopped');
+            }
+        }
+
+
+        // --- URL State Management ---
+        // updateShareUrl function removed
+        function applyUrlState() {
+            const params = new URLSearchParams(window.location.search);
+
+            const readParam = (name, setter, element, initialValue, isFloat = true) => {
+                const value = params.get(name);
+                if (value !== null) {
+                    const parsedValue = isFloat ? parseFloat(value) : parseInt(value);
+                    if (!isNaN(parsedValue)) {
+                        setter(parsedValue);
+                        element.value = parsedValue;
+                        const valueSpan = document.getElementById(`${element.id}Value`);
+                        if (valueSpan) valueSpan.textContent = isFloat ? parsedValue.toFixed(2) : parsedValue;
+                    }
+                } else { // Set default if not in URL, but ensure span is updated
+                    element.value = initialValue;
+                    const valueSpan = document.getElementById(`${element.id}Value`);
+                    if (valueSpan) valueSpan.textContent = isFloat ? initialValue.toFixed(2) : initialValue;
+                }
+            };
+
+            readParam('z0', (val) => Z0 = val, z0Slider, parseFloat(z0Slider.value), false);
+            readParam('bfreq', (val) => BASE_FREQ = val, baseFreqSlider, parseFloat(baseFreqSlider.value), false);
+            readParam('bcutoff', (val) => BASE_CUTOFF = val, baseCutoffSlider, parseFloat(baseCutoffSlider.value), false);
+            readParam('rfeedback', (val) => REVERB_FEEDBACK = val, reverbFeedbackSlider, parseFloat(reverbFeedbackSlider.value));
+            readParam('rwetdry', (val) => REVERB_WET_DRY = val, reverbWetDrySlider, parseFloat(reverbWetDrySlider.value));
+            readParam('inputgain', (val) => INPUT_GAIN = val, inputGainSlider, parseFloat(inputGainSlider.value));
+
+            // Mic Input Toggle
+            const micParam = params.get('mic');
+            if (micParam === '1' && !micInputEnabled) {
+                // Defer click to allow user interaction to initiate audio if not already
+                setTimeout(() => micInputToggle.click(), 100);
+            }
+
+            // Learning Mode Toggle
+            const learnParam = params.get('learn');
+            if (learnParam === '1' && !learningModeActive) {
+                setTimeout(() => learningModeToggle.click(), 100);
+            }
+
+            // Puppet Mode Toggle
+            const puppetParam = params.get('puppet');
+            if (puppetParam === '1' && !puppetOn) {
+                setTimeout(() => puppetToggle.click(), 100);
+            }
+
+            // Vocoder Toggle
+            const vocoderParam = params.get('vocoder');
+            if (vocoderParam === '1' && !vocoderOn) {
+                setTimeout(() => vocoderToggle.click(), 100);
+            }
+
+
+            // Initial point if available (px/py param parsing removed as share URL is gone)
+
+            // Update audio context parameters if already initialized
+            if (isAudioInitialized) {
+                delayNode.delayTime.setValueAtTime(REVERB_FEEDBACK, audioContext.currentTime);
+                feedbackGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime);
+                wetGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime);
+                dryGainNode.gain.setValueAtTime(1 - REVERB_WET_DRY, audioContext.currentTime);
+                if (micGainNode) {
+                    micGainNode.gain.setValueAtTime(INPUT_GAIN, audioContext.currentTime);
+                }
+                 activePoints.forEach(pointData => {
+                    const { x: normX, y: normY } = screenToNormalizedGamma(pointData.x, pointData.y);
+                    pointData.voice.updateParameters(normX, normY);
+                });
+            }
+            drawSmithChart();
+        }
+
+        // Removed copyShareUrlBtn event listener
+
+
+        // --- Listen Button Binding (After UI elements are defined) ---
+        if (listenButtons.length) {
+          listenButtons.forEach(btn => btn.addEventListener('click', () => setListenMode(btn.dataset.listen)));
+          console.log('[Boot] listen buttons wired', listenButtons.map(b => b.dataset.listen));
+        }
+
+        // --- Auto Match/Follow Event Listeners (After functions are defined) ---
+        document.getElementById('autoMatch')?.addEventListener('click', autoMatchOnce);
+        document.getElementById('followToggle')?.addEventListener('change', e => setFollow(e.target.checked));
+
+
+        // --- Quick Buttons Logic ---
+        function toggleFullscreen(){
+          const doc = document;
+          if (!doc.fullscreenElement && !doc.webkitFullscreenElement){
+            const el = document.documentElement;
+            if (el.requestFullscreen) el.requestFullscreen();
+            else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+          } else {
+            if (doc.exitFullscreen) doc.exitFullscreen();
+            else if (doc.webkitExitFullscreen) doc.webkitExitFullscreen();
+          }
+        }
+        function toggleMenu(){
+          if (!controlsContainer) return;
+          const hidden = controlsContainer.style.display === 'none';
+          if (hidden){
+            controlsContainer.style.display = 'flex';
+            btnToggleMenu.textContent = '☰';
+            btnToggleMenu.title = 'Hide Menu';
+          } else {
+            controlsContainer.style.display = 'none';
+            btnToggleMenu.textContent = '⋯';
+            btnToggleMenu.title = 'Show Menu';
+          }
+          // Recompute canvas size after layout shift
+          try{ if (typeof resizeCanvas === 'function'){ setTimeout(resizeCanvas, 30); } }catch{}
+        }
+        if (btnFullscreen) btnFullscreen.addEventListener('click', toggleFullscreen);
+        if (btnToggleMenu) btnToggleMenu.addEventListener('click', toggleMenu);
+
+        // --- Local File + Drag-and-Drop for Radio Path ---
+        let mediaElement = null; // Renamed from mediaEl to avoid conflict with radio's mediaEl
+        let radioMediaNode = null; // Renamed from mediaNode to avoid conflict
+
+        function ensureLocalFileUI(){
+          try{
+            if (!radioSourceSel) return;
+            // Append 'Local File…' option if missing
+            if (![...radioSourceSel.options].some(o=>o.value==='local-file')){
+              const opt = document.createElement('option'); opt.value='local-file'; opt.textContent='Local File…'; radioSourceSel.appendChild(opt);
+            }
+            if (!localFileInput){
+              localFileInput = document.createElement('input');
+              localFileInput.type = 'file'; localFileInput.accept = 'audio/*'; localFileInput.style.display='none';
+              document.body.appendChild(localFileInput);
+              localFileInput.addEventListener('change', ()=>{
+                const f = localFileInput.files && localFileInput.files[0]; if (!f) return;
+                const url = URL.createObjectURL(f);
+                loadRadioSource(url, `Local: ${f.name}`);
+                // reset select to custom URL indicator
+                try{ radioSourceSel.value = 'local-file'; }catch{}
+                // If vocoder is on, reconnect modulator to include new local file
+                if (vocoderOn) buildVocoder(parseInt(vocoderBandsSel.value,10)||24);
+              });
+            }
+            radioSourceSel.addEventListener('change', ()=>{
+              if (radioSourceSel.value === 'local-file'){
+                localFileInput?.click();
+              } else if (radioSourceSel.value !== 'off' && radioSourceSel.value !== 'custom-url') {
+                // If a predefined stream is selected, ensure it also updates vocoder modulator
+                if (vocoderOn) buildVocoder(parseInt(vocoderBandsSel.value,10)||24);
+              } else if (radioSourceSel.value === 'off') {
+                // If radio is turned off, also update vocoder modulator
+                if (vocoderOn) buildVocoder(parseInt(vocoderBandsSel.value,10)||24);
+              }
+            });
+          }catch(e){ console.warn('[LocalFileUI] init failed', e); }
+        }
+
+        // Modified loadRadioSource to use radioMediaNode
+        function loadRadioSource(url, label='Local File'){
+          try{
+            initAudio();
+            disconnectRadio(); // Ensure previous radio/local file is disconnected
+            if (!mediaElement){ // Create once
+              mediaElement = new Audio(); mediaElement.crossOrigin = 'anonymous'; mediaElement.loop = true; mediaElement.preload = 'auto';
+            }
+            if (!radioMediaNode){
+              radioMediaNode = audioContext.createMediaElementSource(mediaElement);
+              // connect into existing radio chain
+              radioMediaNode.connect(radioFilter);
+            }
+            mediaElement.src = url;
+            mediaElement.play().catch(()=>{});
+            if (radioStatusSpan) radioStatusSpan.textContent = 'Playing';
+            if (radioNowSpan) radioNowSpan.textContent = label || url;
+            radioEnabled = true; // Mark radio as enabled for proper routing
+          }catch(e){ console.warn('[LocalLoad] failed', e); if (radioStatusSpan) radioStatusSpan.textContent = 'Error'; }
+        }
+
+        // Updated disconnectRadio to also handle radioMediaNode/mediaElement
+        function disconnectRadio(){
+            try{ if (mediaEl){ mediaEl.pause(); mediaEl.src=''; } }catch{} // For network streams
+            try{ if (mediaNode){ mediaNode.disconnect(); } }catch{} // For network streams
+            try{ if (mediaElement){ mediaElement.pause(); mediaElement.src=''; } }catch{} // For local files
+            try{ if (radioMediaNode){ radioMediaNode.disconnect(); } }catch{} // For local files
+            mediaEl=null; mediaNode=null; mediaElement=null; radioMediaNode=null; radioEnabled=false;
+            if (radioSourceSel.value === 'custom-loaded') {
+                radioSourceSel.value = 'custom-url'; // Revert to 'Add Custom URL' to show input
+            }
+        }
+
+
+        // Drag-and-drop on canvas
+        function setupDragDrop(){
+          try{
+            const el = canvas;
+            ['dragenter','dragover'].forEach(ev=> el.addEventListener(ev, e=>{ e.preventDefault(); e.dataTransfer.dropEffect='copy'; }));
+            el.addEventListener('drop', e=>{
+              e.preventDefault();
+              const f = e.dataTransfer?.files && e.dataTransfer.files[0];
+              if (f && f.type.startsWith('audio/')){
+                const url = URL.createObjectURL(f);
+                loadRadioSource(url, `Drop: ${f.name}`);
+                // If vocoder is on, reconnect modulator to include new local file
+                if (vocoderOn) buildVocoder(parseInt(vocoderBandsSel.value,10)||24);
+              }
+            });
+          }catch(e){ console.warn('[DnD] setup failed', e); }
+        }
+
+        // Expose mixed audio stream to parent page via postMessage
+        window.addEventListener('message', async (e)=>{
+          try{
+            const msg = e.data || {};
+            if (msg && msg.type === 'request-audio-stream'){
+              if (!isAudioInitialized) initAudio();
+              // Ensure destinationStream exists
+              if (!destinationStream && audioContext){
+                destinationStream = audioContext.createMediaStreamDestination();
+                masterGain.connect(destinationStream);
+              }
+              if (destinationStream){
+                e.source?.postMessage({ type: 'audio-stream', id: msg.id, stream: destinationStream.stream }, '*');
+              }
+            } else if (msg && msg.type === 'suspend-audio'){
+              try{ if (!isAudioInitialized) initAudio(); await audioContext?.suspend?.(); }catch{}
+            } else if (msg && msg.type === 'resume-audio'){
+              try{ if (!isAudioInitialized) initAudio(); await audioContext?.resume?.(); }catch{}
+            } else if (msg && msg.type === 'set-monitor'){
+              try{
+                if (!isAudioInitialized) initAudio();
+                const on = !!msg.on;
+                monitorGain.gain.setTargetAtTime(on?1:0, audioContext.currentTime, 0.01);
+              }catch{}
+            }
+          }catch(err){ console.warn('[postMessage] error', err); }
+        });
+
+        // --- Puppet Mode and Vocoder Button Wiring ---
+        const puppetToggle = document.getElementById('puppetToggle');
+        puppetToggle.addEventListener('click', ()=>{
+          initAudio();
+          puppetOn = !puppetOn;
+          puppetToggle.textContent = `Puppet Mode ${puppetOn?'ON':'OFF'}`;
+          puppetToggle.classList.toggle('active', puppetOn);
+          if (puppetOn) startPuppet(); else stopPuppet();
+        });
+
+        const vocoderToggle = document.getElementById('vocoderToggle');
+        const vocoderBandsSel = document.getElementById('vocoderBands');
+
+        vocoderToggle.addEventListener('click', ()=>{
+          initAudio();
+          vocoderOn = !vocoderOn;
+          vocoderToggle.textContent = `Vocoder ${vocoderOn?'ON':'OFF'}`;
+          vocoderToggle.classList.toggle('active', vocoderOn);
+          if (vocoderOn){
+            buildVocoder(parseInt(vocoderBandsSel.value,10)||24);
+          } else {
+            if (vocoder){ try{ vocoder.out.disconnect?.(); vocoder.carrierLP.disconnect?.(); vocoder.saw.stop?.(); vocoder.noise.stop?.(); vocoder.modulatorAnalyser.disconnect?.(); }catch{} vocoder=null; }
+          }
+        });
+        vocoderBandsSel.addEventListener('change', ()=>{
+          if (vocoderOn){ buildVocoder(parseInt(vocoderBandsSel.value,10)||24); }
+        });
+        // --- End Puppet Mode and Vocoder Button Wiring ---
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            drawSmithChart();
+        }
+
+        // --- Event Listeners ---
+        window.addEventListener('resize', resizeCanvas);
+        canvas.addEventListener('pointerdown', handlePointerDown);
+        canvas.addEventListener('pointermove', handlePointerMove);
+        canvas.addEventListener('pointerup', handlePointerUp);
+        canvas.addEventListener('pointerleave', handlePointerUp); // Treat leaving canvas as pointerUp
+        canvas.addEventListener('pointercancel', handlePointerUp);
+
+
+        // Initial setup
+        // Ensure resizeCanvas is called initially AND after controls-container might change size
+        const initialResize = () => {
+             resizeCanvas();
+             // Since controls-container's height might change after content loads,
+             // call resizeCanvas again after a short delay
+             setTimeout(resizeCanvas, 100);
+        };
+        initialResize();
+        animate(); // Start animation loop
+
+        // Attach event listener to document for first interaction to init audio
+        document.addEventListener('click', initAudio, { once: true });
+        document.addEventListener('touchstart', initAudio, { once: true });
+
+        // Apply URL state on load, but after all audio context init and UI setup
+        window.addEventListener('load', ()=>{
+          try{ ensureLocalFileUI(); setupDragDrop(); }catch{}
+          try{ console.log('[Boot] SG build v0.3.0 • ai_studio_code (92).html'); }catch{}
+          applyUrlState(); // Now applies only the control params, not point/share URL related ones
+        });
+
+    </script>
+</body>
+</html>

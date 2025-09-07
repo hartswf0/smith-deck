@@ -1,0 +1,1748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>The Smith Chart Sonifier — Polyharmonic Decomposer + Vocoder (v0.7)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+  :root{
+    --neon-blue:#00e5ff; --neon-green:#00ff99; --neon-red:#ff3366; --neon-purple:#cc33ff;
+    --neon-yellow:#ffff00; /* New color for selected decomposed voice */
+    --dark-background:#0d0d1a; --control-bg:rgba(0,0,0,.7); --text-color:#eee; --button-text-color:var(--dark-background);
+  }
+  #sgStamp{position:fixed;left:12px;top:8px;z-index:10000;background:rgba(0,0,0,.55);border:1px solid rgba(0,229,255,.35);border-radius:999px;padding:4px 10px;color:#8ff;font:12px/1.2 'Space Mono', monospace;pointer-events:none}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--dark-background);color:var(--text-color);font-family:'Space Mono', monospace}
+  body{display:flex;flex-direction:column;overflow:hidden;-webkit-user-select:none;user-select:none}
+  canvas{flex:1;display:block;min-height:200px;touch-action:none;background:var(--dark-background);cursor:crosshair}
+
+  #controls-container{
+    position:relative;left:0;right:0;background:var(--control-bg);padding:10px;box-shadow:0 0 15px rgba(0,229,255,.3);z-index:100;
+    display:flex;flex-direction:column;align-items:center;gap:10px;flex-shrink:0;
+    overflow-y: auto; /* Make controls scrollable on small screens */
+    max-height: 100vh; /* Allow it to take full height if needed */
+  }
+
+  /* Styling for collapsible sections */
+  details{width:100%;max-width:1100px;margin-bottom:8px;background:rgba(0,0,0,.3);border-radius:8px;border:1px solid rgba(0,229,255,.15);box-shadow:0 0 8px rgba(0,229,255,.1)}
+  summary{padding:10px 15px;cursor:pointer;font-weight:700;color:var(--neon-blue);list-style:none;position:relative;transition:background .2s}
+  summary:hover{background:rgba(0,229,255,.05)}
+  summary::marker, summary::-webkit-details-marker {display:none} /* Hide default marker */
+  summary:before{content:'▶';position:absolute;left:10px;top:50%;transform:translateY(-50%);transition:transform .2s}
+  details[open]>summary:before{content:'▼';transform:translateY(-50%) rotate(90deg)}
+  .section-content{padding:10px 15px 15px;border-top:1px solid rgba(0,229,255,.1)}
+
+  /* General grid for control sliders */
+  #global-controls, .grid-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:15px;width:100%;justify-items:center;padding-bottom:5px}
+  .control-group{display:flex;flex-direction:column;align-items:center;gap:5px;width:100%;max-width:180px} 
+  .control-group label{font-size:.9em;color:var(--neon-green);white-space:nowrap}
+  .control-group input[type="range"]{width:140px;appearance:none;height:8px;background:rgba(0,229,255,.2);border-radius:4px;outline:none}
+  .control-group input[type="range"]::-webkit-slider-thumb{appearance:none;width:18px;height:18px;background:var(--neon-blue);border-radius:50%;box-shadow:0 0 8px var(--neon-blue);cursor:pointer}
+  .control-group input[type="range"]::-moz-range-thumb{width:18px;height:18px;background:var(--neon-blue);border-radius:50%;box-shadow:0 0 8px var(--neon-blue);cursor:pointer}
+
+  /* Action Buttons specific styling - now a grid! */
+  #action-buttons{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); /* Auto-fit columns, min 140px wide */
+    gap: 10px; /* Reduced gap */
+    margin-top: 5px;
+    width: 100%;
+    max-width: 1100px;
+    justify-items: center; /* Center items within their grid cells */
+  }
+  .pill-btn, #action-buttons select{ /* Apply to both buttons and select within action-buttons */
+    background:#0b1d1d;border:1px solid var(--neon-blue);color:#e5faff;border-radius:999px;
+    padding:10px 14px;cursor:pointer;box-shadow:0 0 10px rgba(0,229,255,.35);
+    transition:background .15s,box-shadow .15s,transform .05s,color .15s,border-color .15s;
+    width: 100%; /* Ensure they fill their grid cell */
+    text-align: center; /* Center text */
+    white-space: nowrap; /* Prevent text wrapping */
+  }
+  .pill-btn:hover{box-shadow:0 0 12px rgba(0,229,255,.5)}
+  .pill-btn:active{transform:translateY(1px)}
+
+  /* Active states for buttons */
+  #listenMix.listen-active{background:var(--neon-blue);color:var(--button-text-color);border-color:var(--neon-blue);box-shadow:0 0 15px var(--neon-blue)}
+  #listenRadio.listen-active{background:var(--neon-green);color:var(--button-text-color);border-color:var(--neon-green);box-shadow:0 0 15px var(--neon-green)}
+  #listenSynth.listen-active{background:var(--neon-purple);color:var(--button-text-color);border-color:var(--neon-purple);box-shadow:0 0 15px var(--neon-purple)}
+  #micInputToggle.active{background:var(--neon-red);color:var(--button-text-color);border-color:var(--neon-red);box-shadow:0 0 15px var(--neon-red)}
+  #learningModeToggle.active{background:var(--neon-blue);color:var(--button-text-color);border-color:var(--neon-blue);box-shadow:0 0 15px var(--neon-blue)}
+  #recordToggle.recording{background:var(--neon-red);color:var(--button-text-color);border-color:var(--neon-red);box-shadow:0 0 15px var(--neon-red)}
+  #puppetToggle.active{background:var(--neon-red);color:var(--button-text-color);border-color:var(--neon-red);box-shadow:0 0 15px var(--neon-red)}
+
+
+  #learningModeOverlay{position:absolute;top:0;left:0;width:100%;height:100%;display:none;justify-content:center;align-items:center;flex-direction:column;background:rgba(0,0,0,.7);color:var(--text-color);z-index:200;padding:20px}
+  #learningModeOverlay.active{display:flex}
+  #learningModeContent{background:rgba(0,0,0,.85);padding:30px;border-radius:10px;box-shadow:0 0 25px var(--neon-blue);max-width:80%;max-height:80%;overflow:auto;position:relative}
+  #learningModeContent h2{color:var(--neon-blue);margin-top:0}
+  #closeLearningMode{position:absolute;top:10px;right:10px;background:none;border:none;color:var(--neon-red);font-size:1.5em;cursor:pointer}
+  #learningModeContent button{background:var(--neon-purple);color:var(--text-color);border:none;padding:8px 12px;border-radius:5px;cursor:pointer;font-size:.9em;box-shadow:0 0 8px rgba(204,51,255,.5);margin:5px;transition:background .3s,box-shadow .3s}
+  #learningModeContent button:hover{background:#e066ff;box-shadow:0 0 12px #e066ff}
+  
+  /* Select elements within control-group and action-buttons */
+  .control-group select, #action-buttons select {
+    background: rgba(0,0,0,.5); border:1px solid var(--neon-blue); color:var(--text-color); padding:4px 6px; border-radius:4px;
+    appearance: none; /* Remove default select styling */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2300E5FF%22%20d%3D%22M287%2C114.7L159.2%2C242.5c-3.1%2C3.1-8.2%2C3.1-11.3%2C0L5.4%2C114.7c-3.1-3.1-3.1-8.2%2C0-11.3s8.2-3.1%2C11.3%2C0l142.1%2C142.1l142.1-142.1c3.1-3.1%2C8.2-3.1%2C11.3%2C0C290.1%2C106.5%2C290.1%2C111.6%2C287%2C114.7z%22%2F%3E%3C%2Fsvg%3E');
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 8px;
+    padding-right: 25px; /* Make space for the custom arrow */
+  }
+  .control-group select { width: 140px; } /* Specific width for general controls */
+  #action-buttons select { padding: 8px 12px; } /* Larger padding for action buttons */
+
+
+  @media (max-width:768px){
+    #controls-container{padding:8px;gap:8px}
+    #global-controls, .grid-controls{grid-template-columns:repeat(2,1fr);gap:10px}
+    .control-group input[type="range"]{width:100px}
+    .control-group select{width:100%;min-width:unset;} /* Make selects full width on mobile */
+    
+    #action-buttons{
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* More compact 2-column layout */
+      gap: 8px; /* Slightly less gap */
+    }
+    .pill-btn, #action-buttons select {width:100%; padding: 8px 10px;} /* Smaller padding for mobile action buttons */
+
+    #radioBar{flex-direction:column;gap:8px;} /* Stack radio bar elements */
+    #radioSource{width:100%;min-width:unset;}
+    #customUrlInputContainer{flex-direction:column;width:100%;}
+    #dynamicRadioUrl{width:100%;}
+    #loadCustomRadioBtn{width:100%;}
+    
+    #learningModeContent{font-size:1em;padding:20px}
+  }
+
+  @media (max-width:480px) {
+    #global-controls, .grid-controls {grid-template-columns: 1fr; gap: 8px;} /* Single column for controls on very small screens */
+    .control-group input[type="range"]{width:calc(100% - 20px);} /* Adjust range slider width */
+    .control-group {max-width: 100%;}
+    #action-buttons{
+      grid-template-columns: 1fr; /* Single column for action buttons on very small screens */
+      gap: 6px;
+    }
+  }
+</style>
+</head>
+<body>
+  <canvas id="smithChartCanvas"></canvas>
+
+  <!-- Quick action glyph buttons -->
+  <div id="quickButtons" style="position:fixed;top:8px;right:10px;z-index:10001;display:flex;gap:6px;align-items:center">
+    <button id="btnFullscreen" aria-label="Toggle Fullscreen" title="Fullscreen" class="pill-btn" style="padding:6px 8px">⛶</button>
+    <button id="btnToggleMenu" aria-label="Show/Hide Menu" title="Show/Hide Menu" class="pill-btn" style="padding:6px 8px">☰</button>
+  </div>
+
+  <div id="sgStamp">Smith Graph • polyharmonic decomposer+vocoder • v0.7</div>
+
+  <div id="controls-container">
+    <div id="main-menu-content" style="width:100%; max-width:1100px; display:flex; flex-direction:column; gap:8px;">
+      
+      <details open>
+        <summary>Listen & Main Controls</summary>
+        <div class="section-content" style="display:flex;flex-direction:column;gap:10px;">
+          <!-- Listen Controls -->
+          <div id="vizBar" style="display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;">
+            <button data-listen="mix"   id="listenMix"   class="pill-btn">Mix</button>
+            <button data-listen="radio" id="listenRadio" class="pill-btn">Radio</button>
+            <button data-listen="synth" id="listenSynth" class="pill-btn">Synth</button>
+            <span style="width:8px"></span>
+            <button id="autoMatch" class="pill-btn">Auto Match</button>
+            <label style="display:flex;gap:6px;align-items:center;color:#8ff;margin-left:4px;font:12px 'Space Mono', monospace">
+              <input type="checkbox" id="followToggle"> Follow
+            </label>
+          </div>
+
+          <!-- Radio Bar -->
+          <div id="radioBar" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;width:100%;">
+            <label style="color:var(--neon-green)">Radio • <span id="radioStatus">Stopped</span></label>
+            <select id="radioSource">
+              <option value="off">Off</option>
+              <option value="https://ice4.somafm.com/groovesalad-128-mp3">SomaFM Groove Salad</option>
+              <option value="https://streams.ilovemusic.de/iloveradio1.mp3">I Love Radio</option>
+              <option value="https://stream.live.vc.bbcmedia.co.uk/bbc_radio_one">BBC R1 (may block CORS)</option>
+              <option value="custom-url">Add Custom Stream URL...</option>
+              <option value="local-file">Local File…</option>
+            </select>
+            <div id="customUrlInputContainer" style="display:none; gap: 5px; align-items: center;">
+              <input type="text" id="dynamicRadioUrl" placeholder="Enter stream URL">
+              <button id="loadCustomRadioBtn" class="pill-btn" style="padding: 6px 12px; font-size: 0.8em; box-shadow:none; border-color:var(--neon-green)">Load</button>
+            </div>
+            <span id="radioNow" style="font-size:.9em;color:var(--neon-blue);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis">—</span>
+          </div>
+
+          <!-- Blend Controls -->
+          <div class="grid-controls">
+            <div class="control-group">
+              <label for="blendMode">Blend Mode</label>
+              <select id="blendMode">
+                <option value="crossfade">Crossfade</option>
+                <option value="multiply">Multiply (AM)</option>
+                <option value="screen">Screen (Sum)</option>
+                <option value="difference">Difference</option>
+                <option value="duck">Sidechain Duck</option>
+              </select>
+            </div>
+            <div class="control-group"><label>Blend Amount: <span id="blendAmountValue">0.40</span></label><input type="range" id="blendAmount" min="0" max="1" value="0.4" step="0.01"></div>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary>General Audio Settings</summary>
+        <div class="section-content grid-controls">
+          <div class="control-group"><label>Line Length (s): <span id="reverbFeedbackValue">0.50</span></label><input type="range" id="reverbFeedback" min="0" max="2" value="0.5" step="0.01"></div>
+          <div class="control-group"><label>Reflectivity: <span id="reverbWetDryValue">0.30</span></label><input type="range" id="reverbWetDry" min="0" max="1" value="0.3" step="0.01"></div>
+          <div class="control-group"><label>Z₀ (Ω): <span id="z0Value">50</span></label><input type="range" id="z0" min="10" max="600" value="50" step="1"></div>
+          <div class="control-group"><label>Base Freq (Hz): <span id="baseFreqValue">440</span></label><input type="range" id="baseFreq" min="50" max="1000" value="440" step="1"></div>
+          <div class="control-group"><label>Base Cutoff (Hz): <span id="baseCutoffValue">2000</span></label><input type="range" id="baseCutoff" min="100" max="8000" value="2000" step="10"></div>
+          <div class="control-group"><label>Mic Gain: <span id="inputGainValue">0.50</span></label><input type="range" id="inputGain" min="0" max="1" value="0.5" step="0.01"></div>
+          <div class="control-group"><label>Soft LP (Hz): <span id="softLPValue">9000</span></label><input type="range" id="softLP" min="800" max="14000" value="9000" step="10"></div>
+        </div>
+      </details>
+      
+      <details>
+        <summary>Harmony Settings</summary>
+        <div class="section-content grid-controls">
+          <div class="control-group">
+            <label for="harmonyCount">Tones</label>
+            <select id="harmonyCount">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="4" selected>4</option>
+              <option value="8">8</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="chordType">Chord</label>
+            <select id="chordType">
+              <option value="unison">Unison</option>
+              <option value="octave">Octave</option>
+              <option value="fifths">Fifths</option>
+              <option value="triad" selected>Triad</option>
+              <option value="seventh">Seventh</option>
+              <option value="cluster">Cluster</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="scaleType">Scale</label>
+            <select id="scaleType">
+              <option value="none">Chromatic (none)</option>
+              <option value="major">Major</option>
+              <option value="minor">Natural Minor</option>
+              <option value="pentatonic" selected>Pentatonic</option>
+              <option value="dorian">Dorian</option>
+              <option value="phrygian">Phrygian</option>
+              <option value="lydian">Lydian</option>
+              <option value="harmonicMinor">Harmonic Minor</option>
+            </select>
+          </div>
+          <div class="control-group"><label>Detune (¢): <span id="detuneValue">8</span></label><input type="range" id="detune" min="0" max="50" value="8" step="1"></div>
+          <div class="control-group"><label>Stereo Spread: <span id="spreadValue">0.60</span></label><input type="range" id="spread" min="0" max="1" value="0.6" step="0.01"></div>
+          <div class="control-group"><label>Drift: <span id="driftValue">0.20</span></label><input type="range" id="drift" min="0" max="1" value="0.2" step="0.01"></div>
+        </div>
+      </details>
+
+      <details>
+        <summary>Decomposition Settings</summary>
+        <div class="section-content grid-controls">
+          <div class="control-group"><label>Decomposition Bands: <span id="decomposeBandCountValue">8</span></label><input type="range" id="decomposeBandCount" min="1" max="16" value="8" step="1"></div>
+        </div>
+      </details>
+
+      <details>
+        <summary>Presets</summary>
+        <div class="section-content" id="preset-buttons" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
+          <button id="presetLullaby" class="pill-btn" title="Warm, soft, harmonic">Preset: Lullaby</button>
+          <button id="presetRadioChop" class="pill-btn" title="Rhythmic radio duck">Preset: Radio‑Chop</button>
+          <button id="presetGregorian" class="pill-btn" title="Deep, resonant, monophonic">Preset: Gregorian</button>
+          <button id="presetPrimal" class="pill-btn" title="Raw, wide, drifting harmonies">Preset: Primal</button>
+        </div>
+      </details>
+
+      <!-- Main Action Buttons - now a compact grid -->
+      <div id="action-buttons">
+        <button id="micInputToggle" class="pill-btn">Mic Input OFF</button>
+        <button id="learningModeToggle" class="pill-btn">Learning Mode OFF</button>
+        <button id="recordToggle" class="pill-btn">Record</button>
+        <button id="puppetToggle" class="pill-btn">Decompose Mode OFF</button>
+        <button id="vocoderToggle" class="pill-btn">Vocoder OFF</button>
+        <select id="vocoderBands" class="pill-btn">
+          <option value="16">16 bands</option>
+          <option value="24" selected>24 bands</option>
+          <option value="32">32 bands</option>
+        </select>
+      </div>
+    </div> <!-- End main-menu-content -->
+  </div>
+
+  <!-- Learning overlay (unchanged core, trimmed) -->
+  <div id="learningModeOverlay">
+    <div id="learningModeContent">
+      <button id="closeLearningMode">×</button>
+      <h2>Learning Mode: Explore Impedance Concepts</h2>
+      <p><strong>Impedance Matching Pathways:</strong> Drag a point, then click a pathway button to see the impedance transform.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:20px">
+        <button data-path="lMatch">L-Match</button>
+        <button data-path="stubTuner">Stub Tuner</button>
+      </div>
+      <p><strong>Musical Sequences:</strong></p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:20px">
+        <button data-sequence="radialOut">Radial Out</button>
+        <button data-sequence="circleSweep">Circle Sweep</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* =============================================
+   POLYHARMONIC UPGRADE NOTES
+   - Multiple tones per Voice (1/2/4/8)
+   - Musical scale quantization + chord recipes
+   - Gentle detune, stereo spread, slow drift LFO
+   - Soft lowpass to remove "fly" fizz
+   - Two musical presets (Lullaby, Radio‑Chop)
+   - VOC/PUPPET LOUDNESS + MODULATOR PRIORITY (v0.5)
+   - MOBILE UI REFACTOR + DECOMPOSITION MODE + NEW PRESETS (v0.6)
+   - DECOMPOSE & COMPOSE: USER MARKS IN DECOMPOSE MODE + COMPACT BUTTONS + GROUP MOVE (v0.7)
+   ============================================= */
+
+/* ====== CORE STATE (largely from v0.4, extended) ====== */
+let audioContext, isAudioInitialized=false;
+const canvas=document.getElementById('smithChartCanvas'), ctx=canvas.getContext('2d');
+const controlsContainer=document.getElementById('controls-container');
+const mainMenuContent = document.getElementById('main-menu-content'); // New element to hide/show
+
+const reverbFeedbackSlider=rebind('reverbFeedback'), reverbFeedbackValue=el('reverbFeedbackValue');
+const reverbWetDrySlider=rebind('reverbWetDry'), reverbWetDryValue=el('reverbWetDryValue');
+const z0Slider=rebind('z0'), z0Value=el('z0Value');
+const baseFreqSlider=rebind('baseFreq'), baseFreqValue=el('baseFreqValue');
+const baseCutoffSlider=rebind('baseCutoff'), baseCutoffValue=el('baseCutoffValue');
+const micInputToggle=el('micInputToggle'), inputGainSlider=rebind('inputGain'), inputGainValue=el('inputGainValue');
+const learningModeToggle=el('learningModeToggle'), learningModeOverlay=el('learningModeOverlay');
+const closeLearningModeBtn=el('closeLearningMode'), learningModeContent=el('learningModeContent');
+const recordToggle=el('recordToggle');
+const listenButtons=[...document.querySelectorAll('#vizBar [data-listen]')];
+const blendModeSel=el('blendMode'), blendAmountSlider=rebind('blendAmount'), blendAmountValue=el('blendAmountValue');
+const radioSourceSel=el('radioSource'), customUrlInputContainer=el('customUrlInputContainer'), dynamicRadioUrl=el('dynamicRadioUrl'), loadCustomRadioBtn=el('loadCustomRadioBtn');
+const radioStatusSpan=el('radioStatus'), radioNowSpan=el('radioNow');
+const btnFullscreen=el('btnFullscreen'), btnToggleMenu=el('btnToggleMenu');
+
+// NEW musical controls
+const harmonyCountSel = el('harmonyCount');
+const chordTypeSel = el('chordType');
+const scaleTypeSel = el('scaleType');
+const detuneSlider = el('detune'), detuneValue = el('detuneValue');
+const spreadSlider = el('spread'), spreadValue = el('spreadValue');
+const driftSlider = el('drift'), driftValue = el('driftValue');
+const softLPSlider = el('softLP'), softLPValue = el('softLPValue');
+const presetLullaby = el('presetLullaby');
+const presetRadioChop = el('presetRadioChop');
+const presetGregorian = el('presetGregorian'); // New preset
+const presetPrimal = el('presetPrimal'); // New preset
+
+// Puppet + Vocoder controls
+const puppetToggle = el('puppetToggle'); // Renamed to "Decompose Mode"
+const vocoderToggle = el('vocoderToggle');
+const vocoderBandsSel = el('vocoderBands');
+
+// Musical state
+let HARM_TONES = parseInt(harmonyCountSel.value,10);
+let CHORD = chordTypeSel.value;
+let SCALE = scaleTypeSel.value;
+let DETUNE_CENTS = parseFloat(detuneSlider.value);
+let STEREO_SPREAD = parseFloat(spreadSlider.value);
+let DRIFT = parseFloat(driftSlider.value);
+let SOFT_LP = parseFloat(softLPSlider.value);
+
+let Z0=parseFloat(z0Slider.value), BASE_FREQ=parseFloat(baseFreqSlider.value), BASE_CUTOFF=parseFloat(baseCutoffSlider.value);
+let REVERB_FEEDBACK=parseFloat(reverbFeedbackSlider.value), REVERB_WET_DRY=parseFloat(reverbWetDrySlider.value), INPUT_GAIN=parseFloat(inputGainSlider.value);
+
+let smithChartRadius, center={x:0,y:0};
+let activePoints=new Map(); // For user-dragged points (when decomposeMode is OFF, or for new marks in ON mode)
+let micInputEnabled=false, micStream=null, analyserNode, frequencyData, inputSource, micGainNode;
+
+let learningModeActive=false, learningAnimation=null;
+let isRecording=false, mediaRecorder, recordedChunks=[], destinationStream;
+
+let listenMode='mix'; let radioSoloGain, synthSoloGain;
+let followTimer=null;
+
+let masterGain, monitorGain, delayNode, feedbackGainNode, wetGainNode, dryGainNode, synthOutGain, radioOutGain, mixBus, limiter;
+let synthAnalyser, synthBuffer, synthMeterGain, radioAnalyser, mixAnalyser, envPrev=0;
+let blendMode='crossfade', blendAmount=0.4;
+
+let mediaEl=null, mediaNode=null, radioFilter=null, radioPreGain=null, radioDryGain=null, radioWetGain=null, radioPanner=null, radioEnabled=false;
+let lastGamma={x:0,y:0};
+
+let activeRing=null, ringSynthAngle=0, ringRadioAngle=0, ringSynthTrim=1.0, ringRadioTrim=1.0, ringSynthDetent=-1, ringRadioDetent=-1;
+const RING_DETENTS_COARSE=36, RING_DETENTS_FINE=180; let ringSnapMode='coarse';
+
+// Global soft lowpass for synth output
+let synthSoftLPFilter;
+
+// --- DECOMPOSITION MODE (formerly Puppet Mode) ---
+let decomposeModeActive = false;
+// Stores: { screenX, screenY, normX, normY, voice, isUserControlled }
+let decomposedVoices = new Map(); 
+let decomposeAnalyser = null;
+let decomposeTimer = null;
+
+const decomposeBandCountSlider = el('decomposeBandCount');
+const decomposeBandCountValue = el('decomposeBandCountValue');
+let DECOMPOSE_BAND_COUNT = parseInt(decomposeBandCountSlider.value, 10);
+const DECOMPOSE_MIN_FREQ = 100; // Hz
+const DECOMPOSE_MAX_FREQ = 8000; // Hz
+
+let selectedDecomposedVoiceId = null; // ID of the currently selected decomposed voice for manual control
+
+// New state variables for group drag
+let isDraggingAllDecomposedVoices = false;
+let initialGroupTouchCenter = { x: 0, y: 0 }; // For 2-finger touch drag
+let initialGroupMousePos = { x: 0, y: 0 }; // For Shift + mouse drag
+
+
+let isDraggingUserPoint = false; // Flag to track if a user-created point is being dragged
+let isDraggingDecomposedVoice = false; // Flag to track if a decomposed voice is being dragged
+
+function el(id){ return document.getElementById(id); }
+function rebind(id){ const e=el(id); return e; }
+
+/* ====== AUDIO INIT ====== */
+function initAudio(){
+  if(isAudioInitialized) return;
+  audioContext = new (window.AudioContext||window.webkitAudioContext)();
+  console.log("AudioContext initialized. State:", audioContext.state);
+  destinationStream = audioContext.createMediaStreamDestination();
+
+  masterGain = audioContext.createGain();
+  const compressor = audioContext.createDynamicsCompressor();
+  compressor.threshold.value=-10; compressor.knee.value=14; compressor.ratio.value=2.5; compressor.attack.value=0.004; compressor.release.value=0.22;
+  limiter = compressor;
+
+  mixBus = audioContext.createGain(); mixBus.connect(limiter); limiter.connect(masterGain);
+  masterGain.gain.value=0.55;
+  monitorGain = audioContext.createGain(); monitorGain.gain.value=1.0; masterGain.connect(monitorGain); monitorGain.connect(audioContext.destination);
+  masterGain.connect(destinationStream);
+
+  // Delay / Reverb‑ish
+  delayNode = audioContext.createDelay(2);
+  feedbackGainNode = audioContext.createGain();
+  wetGainNode = audioContext.createGain();
+  dryGainNode = audioContext.createGain();
+
+  // Soft global LP to reduce "fly" fizz for synth
+  synthSoftLPFilter = audioContext.createBiquadFilter(); synthSoftLPFilter.type='lowpass'; synthSoftLPFilter.frequency.value=SOFT_LP; synthSoftLPFilter.Q.value=0.4;
+
+  synthOutGain = audioContext.createGain(); synthOutGain.gain.value=1;
+  synthOutGain.connect(synthSoftLPFilter);
+  synthSoftLPFilter.connect(wetGainNode); 
+  synthSoftLPFilter.connect(dryGainNode); // Dry synth output also goes through soft LP
+
+  dryGainNode.connect(mixBus);
+  wetGainNode.connect(delayNode); delayNode.connect(feedbackGainNode); feedbackGainNode.connect(delayNode); feedbackGainNode.connect(mixBus); // Feedback from delay also goes to mix
+
+  delayNode.delayTime.value=REVERB_FEEDBACK;
+  feedbackGainNode.gain.value=REVERB_WET_DRY;
+  wetGainNode.gain.value=REVERB_WET_DRY;
+  dryGainNode.gain.value=1-REVERB_WET_DRY;
+
+  // Radio chain
+  radioFilter = audioContext.createBiquadFilter(); radioFilter.type='lowpass'; radioFilter.frequency.value=BASE_CUTOFF; radioFilter.Q.value=0.9;
+  radioPreGain = audioContext.createGain(); radioPreGain.gain.value=0.55;
+  radioDryGain = audioContext.createGain(); radioDryGain.gain.value=0.5;
+  radioWetGain = audioContext.createGain(); radioWetGain.gain.value=0.25;
+  radioPanner = audioContext.createStereoPanner(); radioPanner.pan.value=0;
+
+  radioFilter.connect(radioPreGain);
+  radioPreGain.connect(radioDryGain); radioDryGain.connect(radioPanner); radioPanner.connect(mixBus);
+  radioPreGain.connect(radioWetGain); radioWetGain.connect(delayNode);
+
+  radioOutGain = audioContext.createGain(); radioOutGain.gain.value=1;
+
+  // Solos
+  radioSoloGain = audioContext.createGain(); radioSoloGain.gain.value=0; radioPanner.connect(radioSoloGain); radioSoloGain.connect(masterGain);
+  synthSoloGain = audioContext.createGain(); synthSoloGain.gain.value=0; dryGainNode.connect(synthSoloGain); synthSoloGain.connect(masterGain);
+
+  // Analyser for decomposition mode
+  decomposeAnalyser = audioContext.createAnalyser(); decomposeAnalyser.fftSize = 2048; // High FFT size for more detail
+  console.log("decomposeAnalyser initialized.");
+
+  isAudioInitialized = true;
+  setListenMode('mix');
+}
+
+/* ====== ANALYSERS + BLEND ====== */
+function ensureSynthAnalyser(){
+  if (synthAnalyser) return;
+  synthAnalyser = audioContext.createAnalyser(); synthAnalyser.fftSize=512; synthBuffer=new Uint8Array(synthAnalyser.frequencyBinCount);
+  synthMeterGain = audioContext.createGain(); synthMeterGain.gain.value=1;
+  try{ synthOutGain.connect(synthMeterGain); }catch{}
+  synthMeterGain.connect(synthAnalyser);
+
+  if (!radioAnalyser){ radioAnalyser = audioContext.createAnalyser(); radioAnalyser.fftSize=512; }
+  if (!mixAnalyser){ mixAnalyser = audioContext.createAnalyser(); mixAnalyser.fftSize=512; }
+  try{ radioPanner.connect(radioAnalyser); }catch{}
+  try{ mixBus.connect(mixAnalyser); }catch{}
+}
+function getSynthEnv(){
+  if (!synthAnalyser) return 0;
+  synthAnalyser.getByteTimeDomainData(synthBuffer);
+  let sum=0; for (let i=0;i<synthBuffer.length;i++){ const v=(synthBuffer[i]-128)/128; sum+=v*v; }
+  const raw=Math.min(1, Math.sqrt(sum/synthBuffer.length)*2.0);
+  const a = (raw>envPrev)? 0.3: 0.08;
+  envPrev = envPrev + a*(raw-envPrev);
+  return envPrev;
+}
+function applyBlendMode(){
+  if(!isAudioInitialized) return;
+  ensureSynthAnalyser();
+  const env=getSynthEnv(); const amt=blendAmount;
+  switch(blendMode){
+    case 'crossfade':{
+      const t=amt;
+      const radioLevel = ringRadioTrim*(1-t);
+      const synthLevel = ringSynthTrim*(0.25+0.75*t);
+      if(radioPreGain) radioPreGain.gain.setTargetAtTime(radioLevel, audioContext.currentTime, 0.03);
+      if(synthOutGain) synthOutGain.gain.setTargetAtTime(synthLevel, audioContext.currentTime, 0.03);
+      radioWetGain.gain.setTargetAtTime(Math.max(0, REVERB_WET_DRY*(0.7-0.55*t)), audioContext.currentTime, 0.05);
+      wetGainNode.gain.setTargetAtTime(Math.min(1, REVERB_WET_DRY*(0.6+0.8*t)), audioContext.currentTime, 0.05);
+      break;}
+    case 'multiply':{
+      const k = Math.pow(env,0.6); const lvl=(1-amt)+amt*k;
+      if(radioPreGain) radioPreGain.gain.setTargetAtTime(lvl*ringRadioTrim, audioContext.currentTime, 0.03);
+      if(radioWetGain) radioWetGain.gain.setTargetAtTime(REVERB_WET_DRY*(1-0.7*amt*k), audioContext.currentTime, 0.05);
+      break;}
+    case 'screen':{
+      const lift=1+1.1*amt;
+      if(synthOutGain) synthOutGain.gain.setTargetAtTime(ringSynthTrim*lift, audioContext.currentTime, 0.05);
+      if(radioPreGain) radioPreGain.gain.setTargetAtTime(ringRadioTrim*lift, audioContext.currentTime, 0.05);
+      wetGainNode.gain.setTargetAtTime(Math.min(1, REVERB_WET_DRY*(0.8+0.8*amt)), audioContext.currentTime, 0.05);
+      radioWetGain.gain.setTargetAtTime(Math.min(1, REVERB_WET_DRY*(0.7+0.9*amt)), audioContext.currentTime, 0.05);
+      break;}
+    case 'difference':{
+      if(!applyBlendMode.phaseFlipper && dryGainNode && mixBus){
+        const inverter=audioContext.createGain(); inverter.gain.value=-1;
+        try{ dryGainNode.disconnect(mixBus);}catch{}
+        dryGainNode.connect(inverter); inverter.connect(mixBus);
+        applyBlendMode.phaseFlipper = inverter;
+      }
+      radioWetGain.gain.setTargetAtTime(Math.max(0, REVERB_WET_DRY*(0.4-0.35*amt)), audioContext.currentTime, 0.05);
+      break;}
+    case 'duck':{
+      const depth=Math.pow(amt,0.5); const duck=Math.max(0, 1 - depth*Math.pow(env,0.6));
+      if(radioPreGain) radioPreGain.gain.setTargetAtTime(duck*ringRadioTrim, audioContext.currentTime, 0.03);
+      if(radioWetGain) radioWetGain.gain.setTargetAtTime(duck*REVERB_WET_DRY, audioContext.currentTime, 0.03);
+      break;}
+  }
+}
+
+/* ====== LISTEN ====== */
+function applyListenRouting(){
+  if(!masterGain||!mixBus||!radioSoloGain||!synthSoloGain) return;
+  if(listenMode==='mix'){
+    mixBus.gain.setTargetAtTime(1, audioContext.currentTime, 0.02);
+    radioSoloGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+    synthSoloGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+  } else if(listenMode==='radio'){
+    mixBus.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+    radioSoloGain.gain.setTargetAtTime(1, audioContext.currentTime, 0.02);
+    synthSoloGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+  } else {
+    mixBus.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+    radioSoloGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+    synthSoloGain.gain.setTargetAtTime(1, audioContext.currentTime, 0.02);
+  }
+}
+async function setListenMode(mode){
+  listenMode=mode;
+  listenButtons.forEach(b=>b.classList.toggle('listen-active', b.dataset.listen===mode));
+  try{ if(audioContext?.state==='suspended'){ await audioContext.resume(); } }catch{}
+  try{ if(mode!=='synth' && mediaEl && mediaEl.paused){ await mediaEl.play(); } }catch(e){}
+  applyListenRouting();
+}
+
+/* ====== RADIO / FILE / MIC ====== */
+function setRadioStatus(t){ radioStatusSpan.textContent=t; }
+function hostnameOf(u){ try{ return new URL(u).hostname; }catch{ return ''; } }
+function isBlockedUrl(u){ try{ const h=new URL(u).hostname.replace(/^www\./,''); return h.endsWith('youtube.com')||h.endsWith('youtu.be'); }catch{ return false; } }
+
+function connectRadio(url){
+  initAudio();
+  disconnectRadio();
+  if(!url){ setRadioStatus('Stopped'); radioEnabled=false; radioSourceSel.value='off'; radioNowSpan.textContent='—'; return; }
+  if(isBlockedUrl(url)){ setRadioStatus('Blocked'); alert('YouTube/Vimeo are typically blocked by CORS. Use direct MP3/AAC URLs.'); radioSourceSel.value='off'; radioNowSpan.textContent='—'; return; }
+
+  mediaEl = new Audio(); mediaEl.crossOrigin='anonymous'; mediaEl.src=url; mediaEl.loop=true; mediaEl.preload='none';
+  mediaEl.addEventListener('error', e=>{ console.error(e); setRadioStatus('Error loading'); radioSourceSel.value='off'; radioNowSpan.textContent='—'; });
+  mediaEl.addEventListener('waiting', ()=>setRadioStatus('Buffering…'));
+  mediaEl.addEventListener('stalled', ()=>setRadioStatus('Buffering…'));
+  mediaEl.addEventListener('playing', ()=>setRadioStatus('Playing'));
+  mediaEl.addEventListener('pause', ()=>setRadioStatus('Paused'));
+  mediaNode = audioContext.createMediaElementSource(mediaEl);
+  mediaNode.connect(radioFilter);
+  radioNowSpan.textContent = hostnameOf(url) || 'Stream';
+  mediaEl.play().then(()=>{ radioEnabled=true; }).catch(e=>{ console.warn('Autoplay failed:',e); setRadioStatus('Play blocked'); radioEnabled=false; });
+}
+function disconnectRadio(){
+  try{ if(mediaEl){ mediaEl.pause(); mediaEl.src=''; } }catch{}
+  try{ if(mediaNode){ mediaNode.disconnect(); } }catch{}
+  mediaEl=null; mediaNode=null; radioEnabled=false;
+}
+let localFileInput=null;
+radioSourceSel.addEventListener('change', ()=>{
+  initAudio();
+  const v=radioSourceSel.value;
+  if(v==='off'){ disconnectRadio(); setRadioStatus('Stopped'); radioNowSpan.textContent='—'; customUrlInputContainer.style.display='none'; }
+  else if(v==='custom-url'){ customUrlInputContainer.style.display='flex'; dynamicRadioUrl.value=''; dynamicRadioUrl.focus(); setRadioStatus('Enter URL'); }
+  else if(v==='local-file'){
+    if(!localFileInput){ localFileInput=document.createElement('input'); localFileInput.type='file'; localFileInput.accept='audio/*'; localFileInput.style.display='none'; document.body.appendChild(localFileInput);
+      localFileInput.addEventListener('change', ()=>{ const f=localFileInput.files?.[0]; if(!f) return; const url=URL.createObjectURL(f); connectRadio(url); radioNowSpan.textContent=`Local: ${f.name}`; });
+    }
+    localFileInput.click();
+  }
+  else { customUrlInputContainer.style.display='none'; connectRadio(v); }
+});
+loadCustomRadioBtn.addEventListener('click', ()=>{ const url=dynamicRadioUrl.value.trim(); if(url) connectRadio(url); else setRadioStatus('Please enter a URL'); });
+
+/* MIC */
+micInputToggle.addEventListener('click', async ()=>{
+  initAudio();
+  micInputEnabled = !micInputEnabled;
+  if(micInputEnabled){
+    try{
+      micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+      inputSource = audioContext.createMediaStreamSource(micStream);
+      analyserNode = audioContext.createAnalyser(); analyserNode.fftSize=2048;
+      micGainNode = audioContext.createGain(); micGainNode.gain.value=INPUT_GAIN;
+      frequencyData = new Uint8Array(analyserNode.frequencyBinCount);
+
+      inputSource.connect(micGainNode); micGainNode.connect(analyserNode);
+      analyserNode.connect(masterGain); // monitor
+      micInputToggle.textContent='Mic Input ON'; micInputToggle.classList.add('active');
+    }catch(err){
+      console.error(err); alert('Mic permission denied.'); micInputEnabled=false; micInputToggle.textContent='Mic Input OFF'; micInputToggle.classList.remove('active');
+    }
+  } else {
+    try{
+      micStream?.getTracks().forEach(t=>t.stop());
+      inputSource?.disconnect(); micGainNode?.disconnect(); analyserNode?.disconnect();
+    }catch{}
+    micStream=null; inputSource=null; analyserNode=null; micGainNode=null; frequencyData=null;
+    micInputToggle.textContent='Mic Input OFF'; micInputToggle.classList.remove('active');
+  }
+});
+
+/* ====== DECOMPOSITION MODE (formerly Puppet Mode) ====== */
+decomposeBandCountSlider.addEventListener('input', () => {
+    DECOMPOSE_BAND_COUNT = parseInt(decomposeBandCountSlider.value, 10);
+    decomposeBandCountValue.textContent = DECOMPOSE_BAND_COUNT;
+    if (decomposeModeActive) {
+        stopDecomposeMode(); // Stop current timer and clear voices
+        startDecomposeMode(); // Rebuild with new band count
+    }
+});
+
+function getDecomposedBandFeatures(analyser, numBands, minFreq, maxFreq){
+  if(!analyser || !audioContext) return [];
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(data);
+
+  const features = [];
+  const binWidth = audioContext.sampleRate / (2 * analyser.frequencyBinCount);
+
+  // Logarithmic frequency scale for bands
+  const logMin = Math.log2(minFreq);
+  const logMax = Math.log2(maxFreq);
+  const logStep = (logMax - logMin) / numBands;
+
+  for (let i = 0; i < numBands; i++) {
+    const fStart = Math.pow(2, logMin + i * logStep);
+    const fEnd = Math.pow(2, logMin + (i + 1) * logStep);
+
+    const binStart = Math.floor(fStart / binWidth);
+    const binEnd = Math.min(analyser.frequencyBinCount - 1, Math.floor(fEnd / binWidth));
+
+    let sumMag = 0;
+    let sumWeightedFreq = 0;
+
+    for (let j = binStart; j <= binEnd; j++) {
+      const freq = j * binWidth;
+      const mag = data[j];
+      sumMag += mag;
+      sumWeightedFreq += freq * mag;
+    }
+
+    if (sumMag > 0 && (binEnd - binStart + 1) > 0) {
+      const centroid = sumWeightedFreq / sumMag;
+      const energy = sumMag / (255 * (binEnd - binStart + 1)); // Normalized amplitude
+      
+      const smoothedEnergy = Math.min(1, Math.max(0, energy * 1.5 - 0.2)); // Boost and clip, adjustable
+      const smoothedCentroid = Math.max(minFreq, Math.min(maxFreq, centroid));
+
+      features.push({ freq: smoothedCentroid, amp: smoothedEnergy });
+    } else {
+      features.push({ freq: minFreq + (maxFreq - minFreq) * (i / numBands), amp: 0 }); // Fallback for silent bands
+    }
+  }
+  return features;
+}
+
+function startDecomposeMode(){
+  if(decomposeTimer) return;
+  console.log("--- Starting Decompose Mode ---");
+
+  // Disconnect any existing source from decomposeAnalyser
+  try{ if(mediaNode) mediaNode.disconnect(decomposeAnalyser); } catch(e){console.warn("Error disconnecting mediaNode from decomposeAnalyser:", e);}
+  try{ if(inputSource) inputSource.disconnect(decomposeAnalyser); } catch(e){console.warn("Error disconnecting inputSource from decomposeAnalyser:", e);}
+  
+  // Clear any existing selection for decomposed voices
+  selectedDecomposedVoiceId = null; 
+
+  // Route audio to the decompose analyser
+  if(radioEnabled && mediaNode){ // Connect mediaNode directly for raw radio analysis
+    mediaNode.connect(decomposeAnalyser);
+    console.log("Decompose mode using Radio (mediaNode) as input for analysis.");
+  } else if (micInputEnabled && inputSource){
+    inputSource.connect(decomposeAnalyser);
+    console.log("Decompose mode using Mic (inputSource) as input for analysis.");
+  } else {
+    console.warn("Decomposition Mode activated without an active radio stream or microphone input. No audio will be analyzed.");
+  }
+  
+  decomposeTimer = setInterval(()=>{
+    if(!isAudioInitialized) return;
+    const bandFeatures = getDecomposedBandFeatures(decomposeAnalyser, DECOMPOSE_BAND_COUNT, DECOMPOSE_MIN_FREQ, DECOMPOSE_MAX_FREQ);
+
+    // Stop and remove decomposed voices that are no longer present (e.g., if band count decreased)
+    const expectedBandIds = new Set(Array.from({length: DECOMPOSE_BAND_COUNT}, (_,i) => `band-${i}`));
+    decomposedVoices.forEach((data, id) => {
+        if (!expectedBandIds.has(id)) { 
+            data.voice.stop();
+            decomposedVoices.delete(id);
+            if (selectedDecomposedVoiceId === id) selectedDecomposedVoiceId = null; 
+        }
+    });
+
+    bandFeatures.forEach((feat, i) => {
+      const bandId = `band-${i}`;
+      const { freq, amp } = feat;
+
+      let voiceData = decomposedVoices.get(bandId);
+
+      // Check if voice exists and if it's currently user-controlled
+      if (!voiceData) {
+          // New voice for this band
+          // Map frequency to Y-axis (pitch) and amplitude to radius (gain/filter Q)
+          // X-axis spread out based on band index, using 0.9 as max spread to keep within unit circle bounds
+          const normY = (Math.log2(freq) - Math.log2(DECOMPOSE_MIN_FREQ)) / (Math.log2(DECOMPOSE_MAX_FREQ) - Math.log2(DECOMPOSE_MIN_FREQ)); // 0 to 1 range
+          const displayY = normY * 2 - 1; // -1 to 1 range
+
+          const normX = ((i / (DECOMPOSE_BAND_COUNT - 1 || 1)) * 1.8) - 0.9; // Spread bands across X-axis, -0.9 to 0.9
+
+          const currentRadius = Math.min(1, 0.2 + amp * 0.8); // Amplitude to radius, minimum 0.2
+          const initialNormX = normX * currentRadius; // Apply radius to X
+          const initialNormY = displayY * currentRadius; // Apply radius to Y
+
+          const v = new Voice(initialNormX, initialNormY);
+          v.setActive(true);
+          const scr = normalizedGammaToScreen(initialNormX, initialNormY);
+          voiceData = { 
+            screenX: scr.x, screenY: scr.y, 
+            normX: initialNormX, normY: initialNormY, 
+            voice: v, 
+            isUserControlled: false 
+          };
+          decomposedVoices.set(bandId, voiceData);
+      } 
+      
+      // Update position and parameters
+      if (!voiceData.isUserControlled) {
+          // If not user-controlled, update position from spectral analysis
+          const normY = (Math.log2(freq) - Math.log2(DECOMPOSE_MIN_FREQ)) / (Math.log2(DECOMPOSE_MAX_FREQ) - Math.log2(DECOMPOSE_MIN_FREQ)); 
+          const displayY = normY * 2 - 1; 
+          const normX = ((i / (DECOMPOSE_BAND_COUNT - 1 || 1)) * 1.8) - 0.9; 
+          const currentRadius = Math.min(1, 0.2 + amp * 0.8);
+
+          voiceData.normX = normX * currentRadius; 
+          voiceData.normY = displayY * currentRadius;
+          
+          const scr = normalizedGammaToScreen(voiceData.normX, voiceData.normY);
+          voiceData.screenX = scr.x;
+          voiceData.screenY = scr.y;
+          voiceData.voice.updateParameters(voiceData.normX, voiceData.normY);
+          voiceData.voice.setGain(amp * 0.8); // Scale overall voice gain by band amplitude
+      } else {
+          // If user-controlled, only update audio parameters based on its current *user-set* position
+          voiceData.voice.updateParameters(voiceData.normX, voiceData.normY);
+      }
+    });
+  }, 60); // Update every 60ms
+}
+
+function stopDecomposeMode(){
+  console.log("--- Stopping Decompose Mode ---");
+  if(decomposeTimer){ clearInterval(decomposeTimer); decomposeTimer=null; }
+  decomposedVoices.forEach(p => p.voice.stop());
+  decomposedVoices.clear();
+  selectedDecomposedVoiceId = null;
+
+  // Disconnect analyser source
+  try{ if(mediaNode) mediaNode.disconnect(decomposeAnalyser); } catch(e){console.warn("Error disconnecting mediaNode from decomposeAnalyser on stop:", e);}
+  try{ if(inputSource) inputSource.disconnect(decomposeAnalyser); } catch(e){console.warn("Error disconnecting inputSource from decomposeAnalyser on stop:", e);}
+}
+
+puppetToggle.addEventListener('click', ()=>{
+  initAudio(); // Ensure audio context is running
+  decomposeModeActive=!decomposeModeActive;
+  puppetToggle.textContent=`Decompose Mode ${decomposeModeActive?'ON':'OFF'}`;
+  puppetToggle.classList.toggle('active', decomposeModeActive);
+  
+  if(decomposeModeActive){
+      // Disable learning mode if entering decompose mode
+      if(learningModeActive){
+        learningModeActive = false; 
+        learningModeToggle.textContent='Learning Mode OFF';
+        learningModeToggle.classList.remove('active');
+        learningModeOverlay.classList.remove('active');
+        clearLearningAnimation(); // This also clears activePoints (user points) in learning mode
+      }
+      startDecomposeMode(); 
+  } else {
+      stopDecomposeMode();
+      // When decompose mode is off, clear selected decomposed voice if any
+      selectedDecomposedVoiceId = null;
+  }
+});
+
+
+/* ====== VOCODER (unchanged structure) ====== */
+let vocoderOn=false, voc=null;
+function makeAbsCurve(len=1024){ const c=new Float32Array(len); for(let i=0;i<len;i++){ const x=(i/(len-1))*2-1; c[i]=Math.abs(x);} return c; }
+function buildVocoder(bands=24){
+  if(!isAudioInitialized) initAudio();
+  destroyVocoder();
+  const ctx=audioContext, fmin=120, fmax=Math.min(6000, ctx.sampleRate/2-200);
+  const edges=[]; for(let i=0;i<=bands;i++){ const t=i/bands; edges.push(fmin*Math.pow(fmax/fmin,t)); }
+  const carrierBus = ctx.createGain(); carrierBus.gain.value=1;
+  const saw=ctx.createOscillator(); saw.type='sawtooth'; saw.frequency.value=BASE_FREQ;
+  const sawG=ctx.createGain(); sawG.gain.value=0.4; // Slightly increased carrier saw gain
+  saw.connect(sawG).connect(carrierBus); saw.start();
+  const noiseBuf=ctx.createBuffer(1, 2*ctx.sampleRate, ctx.sampleRate); const ch=noiseBuf.getChannelData(0); for(let i=0;i<noiseBuf.length;i++) ch[i]=Math.random()*2-1;
+  const noise=ctx.createBufferSource(); noise.buffer=noiseBuf; noise.loop=true;
+  const noiseBP=ctx.createBiquadFilter(); noiseBP.type='bandpass'; noiseBP.frequency.value=1200; noiseBP.Q.value=0.7;
+  const noiseG=ctx.createGain(); noiseG.gain.value=0.7; // Slightly increased carrier noise gain
+  noise.connect(noiseBP).connect(noiseG).connect(carrierBus); noise.start();
+  
+  // Vocoder carrier lowpass now uses SOFT_LP value for consistency with synth
+  const carrierLP=ctx.createBiquadFilter(); carrierLP.type='lowpass'; carrierLP.frequency.value=SOFT_LP; 
+  carrierBus.connect(carrierLP);
+
+  const modTap=ctx.createGain(); modTap.gain.value=1; 
+  
+  // --- MODULATOR SOURCE PRIORITY FOR VOCODER ---
+  // 1. Radio (if enabled)
+  // 2. Mic (if enabled)
+  // 3. Synth Output (as a fallback)
+  if (radioEnabled && radioFilter){ // Use radioFilter output for modulated signal
+    radioFilter.connect(modTap);
+    console.log("Vocoder using Radio as modulator.");
+  } else if (micInputEnabled && inputSource){
+    inputSource.connect(modTap);
+    console.log("Vocoder using Mic as modulator.");
+  } else {
+    synthOutGain.connect(modTap); 
+    console.log("Vocoder using Synth as modulator (fallback).");
+  }
+  // --- END MODULATOR SOURCE PRIORITY ---
+
+  const absCurve=makeAbsCurve(); const outGain=ctx.createGain(); outGain.gain.value=0.9;
+  const bandNodes=[];
+  for(let i=0;i<bands;i++){
+    const f1=edges[i], f2=edges[i+1], fc=Math.sqrt(f1*f2), bw=f2-f1, q=Math.max(0.707, fc/bw);
+    const mBP=ctx.createBiquadFilter(); mBP.type='bandpass'; mBP.frequency.value=fc; mBP.Q.value=q;
+    const rect=ctx.createWaveShaper(); rect.curve=absCurve;
+    const envLP=ctx.createBiquadFilter(); envLP.type='lowpass'; envLP.frequency.value=35; envLP.Q.value=0.0001;
+    const envScale=ctx.createGain(); envScale.gain.value=0.08; // Significantly increased envelope scale gain
+    modTap.connect(mBP).connect(rect).connect(envLP).connect(envScale);
+    const cBP=ctx.createBiquadFilter(); cBP.type='bandpass'; cBP.frequency.value=fc; cBP.Q.value=q;
+    const vca=ctx.createGain(); vca.gain.value=0;
+    const base = ctx.createConstantSource(); base.offset.value=0.0008; base.connect(vca.gain); base.start();
+    envScale.connect(vca.gain); carrierLP.connect(cBP).connect(vca).connect(outGain);
+    bandNodes.push({envLP, envScale, vca, cBP, mBP, base});
+  }
+  outGain.connect(wetGainNode); outGain.connect(dryGainNode); outGain.connect(synthSoloGain);
+  voc = {bands:bandNodes, carrierLP, saw, noise, out:outGain, modTap, carrierBus};
+}
+function destroyVocoder(){ 
+  if(!voc) return; 
+  try{ 
+    voc.out.disconnect(); 
+    voc.carrierLP.disconnect(); 
+    voc.carrierBus?.disconnect?.();
+    voc.modTap.disconnect(); // Ensure modulator is disconnected
+    voc.saw.stop(); voc.noise.stop();
+    voc.bands.forEach(b=>{ try{ b.base.stop(); }catch{} [b.envLP,b.envScale,b.vca,b.cBP,b.mBP].forEach(n=>{try{n.disconnect();}catch{}}); }); 
+  }catch(e){ console.warn("Error destroying vocoder components:", e);} 
+  voc=null; 
+}
+
+vocoderToggle.addEventListener('click', ()=>{ 
+  initAudio(); // Ensure audio context is running
+  vocoderOn=!vocoderOn; 
+  vocoderToggle.textContent=`Vocoder ${vocoderOn?'ON':'OFF'}`; 
+  vocoderToggle.classList.toggle('active', vocoderOn); 
+  if(vocoderOn) buildVocoder(parseInt(vocoderBandsSel.value,10)||24); 
+  else destroyVocoder(); 
+});
+vocoderBandsSel.addEventListener('change', ()=>{ if(vocoderOn) buildVocoder(parseInt(vocoderBandsSel.value,10)||24); });
+
+/* ====== MUSIC THEORY HELPERS ====== */
+const SCALES = {
+  none:    { name:'Chromatic', steps:[0,1,2,3,4,5,6,7,8,9,10,11] },
+  major:   { name:'Major', steps:[0,2,4,5,7,9,11] },
+  minor:   { name:'Natural Minor', steps:[0,2,3,5,7,8,10] },
+  pentatonic:{ name:'Pentatonic', steps:[0,3,5,7,10] },
+  dorian:  { name:'Dorian', steps:[0,2,3,5,7,9,10] },
+  phrygian:{ name:'Phrygian', steps:[0,1,3,5,7,8,10] }, // New Scale
+  lydian:  { name:'Lydian', steps:[0,2,4,6,7,9,11] },
+  harmonicMinor:{ name:'Harmonic Minor', steps:[0,2,3,5,7,8,11] } // New Scale
+};
+const CHORDS = {
+  unison:  [0],
+  octave:  [0,12], // New Chord
+  fifths:  [0,7,12,19], // root, fifth, octave, octave+fifth
+  triad:   [0,4,7,12], // root, major third, fifth, octave
+  seventh: [0,4,7,10,12], // root, major third, fifth, minor seventh, octave
+  cluster: [0,1,2,3,4,5,6,7] // tight cluster of semitones
+};
+function midiToHz(m){ return 440 * Math.pow(2,(m-69)/12); }
+function hzToMidi(h){ return 69 + 12*Math.log2(h/440); }
+function quantizeToScale(hz){
+  if(SCALE==='none') return hz;
+  const midi = hzToMidi(hz); 
+  const octave = Math.floor(midi/12)*12; // base of the current octave
+  const stepInOctave = midi - octave; // distance from the start of the current octave
+
+  const steps=SCALES[SCALE].steps; 
+  let bestStep = steps[0], minDiff = Math.abs(stepInOctave - steps[0]);
+  for(const s of steps){ 
+    const d=Math.abs(stepInOctave - s); 
+    if(d<minDiff){minDiff=d;bestStep=s;} 
+  }
+  const qMidi = octave + bestStep; 
+  return midiToHz(qMidi);
+}
+function chordOffsets(count){
+  const recipe = CHORDS[CHORD]; // Use the selected chord recipe
+  // Repeat/trim recipe to desired count
+  const arr=[]; 
+  for(let i=0;i<count;i++){ 
+    arr.push(recipe[i % recipe.length] + 12*Math.floor(i/recipe.length)); 
+  }
+  return arr.slice(0,count);
+}
+
+/* ====== VOICE (polyharmonic) ====== */
+class Voice{
+  constructor(nx,ny){
+    this.children=[]; // Individual oscillators + their LFOs
+    this.gain=audioContext.createGain(); // Master gain for the voice
+    this.pan= audioContext.createStereoPanner(); // Master panner for the voice
+    this.filter=audioContext.createBiquadFilter(); this.filter.type='lowpass'; this.filter.Q.value=0.6;
+    this.env = audioContext.createGain(); // per-voice ADSR-like envelope
+
+    // Connect chain: children -> env -> filter -> pan -> gain -> synthOutGain
+    this.env.connect(this.filter);
+    this.filter.connect(this.pan);
+    this.pan.connect(this.gain);
+    this.gain.connect(synthOutGain);
+
+    this.setActive(true);
+    this._lastHarmonyTones = HARM_TONES; // Store for rebuild logic
+    this._lastChord = CHORD;
+    this._lastScale = SCALE;
+    this._lastDetuneCents = DETUNE_CENTS;
+    this._lastDrift = DRIFT;
+
+    this.updateParameters(nx,ny); // Initial parameter update to create oscillators
+
+    // Gentle fade in
+    this.env.gain.cancelScheduledValues(audioContext.currentTime);
+    this.env.gain.linearRampToValueAtTime(0.0001, audioContext.currentTime);
+    this.env.gain.linearRampToValueAtTime(0.9/HARM_TONES, audioContext.currentTime+0.05); // Fade in over 50ms
+  }
+
+  setGain(g){ this.gain.gain.setTargetAtTime(g, audioContext.currentTime, 0.02); }
+  setActive(on){ this.active=on; this.gain.gain.setTargetAtTime(on?1:0, audioContext.currentTime, 0.01); }
+
+  _rebuildOscs(freqBase){
+    // tear down existing oscillators
+    this.children.forEach(ch=>{ 
+      try{ ch.osc.stop(); ch.osc.disconnect(); ch.lfo.stop(); ch.lfo.disconnect(); ch.lfoGain.disconnect(); ch.driftHzAdder.disconnect(); }catch{} 
+    });
+    this.children.length=0; // Clear the array
+
+    const offsets = chordOffsets(HARM_TONES);
+
+    for(let i=0;i<offsets.length;i++){
+      const cents = (i-(offsets.length-1)/2) * DETUNE_CENTS; // Symmetric detune around the "center" of the chord
+      const ratio = Math.pow(2, cents/1200); // Convert cents to frequency ratio
+      
+      const midiBase = hzToMidi(freqBase);
+      const noteHz = quantizeToScale( midiToHz( midiBase + offsets[i] ) ) * ratio; // Apply offset, quantize, then detune
+
+      const osc = audioContext.createOscillator(); osc.type='sine'; // Using sine for now, can be changed
+      osc.frequency.value = noteHz; // Initial frequency
+      osc.connect(this.env); // Connect to the voice's envelope
+
+      // LFO for subtle pitch drift
+      const lfo = audioContext.createOscillator(); lfo.type='sine'; 
+      // Drift frequency, slightly random for character
+      lfo.frequency.value = 0.03 + DRIFT*0.4 + Math.random()*0.02; 
+      const lfoGain = audioContext.createGain(); 
+      lfoGain.gain.value = 2 + DRIFT*9; // Cents depth (will be converted to Hz later)
+
+      // The LFO will modulate the frequency directly.
+      // Need a gain node to scale LFO output (in -1 to 1 range) to cents, then to Hz.
+      const driftHzAdder = audioContext.createGain(); 
+      // Scale LFO to Hz based on target frequency and cents-per-Hz
+      // 100 cents = 1 semitone, so 1 semitone is ratio of 2^(1/12)
+      // For small cents, roughly 1 cent = freq * (ln(2)/1200) Hz
+      driftHzAdder.gain.value = noteHz * (Math.log(2)/1200); 
+
+      lfo.connect(lfoGain); 
+      lfoGain.connect(driftHzAdder);
+      driftHzAdder.connect(osc.frequency); // LFO modulates frequency directly
+
+      osc.start(); lfo.start();
+
+      // Individual pan position for stereo spread
+      const panPos = (i/(offsets.length-1||1))*2-1; // -1 to 1 for children
+      
+      this.children.push({osc, lfo, lfoGain, driftHzAdder, baseHz:noteHz, panPos});
+    }
+  }
+
+  updateParameters(nx,ny){
+    // map chart to musical params
+    const r=Math.sqrt(nx*nx+ny*ny), angle=Math.atan2(ny,nx);
+
+    const pitchRange=2; // ±2 octaves by vertical position
+    let f0 = BASE_FREQ*Math.pow(2, ny*pitchRange);
+    f0 = quantizeToScale(f0); // Quantize base frequency to selected scale
+
+    // Lowpass filter from x, Q from radius
+    // This filter is *per-voice*, and sits before the global softLPFilter
+    let cutoff=BASE_CUTOFF*(1+nx*0.8); 
+    cutoff=Math.max(80, Math.min(audioContext.sampleRate/2, cutoff));
+    this.filter.frequency.setTargetAtTime(cutoff, audioContext.currentTime, 0.02);
+    this.filter.Q.setTargetAtTime(0.7 + r*4.0, audioContext.currentTime, 0.03);
+
+    // Rebuild oscillators if tone count, chord, or scale changed
+    // This logic ensures `_rebuildOscs` is only called when necessary
+    if(this.children.length!==HARM_TONES || this._lastChord!==CHORD || this._lastScale!==SCALE || this._lastDetuneCents !== DETUNE_CENTS || this._lastDrift !== DRIFT){
+      this._rebuildOscs(f0); 
+      this._lastHarmonyTones = HARM_TONES;
+      this._lastChord=CHORD; 
+      this._lastScale=SCALE;
+      this._lastDetuneCents = DETUNE_CENTS;
+      this._lastDrift = DRIFT;
+    } else {
+      // Retune existing oscillators if only base frequency changed
+      const offsets = chordOffsets(HARM_TONES);
+      for(let i=0;i<this.children.length;i++){
+        const cents=(i-(offsets.length-1)/2)*DETUNE_CENTS; 
+        const ratio=Math.pow(2, cents/1200);
+        const midiBase = hzToMidi(f0);
+        const noteHz = quantizeToScale( midiToHz(midiBase + offsets[i]) ) * ratio;
+        this.children[i].baseHz = noteHz;
+        this.children[i].osc.frequency.setTargetAtTime(noteHz, audioContext.currentTime, 0.03);
+        // Update LFO depth if DRIFT changed
+        this.children[i].lfo.frequency.setTargetAtTime(0.03 + DRIFT*0.4 + Math.random()*0.02, audioContext.currentTime, 0.03);
+        this.children[i].lfoGain.gain.setTargetAtTime(2 + DRIFT*9, audioContext.currentTime, 0.03);
+        this.children[i].driftHzAdder.gain.setTargetAtTime(noteHz * (Math.log(2)/1200), audioContext.currentTime, 0.03);
+      }
+    }
+    
+    // Pan spread: calculate a weighted average of child pan positions for the voice's master panner
+    // This simulates individual panning without needing individual panners for each child
+    const basePan = Math.max(-1, Math.min(1, angle/Math.PI)); // -1 (left) to 1 (right) based on angle
+    const spread = STEREO_SPREAD; // 0..1
+    
+    // Calculate effective pan position based on individual child positions and spread
+    const effectivePanSum = this.children.reduce((acc,ch,idx)=>{
+      const childPan = (1-spread)*0 + spread*ch.panPos; // Blend from center (0) to full spread
+      return acc + childPan; 
+    }, 0);
+    const effectivePan = effectivePanPanSum / (this.children.length || 1);
+
+    const finalPan = Math.max(-1, Math.min(1, basePan*0.5 + effectivePan*0.5)); // Blend chart angle with spread
+    this.pan.pan.setTargetAtTime(finalPan, audioContext.currentTime, 0.03);
+
+    // voice gain gentle with radius
+    const minG=0.04, maxG=0.75; // Increased maxG for more prominent puppet/synth voices
+    const g=minG + r*(maxG-minG); this.setGain(g);
+  }
+
+  stop(){
+    try{
+      const now=audioContext.currentTime;
+      this.env.gain.cancelScheduledValues(now);
+      this.env.gain.setTargetAtTime(0.0001, now, 0.05); // Rapid decay
+      // Disconnect all nodes after a short delay to allow decay
+      setTimeout(()=>{
+        try{ 
+          this.children.forEach(ch=>{ 
+            ch.osc.stop(); ch.osc.disconnect(); 
+            ch.lfo.stop(); ch.lfo.disconnect(); 
+            ch.lfoGain.disconnect();
+            ch.driftHzAdder.disconnect();
+          }); 
+          this.pan.disconnect(); 
+          this.filter.disconnect(); 
+          this.gain.disconnect(); 
+          this.env.disconnect();
+        }catch(e){console.warn("Error stopping voice components:", e);}
+      }, 100); // Give it 100ms to fade out
+    }catch(e){console.warn("Error stopping voice:", e);}
+  }
+}
+
+/* ====== UI BINDINGS (existing + new) ====== */
+if (listenButtons.length) listenButtons.forEach(btn=>btn.addEventListener('click',()=>setListenMode(btn.dataset.listen)));
+
+document.getElementById('autoMatch')?.addEventListener('click', autoMatchOnce);
+
+document.getElementById('followToggle')?.addEventListener('change', e=>setFollow(e.target.checked));
+
+function autoMatchOnce(){
+  const hz=getRadioPeakHz(); if(!hz||hz<50) return;
+  const freq=Math.max(50,Math.min(1000,Math.round(hz))); baseFreqSlider.value=freq; baseFreqValue.textContent=freq; BASE_FREQ=freq;
+  const cutoff=Math.max(100,Math.min(8000,Math.round(hz*3))); baseCutoffSlider.value=cutoff; baseCutoffValue.textContent=cutoff; BASE_CUTOFF=cutoff;
+  activePoints.forEach(p=>{ const {x,y}=screenToNormalizedGamma(p.x,p.y); p.voice.updateParameters(x,y); });
+  decomposedVoices.forEach(p=>{ const {normX, normY}=p; p.voice.updateParameters(normX, normY); }); // Also update decomposed voices
+  if(isAudioInitialized && radioFilter) radioFilter.frequency.setValueAtTime(BASE_CUTOFF, audioContext.currentTime);
+}
+function getRadioPeakHz(){
+  try{
+    if(!radioAnalyser||!audioContext) return null;
+    const data=new Uint8Array(radioAnalyser.frequencyBinCount); radioAnalyser.getByteFrequencyData(data);
+    let maxV=0,maxI=0; for(let i=0;i<data.length;i++){ if(data[i]>maxV){maxV=data[i];maxI=i;} }
+    return (maxI/data.length)*(audioContext.sampleRate/2);
+  }catch{return null;}
+}
+function setFollow(on){ if(followTimer){clearInterval(followTimer);followTimer=null;} if(on){ followTimer=setInterval(autoMatchOnce,2000);} }
+
+// Sliders
+reverbFeedbackSlider.addEventListener('input',()=>{ REVERB_FEEDBACK=parseFloat(reverbFeedbackSlider.value); reverbFeedbackValue.textContent=REVERB_FEEDBACK.toFixed(2); if(isAudioInitialized) delayNode.delayTime.setValueAtTime(REVERB_FEEDBACK, audioContext.currentTime); });
+reverbWetDrySlider.addEventListener('input',()=>{ REVERB_WET_DRY=parseFloat(reverbWetDrySlider.value); reverbWetDryValue.textContent=REVERB_WET_DRY.toFixed(2);
+  if(isAudioInitialized){ feedbackGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); wetGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); dryGainNode.gain.setValueAtTime(1-REVERB_WET_DRY, audioContext.currentTime);
+    if(radioWetGain&&radioDryGain){ radioWetGain.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); radioDryGain.gain.setValueAtTime(1-REVERB_WET_DRY, audioContext.currentTime); } }
+});
+z0Slider.addEventListener('input',()=>{ Z0=parseFloat(z0Slider.value); z0Value.textContent=Z0; drawSmithChart(); activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); }); });
+baseFreqSlider.addEventListener('input',()=>{ BASE_FREQ=parseFloat(baseFreqSlider.value); baseFreqValue.textContent=BASE_FREQ; activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); }); if(voc?.saw) try{ voc.saw.frequency.setValueAtTime(BASE_FREQ, audioContext.currentTime); }catch{} });
+baseCutoffSlider.addEventListener('input',()=>{ BASE_CUTOFF=parseFloat(baseCutoffSlider.value); baseCutoffValue.textContent=BASE_CUTOFF; activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); }); updateRadioFromGamma(); });
+inputGainSlider.addEventListener('input',()=>{ INPUT_GAIN=parseFloat(inputGainSlider.value); inputGainValue.textContent=INPUT_GAIN.toFixed(2); if(micGainNode) micGainNode.gain.setValueAtTime(INPUT_GAIN, audioContext.currentTime); });
+
+blendModeSel.addEventListener('change',()=>{ blendMode=blendModeSel.value; if(blendMode!=='difference' && applyBlendMode.phaseFlipper && dryGainNode && mixBus){ try{ applyBlendMode.phaseFlipper.disconnect(); }catch{} try{ dryGainNode.disconnect(); }catch{} dryGainNode.connect(mixBus); applyBlendMode.phaseFlipper=null; }});
+blendAmountSlider.addEventListener('input',()=>{ blendAmount=parseFloat(blendAmountSlider.value)||0; blendAmountValue.textContent=blendAmount.toFixed(2); });
+
+// NEW musical bindings
+harmonyCountSel.addEventListener('change',()=>{ HARM_TONES=parseInt(harmonyCountSel.value,10)||1; activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); }); });
+chordTypeSel.addEventListener('change',()=>{ CHORD=chordTypeSel.value; activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); }); });
+scaleTypeSel.addEventListener('change',()=>{ SCALE=scaleTypeSel.value; activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); }); });
+
+detuneSlider.addEventListener('input',()=>{ DETUNE_CENTS=parseFloat(detuneSlider.value)||0; detuneValue.textContent=DETUNE_CENTS; activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); }); });
+spreadSlider.addEventListener('input',()=>{ STEREO_SPREAD=parseFloat(spreadSlider.value)||0; spreadValue.textContent=STEREO_SPREAD.toFixed(2); activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); }); });
+
+driftSlider.addEventListener('input',()=>{ DRIFT=parseFloat(driftSlider.value)||0; driftValue.textContent=DRIFT.toFixed(2); activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); }); });
+softLPSlider.addEventListener('input',()=>{ SOFT_LP=parseFloat(softLPSlider.value)||9000; softLPValue.textContent=SOFT_LP|0; 
+  if(isAudioInitialized && synthSoftLPFilter) synthSoftLPFilter.frequency.setTargetAtTime(SOFT_LP, audioContext.currentTime, 0.05);
+  if(isAudioInitialized && voc && voc.carrierLP) voc.carrierLP.frequency.setTargetAtTime(SOFT_LP, audioContext.currentTime, 0.05); // Apply to vocoder too
+  activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); 
+  decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); }); // Also update decomposed voices
+});
+
+presetLullaby.addEventListener('click',()=>{
+  harmonyCountSel.value='4'; HARM_TONES=4; 
+  chordTypeSel.value='triad'; CHORD='triad'; 
+  scaleTypeSel.value='pentatonic'; SCALE='pentatonic';
+  detuneSlider.value=6; DETUNE_CENTS=6; detuneValue.textContent='6';
+  driftSlider.value=0.28; DRIFT=0.28; driftValue.textContent='0.28';
+  spreadSlider.value=0.7; STEREO_SPREAD=0.7; spreadValue.textContent='0.70';
+  reverbWetDrySlider.value=0.38; reverbWetDryValue.textContent='0.38'; REVERB_WET_DRY=0.38; if(isAudioInitialized){ feedbackGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); wetGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); dryGainNode.gain.setValueAtTime(1-REVERB_WET_DRY, audioContext.currentTime); }
+  softLPSlider.value=6000; SOFT_LP=6000; softLPValue.textContent='6000'; if(isAudioInitialized && synthSoftLPFilter) synthSoftLPFilter.frequency.setTargetAtTime(SOFT_LP, audioContext.currentTime, 0.05); if(isAudioInitialized && voc?.carrierLP) voc.carrierLP.frequency.setTargetAtTime(SOFT_LP, audioContext.currentTime, 0.05);
+  activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); });
+  decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); });
+});
+
+presetRadioChop.addEventListener('click',()=>{
+  blendModeSel.value='duck'; blendMode='duck'; 
+  blendAmountSlider.value=0.7; blendAmount=0.7; blendAmountValue.textContent='0.70';
+  if(blendMode!=='difference' && applyBlendMode.phaseFlipper && dryGainNode && mixBus){ try{ applyBlendMode.phaseFlipper.disconnect(); }catch{} try{ dryGainNode.disconnect(); }catch{} dryGainNode.connect(mixBus); applyBlendMode.phaseFlipper=null; }
+  harmonyCountSel.value='2'; HARM_TONES=2; 
+  chordTypeSel.value='fifths'; CHORD='fifths'; 
+  scaleTypeSel.value='none'; SCALE='none';
+  detuneSlider.value=9; DETUNE_CENTS=9; detuneValue.textContent='9';
+  driftSlider.value=0.1; DRIFT=0.1; driftValue.textContent='0.10';
+  spreadSlider.value=0.9; STEREO_SPREAD=0.9; spreadValue.textContent='0.90';
+  reverbWetDrySlider.value=0.25; reverbWetDryValue.textContent='0.25'; REVERB_WET_DRY=0.25; if(isAudioInitialized){ feedbackGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); wetGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); dryGainNode.gain.setValueAtTime(1-REVERB_WET_DRY, audioContext.currentTime); }
+  softLPSlider.value=9000; SOFT_LP=9000; softLPValue.textContent='9000'; if(isAudioInitialized && synthSoftLPFilter) synthSoftLPFilter.frequency.setTargetAtTime(SOFT_LP, audioContext.currentTime, 0.05); if(isAudioInitialized && voc?.carrierLP) voc.carrierLP.frequency.setTargetAtTime(SOFT_LP, audioContext.currentTime, 0.05);
+  activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); });
+  decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); });
+});
+
+// NEW Preset: Gregorian
+presetGregorian.addEventListener('click',()=>{
+  harmonyCountSel.value='1'; HARM_TONES=1; 
+  chordTypeSel.value='octave'; CHORD='octave'; // Start simple with octave or unison
+  scaleTypeSel.value='phrygian'; SCALE='phrygian'; // Phrygian mode is classic for chant
+  detuneSlider.value=2; DETUNE_CENTS=2; detuneValue.textContent='2'; // Very subtle detune
+  driftSlider.value=0.05; DRIFT=0.05; driftValue.textContent='0.05'; // Minimal drift
+  spreadSlider.value=0.3; STEREO_SPREAD=0.3; spreadValue.textContent='0.30'; // Centered sound
+  reverbWetDrySlider.value=0.6; reverbWetDryValue.textContent='0.60'; REVERB_WET_DRY=0.6; // Long, wet reverb
+  reverbFeedbackSlider.value=1.5; reverbFeedbackValue.textContent='1.50'; REVERB_FEEDBACK=1.5; // Longer delay time for resonance
+  softLPSlider.value=4000; SOFT_LP=4000; softLPValue.textContent='4000'; // Darker, muffled sound
+  if(isAudioInitialized){ 
+    delayNode.delayTime.setValueAtTime(REVERB_FEEDBACK, audioContext.currentTime);
+    feedbackGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); 
+    wetGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); 
+    dryGainNode.gain.setValueAtTime(1-REVERB_WET_DRY, audioContext.currentTime);
+    if(synthSoftLPFilter) synthSoftLPFilter.frequency.setTargetAtTime(SOFT_LP, audioContext.currentTime, 0.05); 
+    if(voc?.carrierLP) voc.carrierLP.frequency.setTargetAtTime(SOFT_LP, audioContext.currentTime, 0.05);
+  }
+  activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); });
+  decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); });
+});
+
+// NEW Preset: Primal
+presetPrimal.addEventListener('click',()=>{
+  harmonyCountSel.value='8'; HARM_TONES=8; 
+  chordTypeSel.value='cluster'; CHORD='cluster'; // Dense, slightly dissonant cluster
+  scaleTypeSel.value='harmonicMinor'; SCALE='harmonicMinor'; // Exotic, evocative scale
+  detuneSlider.value=15; DETUNE_CENTS=15; detuneValue.textContent='15'; // Stronger detune
+  driftSlider.value=0.5; DRIFT=0.5; driftValue.textContent='0.50'; // Noticeable, organic drift
+  spreadSlider.value=0.9; STEREO_SPREAD=0.9; spreadValue.textContent='0.90'; // Wide, encompassing stereo
+  reverbWetDrySlider.value=0.45; reverbWetDryValue.textContent='0.45'; REVERB_WET_DRY=0.45; // Moderate, airy reverb
+  reverbFeedbackSlider.value=0.8; reverbFeedbackValue.textContent='0.80'; REVERB_FEEDBACK=0.8; // Shorter, more rhythmic delay
+  softLPSlider.value=8000; SOFT_LP=8000; softLPValue.textContent='8000'; // Clear but not overly bright
+  if(isAudioInitialized){ 
+    delayNode.delayTime.setValueAtTime(REVERB_FEEDBACK, audioContext.currentTime);
+    feedbackGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); 
+    wetGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); 
+    dryGainNode.gain.setValueAtTime(1-REVERB_WET_DRY, audioContext.currentTime);
+    if(synthSoftLPFilter) synthSoftLPFilter.frequency.setTargetAtTime(SOFT_LP, audioContext.currentTime, 0.05); 
+    if(voc?.carrierLP) voc.carrierLP.frequency.setTargetAtTime(SOFT_LP, audioContext.currentTime, 0.05);
+  }
+  activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); });
+  decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); });
+});
+
+
+/* ====== CHART RENDERING (as before) ====== */
+function resizeCanvas(){
+  canvas.width=window.innerWidth;
+  // Calculate available height dynamically based on controls container's current height
+  // If mainMenuContent is hidden, its offsetHeight is 0, so the expression works.
+  canvas.height=Math.max(160, window.innerHeight - controlsContainer.offsetHeight);
+  smithChartRadius=Math.min(canvas.width, canvas.height)*0.4; center={x:canvas.width/2,y:canvas.height/2};
+  drawSmithChart();
+}
+function drawSmithChart(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.beginPath(); ctx.arc(center.x,center.y,smithChartRadius,0,Math.PI*2);
+  ctx.strokeStyle=varToRgba('--neon-blue',0.8); ctx.lineWidth=2; ctx.stroke();
+  [0,0.2,0.5,1,2,5,10].forEach(rn=>{ const gMag=(1-rn)/(1+rn); if(gMag<0||gMag>1) return; const cx=center.x+smithChartRadius*gMag, r=smithChartRadius*(1-gMag); ctx.beginPath(); ctx.arc(cx,center.y,r,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-green',0.2+gMag*0.4); ctx.lineWidth=1; ctx.stroke();
+    if(learningModeActive && rn!==0){ // Show Z values for resistance circles
+      ctx.fillStyle=varToRgba('--neon-green',0.8); ctx.font='10px Space Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      const angleOffset = Math.PI * 0.1; // Small offset for text
+      const lx=cx+r*Math.cos(angleOffset), ly=center.y+r*Math.sin(angleOffset); 
+      ctx.fillText(`${(rn*Z0).toFixed(0)}Ω`, lx, ly); }
+  });
+  [0.2,0.5,1,2,5].forEach(xn=>{ const cx=center.x+smithChartRadius, r=smithChartRadius/xn; ctx.beginPath(); ctx.arc(cx, center.y+smithChartRadius/xn, r, Math.PI-Math.acos(smithChartRadius/r), Math.PI); ctx.strokeStyle=varToRgba('--neon-red',0.2+xn*0.1); ctx.lineWidth=1; ctx.stroke(); 
+    if(learningModeActive){ // Show Z values for inductive reactance arcs
+      ctx.fillStyle=varToRgba('--neon-red',0.8); ctx.font='10px Space Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      const angleOffset = Math.PI * 0.8; 
+      const lx=cx+r*Math.cos(angleOffset), ly=center.y+smithChartRadius/xn + r*Math.sin(angleOffset); ctx.fillText(`+j${(xn*Z0).toFixed(0)}`, lx, ly); }
+    ctx.beginPath(); ctx.arc(cx, center.y-smithChartRadius/xn, r, Math.PI, Math.PI+Math.acos(smithChartRadius/r)); ctx.strokeStyle=varToRgba('--neon-purple',0.2+xn*0.1); ctx.lineWidth=1; ctx.stroke(); 
+    if(learningModeActive){ // Show Z values for capacitive reactance arcs
+      ctx.fillStyle=varToRgba('--neon-purple',0.8); ctx.font='10px Space Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      const angleOffset = Math.PI * 1.2; 
+      const lx2=cx+r*Math.cos(angleOffset), ly2=center.y-smithChartRadius/xn + r*Math.sin(angleOffset); ctx.fillText(`-j${(xn*Z0).toFixed(0)}`, lx2, ly2); }
+  });
+  ctx.beginPath(); ctx.moveTo(center.x-smithChartRadius,center.y); ctx.lineTo(center.x+smithChartRadius,center.y); ctx.strokeStyle=varToRgba('--neon-blue',0.5); ctx.lineWidth=1; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(center.x-5,center.y); ctx.lineTo(center.x+5,center.y); ctx.moveTo(center.x,center.y-5); ctx.lineTo(center.x,center.y+5); ctx.strokeStyle=varToRgba('--neon-blue',0.8); ctx.lineWidth=1; ctx.stroke();
+  const r1=smithChartRadius*1.08, r2=smithChartRadius*1.16, ringW=14, r1m=r1+ringW/2-2, r2m=r2-ringW/2+2;
+  ctx.beginPath(); ctx.arc(center.x,center.y,r1m,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-purple',0.2); ctx.lineWidth=ringW; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,r1m,0,ringSynthAngle); ctx.strokeStyle=varToRgba('--neon-purple',0.85); ctx.lineWidth=ringW; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,r1,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-purple',0.4); ctx.lineWidth=2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,r2m,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-green',0.2); ctx.lineWidth=ringW; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,r2m,0,ringRadioAngle); ctx.strokeStyle=varToRgba('--neon-green',0.85); ctx.lineWidth=ringW; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,r2,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-green',0.4); ctx.lineWidth=2; ctx.stroke();
+  const tickCount=100, tickLen=6; ctx.lineWidth=2;
+  for(let i=0;i<tickCount;i++){
+    const a=i*(2*Math.PI/tickCount), maj=i%10===0;
+    let x1=center.x+(r1-(maj?14:tickLen))*Math.cos(a), y1=center.y+(r1-(maj?14:tickLen))*Math.sin(a);
+    let x2=center.x+r1*Math.cos(a), y2=center.y+r1*Math.sin(a);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.strokeStyle=varToRgba('--neon-purple', maj?0.5:0.25); ctx.stroke();
+    let X1=center.x+(r2+(maj?14:tickLen))*Math.cos(a), Y1=center.y+(r2+(maj?14:tickLen))*Math.sin(a);
+    let X2=center.x+r2*Math.cos(a), Y2=center.y+r2*Math.sin(a);
+    ctx.beginPath(); ctx.moveTo(X1,Y1); ctx.lineTo(X2,Y2); ctx.strokeStyle=varToRgba('--neon-green', maj?0.5:0.25); ctx.stroke();
+    if(maj){
+      const label=`${i}%`; ctx.font='11px Space Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      const lx1=center.x+(r1-24)*Math.cos(a), ly1=center.y+(r1-24)*Math.sin(a); ctx.fillStyle=varToRgba('--neon-purple',0.9); ctx.fillText(label,lx1,ly1);
+      const lx2=center.x+(r2+24)*Math.cos(a), ly2=center.y+(r2+24)*Math.sin(a); ctx.fillStyle=varToRgba('--neon-green',0.9); ctx.fillText(label,lx2,ly2);
+    }
+  }
+  const hsx=center.x+r1m*Math.cos(ringSynthAngle), hsy=center.y+r1m*Math.sin(ringSynthAngle);
+  const hrx=center.x+r2m*Math.cos(ringRadioAngle), hry=center.y+r2m*Math.sin(ringRadioAngle);
+  dot(hsx,hsy,varToRgba('--neon-purple',0.95)); dot(hrx,hry,varToRgba('--neon-green',0.95));
+  labelPct(hsx,hsy,ringSynthTrim, '--neon-purple', ringSynthAngle);
+  labelPct(hrx,hry,ringRadioTrim, '--neon-green', ringRadioAngle);
+
+  // Draw decomposed points first, then user-created points on top
+  if (decomposeModeActive) {
+    decomposedVoices.forEach((p, id) => {
+        let color = varToRgba('--neon-red', 1);
+        let size = 12; // Default size
+        let blur = 15; // Default blur
+
+        if (id === selectedDecomposedVoiceId) {
+            color = varToRgba('--neon-yellow', 1); // Selected voice
+            size = 14;
+            blur = 20;
+        } else if (p.isUserControlled) {
+            color = varToRgba('--neon-blue', 0.8); // Manually controlled but not currently selected (maybe dim it slightly)
+            size = 10;
+            blur = 10;
+        }
+        drawDecomposedPoint(p.screenX, p.screenY, color, size, blur);
+    });
+  } 
+  // User-created points are always drawn (if they exist)
+  activePoints.forEach(p=>drawActivePoint(p.x,p.y,varToRgba('--neon-blue',1)));
+
+
+  if(micInputEnabled && frequencyData) drawMicInputPoints();
+  if(isAudioInitialized) applyBlendMode();
+  if(isAudioInitialized){ const W=Math.min(260, canvas.width*0.32), H=60, gap=8; let ox=12, oy=12; drawSpectrumPanel(radioAnalyser,ox,oy,W,H,varToRgba('--neon-green',0.9)); oy+=H+gap; drawSpectrumPanel(synthAnalyser,ox,oy,W,H,varToRgba('--neon-purple',0.9)); oy+=H+gap; drawSpectrumPanel(mixAnalyser,  ox,oy,W,H,varToRgba('--neon-blue',0.9)); }
+}
+function dot(x,y,col){ ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=12; ctx.fill(); ctx.shadowBlur=0; }
+function labelPct(hx,hy,val,varName,ang){ ctx.font='12px Space Mono'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle=varToRgba(varName,1); const t=`${Math.round(val*100)}%`; const off=15; 
+  // Adjust text position slightly based on angle to avoid overlapping the knob
+  const textAngle = ang + (ang > Math.PI*0.5 && ang < Math.PI*1.5 ? Math.PI : 0); // Flip text for left side
+  ctx.fillText(t, hx+off*Math.cos(textAngle), hy+off*Math.sin(textAngle)); 
+}
+function drawActivePoint(x,y,color){ ctx.beginPath(); ctx.arc(x,y,8,0,Math.PI*2); ctx.fillStyle=color; ctx.shadowColor=color; ctx.shadowBlur=15; ctx.fill(); ctx.shadowBlur=0; }
+function drawDecomposedPoint(x,y,color, size=12, blur=15){ // New drawing style for decomposed points
+  ctx.beginPath(); 
+  ctx.rect(x-size/2, y-size/2, size, size); // Draw a square
+  ctx.fillStyle=color; 
+  ctx.shadowColor=color; 
+  ctx.shadowBlur=blur; 
+  ctx.fill(); 
+  ctx.shadowBlur=0;
+  // Optional: Add an outline for selected voice
+  if (color === varToRgba('--neon-yellow', 1)) {
+    ctx.strokeStyle = varToRgba('--neon-blue', 1);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+function drawMicInputPoints(){ const N=analyserNode.frequencyBinCount; analyserNode.getByteFrequencyData(frequencyData); let peaks=[]; for(let i=0;i<N;i++){ const amp=frequencyData[i]/255, freq=i*audioContext.sampleRate/N/2; if(amp>0.1 && freq>100 && freq<10000 && (i===0||frequencyData[i]>frequencyData[i-1]) && (i===N-1||frequencyData[i]>frequencyData[i+1])) peaks.push({freq,amp}); } peaks.sort((a,b)=>b.amp-a.amp); const K=Math.min(peaks.length,5); for(let i=0;i<K;i++){ const p=peaks[i]; const fN=Math.min(1, Math.max(0,(p.freq-100)/7900)); const aN=Math.min(1, Math.max(0,(p.amp-0.1)/0.9)); const ang=fN*Math.PI - Math.PI/2, rad=smithChartRadius*aN*0.9; const sx=center.x+rad*Math.cos(ang), sy=center.y - rad*Math.sin(ang); ctx.beginPath(); ctx.arc(sx,sy,8+aN*5,0,Math.PI*2); ctx.fillStyle=varToRgba('--neon-red',0.8*aN); ctx.shadowColor=varToRgba('--neon-red',1); ctx.shadowBlur=10+10*aN; ctx.fill(); ctx.shadowBlur=0; } }
+function drawSpectrumPanel(analyser,x,y,w,h,color){ if(!analyser) return; const data=new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(data); ctx.save(); ctx.globalAlpha=0.9; ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(x,y,w,h); ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.strokeRect(x,y,w,h); ctx.beginPath(); const len=data.length, step=Math.max(1,Math.floor(len/w)); for(let i=0;i<w;i++){ const idx=Math.min(len-1, i*step); const v=data[idx]/255; const yy=y + h - v*h; if(i===0) ctx.moveTo(x,yy); else ctx.lineTo(x+i,yy); } ctx.strokeStyle=color; ctx.lineWidth=1.5; ctx.stroke(); ctx.restore(); }
+function varToRgba(varName, a=1){ const color=getComputedStyle(document.documentElement).getPropertyValue(varName).trim(); const r=parseInt(color.slice(1,3),16), g=parseInt(color.slice(3,5),16), b=parseInt(color.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; }
+
+/* ====== COORDS / INPUT ====== */
+function screenToNormalizedGamma(sx,sy){ const rx=sx-center.x, ry=sy-center.y; let nx=rx/smithChartRadius, ny=ry/smithChartRadius; const mag=Math.hypot(nx,ny); if(mag>1){ nx/=mag; ny/=mag; } return {x:nx,y:ny}; }
+function normalizedGammaToScreen(nx,ny){ return {x:center.x+nx*smithChartRadius, y:center.y+ny*smithChartRadius}; }
+
+let activePointerId = null; // To track which pointer is currently active for dragging
+let initialPointerPos = { x: 0, y: 0 }; // Stores initial pointer position for group drags
+
+function handlePointerDown(e){ 
+  e.preventDefault(); 
+  initAudio(); // Ensure audio context is running
+  const rect=canvas.getBoundingClientRect(); 
+  let x,y,pid; 
+  if(e.touches){ 
+    x=e.touches[0].clientX-rect.left; y=e.touches[0].clientY-rect.top; pid=e.touches[0].identifier; 
+    activePointerId = pid;
+  } else { 
+    x=e.clientX-rect.left; y=e.clientY-rect.top; pid='mouse'; 
+    activePointerId = pid;
+    ringSnapMode = e.altKey?'free':(e.shiftKey?'fine':'coarse'); 
+  }
+
+  // 1. Check for ring interaction (always prioritize)
+  const dx_raw=x-center.x, dy_raw=y-center.y, dist_raw=Math.hypot(dx_raw,dy_raw); 
+  const r1=smithChartRadius*1.08, r2=smithChartRadius*1.16, ringW=14, r1m=r1+ringW/2-2, r2m=r2-ringW/2+2; 
+  if(Math.abs(dist_raw-r2m)<=ringW/2+5){ activeRing='radio'; updateRingFromPoint('radio',dx_raw,dy_raw); drawSmithChart(); return; } 
+  if(Math.abs(dist_raw-r1m)<=ringW/2+5){ activeRing='synth'; updateRingFromPoint('synth',dx_raw,dy_raw); drawSmithChart(); return; }
+
+  // 2. Handle group drag for decomposed voices
+  if (decomposeModeActive) {
+      if ((e.touches && e.touches.length === 2) || (!e.touches && e.shiftKey)) {
+          isDraggingAllDecomposedVoices = true;
+          // Store initial position for delta calculation
+          if (e.touches) {
+              initialGroupTouchCenter = {
+                  x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left,
+                  y: (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top,
+              };
+          } else {
+              initialGroupMousePos = { x, y };
+          }
+          selectedDecomposedVoiceId = null; // Deselect any individual voice when starting a group drag
+          isDraggingDecomposedVoice = false; // Ensure no individual drag is active
+          isDraggingUserPoint = false; // Ensure no user point drag is active
+          drawSmithChart();
+          return; // Exit here, move logic will handle it
+      }
+
+      // 3. Handle individual voice interaction within decompose mode
+      let tappedDecomposedVoiceId = null;
+      decomposedVoices.forEach((data, id) => {
+          // Check if tap is within the drawn square of the voice (size=12px, so +/- 6px)
+          if (x >= data.screenX - 6 && x <= data.screenX + 6 && y >= data.screenY - 6 && y <= data.screenY + 6) { 
+              tappedDecomposedVoiceId = id;
+          }
+      });
+
+      if (tappedDecomposedVoiceId) {
+          if (selectedDecomposedVoiceId === tappedDecomposedVoiceId) {
+              // Tap again on same voice: deselect and revert to auto-control
+              decomposedVoices.get(selectedDecomposedVoiceId).isUserControlled = false;
+              selectedDecomposedVoiceId = null;
+              isDraggingDecomposedVoice = false;
+          } else {
+              // Select new voice
+              if (selectedDecomposedVoiceId) { // Deselect previously selected one
+                  decomposedVoices.get(selectedDecomposedVoiceId).isUserControlled = false;
+              }
+              selectedDecomposedVoiceId = tappedDecomposedVoiceId;
+              decomposedVoices.get(selectedDecomposedVoiceId).isUserControlled = true;
+              isDraggingDecomposedVoice = true; // Start dragging the selected voice
+              // Update the initial screenX/Y for dragging
+              decomposedVoices.get(selectedDecomposedVoiceId).screenX = x;
+              decomposedVoices.get(selectedDecomposedVoiceId).screenY = y;
+          }
+          vibe(10); // Haptic feedback for selection/deselection
+          drawSmithChart();
+          return; // Exit here, move logic will handle it
+      } else {
+          // Tap on empty space in decompose mode:
+          // Deselect any currently selected decomposed voice
+          if (selectedDecomposedVoiceId) {
+              decomposedVoices.get(selectedDecomposedVoiceId).isUserControlled = false;
+              selectedDecomposedVoiceId = null;
+          }
+          // Create a new user mark
+          const {x:nx,y:ny}=screenToNormalizedGamma(x,y); 
+          const v=new Voice(nx,ny); activePoints.set(pid,{x,y,voice:v});
+          isDraggingUserPoint = true;
+          // Update lastGamma from this new point for radio control
+          lastGamma = {x:nx, y:ny}; updateRadioFromGamma();
+      }
+  } else {
+      // Normal mode (Decompose Mode OFF): Create new user mark
+      const {x:nx,y:ny}=screenToNormalizedGamma(x,y); 
+      const v=new Voice(nx,ny); activePoints.set(pid,{x,y,voice:v});
+      isDraggingUserPoint = true;
+      // Update lastGamma from this new point for radio control
+      lastGamma = {x:nx, y:ny}; updateRadioFromGamma();
+  }
+  
+  drawSmithChart(); 
+}
+function handlePointerMove(e){ 
+  e.preventDefault(); 
+  if(!isAudioInitialized){ return; }
+
+  const rect=canvas.getBoundingClientRect(); 
+  let currentX, currentY;
+  if(e.touches && e.touches.length > 0){ 
+    currentX = e.touches[0].clientX - rect.left;
+    currentY = e.touches[0].clientY - rect.top;
+  } else if (!e.touches && e.buttons === 1) { // Only process mouse move if left button is down
+    currentX = e.clientX - rect.left;
+    currentY = e.clientY - rect.top;
+  } else {
+    return; // No active drag
+  }
+
+  // 1. Handle ring control (always active if `activeRing` is set)
+  if(activeRing){ 
+    const dx_raw=currentX-center.x, dy_raw=currentY-center.y;
+    updateRingFromPoint(activeRing,dx_raw,dy_raw); 
+    drawSmithChart(); 
+    return; 
+  }
+
+  // 2. Handle dragging ALL decomposed voices
+  if (isDraggingAllDecomposedVoices) {
+      let currentGroupCenter;
+      if (e.touches && e.touches.length === 2) {
+          currentGroupCenter = {
+              x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left,
+              y: (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top,
+          };
+          const dx = currentGroupCenter.x - initialGroupTouchCenter.x;
+          const dy = currentGroupCenter.y - initialGroupTouchCenter.y;
+          
+          decomposedVoices.forEach(voiceData => {
+              voiceData.screenX += dx;
+              voiceData.screenY += dy;
+              const { x: nx, y: ny } = screenToNormalizedGamma(voiceData.screenX, voiceData.screenY);
+              voiceData.normX = nx;
+              voiceData.normY = ny;
+              voiceData.voice.updateParameters(nx, ny);
+              voiceData.isUserControlled = true; // All become user-controlled when group-dragged
+          });
+          initialGroupTouchCenter = currentGroupCenter; // Update initial for next delta
+      } else if (!e.touches && e.buttons === 1 && e.shiftKey) { // Shift+mouse drag
+          currentGroupCenter = { x: currentX, y: currentY };
+          const dx = currentGroupCenter.x - initialGroupMousePos.x;
+          const dy = currentGroupCenter.y - initialGroupMousePos.y;
+
+          decomposedVoices.forEach(voiceData => {
+              voiceData.screenX += dx;
+              voiceData.screenY += dy;
+              const { x: nx, y: ny } = screenToNormalizedGamma(voiceData.screenX, voiceData.screenY);
+              voiceData.normX = nx;
+              voiceData.normY = ny;
+              voiceData.voice.updateParameters(nx, ny);
+              voiceData.isUserControlled = true; // All become user-controlled when group-dragged
+          });
+          initialGroupMousePos = currentGroupCenter; // Update initial for next delta
+      }
+      // Update lastGamma from roughly the center of the screen or one arbitrary voice
+      if (decomposedVoices.size > 0) {
+          const firstVoiceData = decomposedVoices.values().next().value;
+          lastGamma = { x: firstVoiceData.normX, y: firstVoiceData.normY };
+          updateRadioFromGamma();
+      }
+      drawSmithChart();
+      return;
+  }
+
+
+  // 3. Handle dragging an INDIVIDUAL decomposed voice
+  if (decomposeModeActive && selectedDecomposedVoiceId && isDraggingDecomposedVoice) {
+      const voiceData = decomposedVoices.get(selectedDecomposedVoiceId);
+      if (voiceData && voiceData.isUserControlled) { 
+          const {x:nx,y:ny} = screenToNormalizedGamma(currentX, currentY);
+          voiceData.screenX = currentX;
+          voiceData.screenY = currentY;
+          voiceData.normX = nx;
+          voiceData.normY = ny;
+          voiceData.voice.updateParameters(nx, ny);
+          lastGamma={x:nx,y:ny}; updateRadioFromGamma(); // Update radio params from current dragged point
+          drawSmithChart(); // Redraw immediately for smooth dragging
+          return; 
+      }
+  }
+
+  // 4. Handle dragging a USER-CREATED point
+  const pid = e.touches && e.touches.length > 0 ? e.touches[0].identifier : 'mouse';
+  if (activePoints.has(pid) && isDraggingUserPoint) { 
+      const {x:nx,y:ny}=screenToNormalizedGamma(currentX, currentY); 
+      const p=activePoints.get(pid); p.x=currentX; p.y=currentY; 
+      p.voice.updateParameters(nx,ny); lastGamma={x:nx,y:ny}; updateRadioFromGamma(); 
+      drawSmithChart(); // Redraw immediately for smooth dragging
+      return;
+  }
+}
+function handlePointerUp(e){ 
+  e.preventDefault(); 
+  if(!isAudioInitialized){ return; }
+
+  // Clear ring control
+  if(activeRing){ activeRing=null; drawSmithChart(); } 
+
+  // Reset all dragging flags
+  isDraggingAllDecomposedVoices = false;
+  isDraggingDecomposedVoice = false;
+  isDraggingUserPoint = false;
+
+  // Clean up user-created points that were just released
+  const releasedPointerId = e.pointerId; // Get the ID of the pointer that just lifted
+  if (activePoints.has(releasedPointerId)) {
+      activePoints.get(releasedPointerId).voice.stop();
+      activePoints.delete(releasedPointerId);
+  }
+
+  drawSmithChart(); 
+}
+function updateRingFromPoint(which,dx,dy){ const ang=Math.atan2(dy,dx), a=(ang>=0?ang:(2*Math.PI+ang)); const detCount = (ringSnapMode==='fine')? RING_DETENTS_FINE : (ringSnapMode==='coarse'? RING_DETENTS_COARSE : 0); let det=-1, snapped=a; if(detCount>0){ det=Math.round(a/(2*Math.PI/detCount)); snapped=det*(2*Math.PI/detCount); if(which==='synth' && ringSynthDetent!==det){ vibe(6); ringSynthDetent=det; } if(which==='radio' && ringRadioDetent!==det){ vibe(6); ringRadioDetent=det; } } if(which==='synth'){ ringSynthAngle=snapped; ringSynthTrim=Math.max(0,Math.min(1,snapped/(2*Math.PI))); } else { ringRadioAngle=snapped; ringRadioTrim=Math.max(0,Math.min(1,snapped/(2*Math.PI))); } }
+function vibe(ms=8){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch{} }
+
+/* ====== RADIO PARAMS FROM GAMMA ====== */
+function updateRadioFromGamma(){ if(!isAudioInitialized||!radioFilter) return; const x=lastGamma.x,y=lastGamma.y,r=Math.min(1,Math.hypot(x,y)), angle=Math.atan2(y,x); let cutoff=BASE_CUTOFF*(1+x*0.8); cutoff=Math.max(80,Math.min(audioContext.sampleRate/2,cutoff)); radioFilter.frequency.setValueAtTime(cutoff, audioContext.currentTime); radioFilter.Q.setValueAtTime(0.5+9.5*r, audioContext.currentTime); radioPanner.pan.setValueAtTime(Math.max(-1,Math.min(1,angle/Math.PI)), audioContext.currentTime); const wet=Math.min(1, Math.max(0, REVERB_WET_DRY*(0.3+0.7*r))), dry=1-wet; radioWetGain.gain.setValueAtTime(wet, audioContext.currentTime); radioDryGain.gain.setValueAtTime(dry, audioContext.currentTime);
+  const fb=Math.min(0.95, Math.max(0, REVERB_WET_DRY*(0.2+0.6*r))); feedbackGainNode.gain.setValueAtTime(fb, audioContext.currentTime);
+}
+
+/* ====== LEARNING MODE (unchanged core) ====== */
+function clearLearningAnimation(){ if(learningAnimation){ clearInterval(learningAnimation); learningAnimation=null; }
+  activePoints.forEach((pd,id)=>{ if(id==='learning'||id==='sequence'){ pd.voice.stop(); activePoints.delete(id);} }); 
+  decomposedVoices.forEach(p => p.voice.stop()); // Clear decomposed voices too
+  decomposedVoices.clear();
+  selectedDecomposedVoiceId = null; // Clear selection
+  drawSmithChart();
+}
+function runLearningPath(type){
+  clearLearningAnimation(); initAudio();
+  let startGamma={x:0.8,y:0.5}; // Using x,y to match Voice constructor
+  let {x:startX,y:startY}=normalizedGammaToScreen(startGamma.x,startGamma.y);
+  const voice=new Voice(startGamma.x,startGamma.y); activePoints.set('learning',{x:startX,y:startY,voice});
+  let step=0, maxSteps=100;
+  learningAnimation=setInterval(()=>{
+    if(step>maxSteps){ clearLearningAnimation(); return; }
+    let g;
+    if(type==='lMatch'){ const p=step/maxSteps, s=(1-p)**2; g={x:startGamma.x*s, y:startGamma.y*s}; } // Changed 'real' to 'x', 'imag' to 'y'
+    else { const p=step/maxSteps, ang=Math.sin(p*Math.PI)*Math.PI*0.5, rad=0.8*(1-p); g={x:(0.8*Math.cos(ang))*rad, y:(0.8*Math.sin(ang))*rad}; } // Changed 'real' to 'x', 'imag' to 'y'
+    const scr=normalizedGammaToScreen(g.x,g.y); const a=activePoints.get('learning'); a.x=scr.x; a.y=scr.y; a.voice.updateParameters(g.x,g.y); drawSmithChart(); step++;
+  },50);
+}
+function runLearningSequence(type){
+  clearLearningAnimation(); initAudio();
+  let pts=[]; if(type==='radialOut'){ for(let i=0;i<100;i++){ const r=i/100; pts.push({x:r*0.7, y:r*0.3}); } } // Changed 'real' to 'x', 'imag' to 'y'
+  else { for(let i=0;i<100;i++){ const ang=(i/100)*2*Math.PI, r=0.7; pts.push({x:r*Math.cos(ang), y:r*Math.sin(ang)}); } } // Changed 'real' to 'x', 'imag' to 'y'
+  let k=0; const voice=new Voice(pts[0].x,pts[0].y); activePoints.set('sequence',{x:0,y:0,voice});
+  learningAnimation=setInterval(()=>{ if(k>=pts.length){ clearLearningAnimation(); return; } const g=pts[k]; const scr=normalizedGammaToScreen(g.x,g.y);
+    const a=activePoints.get('sequence'); a.x=scr.x; a.y=scr.y; a.voice.updateParameters(g.x,g.y); drawSmithChart(); k++; }, 100);
+}
+learningModeToggle.addEventListener('click',()=>{ 
+  learningModeActive=!learningModeActive; 
+  learningModeToggle.textContent=`Learning Mode ${learningModeActive?'ON':'OFF'}`; 
+  learningModeToggle.classList.toggle('active',learningModeActive); 
+  learningModeOverlay.classList.toggle('active',learningModeActive); 
+  
+  if(decomposeModeActive){ // Turn off decompose mode if entering learning mode
+    decomposeModeActive = false;
+    puppetToggle.textContent='Decompose Mode OFF';
+    puppetToggle.classList.remove('active');
+    stopDecomposeMode();
+  }
+  // Clear existing points if entering learning mode (or if decompose was active and now off)
+  activePoints.forEach(p => p.voice.stop()); activePoints.clear();
+  decomposedVoices.forEach(p => p.voice.stop()); decomposedVoices.clear();
+  selectedDecomposedVoiceId = null; // Clear selection
+
+  drawSmithChart(); 
+});
+closeLearningModeBtn.addEventListener('click',()=>{ 
+  learningModeActive=false; 
+  learningModeToggle.textContent='Learning Mode OFF'; 
+  learningModeToggle.classList.remove('active'); 
+  learningModeOverlay.classList.remove('active'); 
+  clearLearningAnimation(); 
+  drawSmithChart(); 
+});
+learningModeContent.addEventListener('click',(e)=>{ if(e.target.tagName==='BUTTON'){ const p=e.target.dataset.path, s=e.target.dataset.sequence; if(p) runLearningPath(p); else if(s) runLearningSequence(s); }});
+
+/* ====== RECORD ====== */
+recordToggle.addEventListener('click',()=>{ initAudio(); if(!isRecording) startRecording(); else stopRecording(); });
+function startRecording(){
+  recordedChunks=[]; let options={mimeType:'audio/webm; codecs=opus'};
+  try{ mediaRecorder=new MediaRecorder(destinationStream.stream, options);}catch(e){ console.error(e); alert('Recording not supported'); return; }
+  mediaRecorder.ondataavailable=(ev)=>{ if(ev.data.size>0) recordedChunks.push(ev.data); };
+  mediaRecorder.onstop=()=>{ const blob=new Blob(recordedChunks,{type:'audio/webm'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); document.body.appendChild(a); a.style='display:none'; a.href=url; a.download=`smith_chart_${new Date().toISOString()}.webm`; a.click(); URL.revokeObjectURL(url); document.body.removeChild(a); recordedChunks=[]; };
+  mediaRecorder.start(); isRecording=true; recordToggle.textContent='Recording…'; recordToggle.classList.add('recording');
+}
+function stopRecording(){ if(mediaRecorder&&mediaRecorder.state!=='inactive'){ mediaRecorder.stop(); isRecording=false; recordToggle.textContent='Record'; recordToggle.classList.remove('recording'); }}
+
+/* ====== QUICK BTNS ====== */
+btnFullscreen.addEventListener('click',()=>{ const d=document; if(!d.fullscreenElement && !d.webkitFullscreenElement){ const el=document.documentElement; if(el.requestFullscreen) el.requestFullscreen(); else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen(); } else { if(d.exitFullscreen) d.exitFullscreen(); else if(d.webkitExitFullscreen) d.webkitExitFullscreen(); }});
+btnToggleMenu.addEventListener('click',()=>{ 
+  const menuHidden = mainMenuContent.classList.toggle('hidden');
+  if(menuHidden){
+    mainMenuContent.style.display = 'none'; // Completely hide the menu
+    btnToggleMenu.textContent='⋯'; 
+    btnToggleMenu.title='Show Menu'; 
+  } else {
+    mainMenuContent.style.display = 'flex'; // Show the menu
+    btnToggleMenu.textContent='☰'; 
+    btnToggleMenu.title='Hide Menu'; 
+  }
+  // Allow a short delay for CSS transitions to settle before recalculating canvas size
+  setTimeout(resizeCanvas,30); 
+});
+
+/* ====== URL PARAM INIT (sliders only) ====== */
+function applyUrlState(){
+  const p=new URLSearchParams(location.search);
+  const read=(name,setter,elem,init,isFloat=true)=>{ const v=p.get(name); if(v!==null){ const n=isFloat?parseFloat(v):parseInt(v,10); if(!isNaN(n)){ setter(n); elem.value=n; const sp=el(`${elem.id}Value`); if(sp) sp.textContent=isFloat?n.toFixed(2):n; } } else { elem.value=init; const sp=el(`${elem.id}Value`); if(sp) sp.textContent=isFloat?init.toFixed(2):init; } };
+  const readSelect=(name,setter,elem,init)=>{ const v=p.get(name); if(v!==null){ elem.value=v; setter(v); } else { elem.value=init; setter(init); } };
+
+  read('z0',(n)=>Z0=n,z0Slider,parseFloat(z0Slider.value),false);
+  read('bfreq',(n)=>BASE_FREQ=n,baseFreqSlider,parseFloat(baseFreqSlider.value),false);
+  read('bcutoff',(n)=>BASE_CUTOFF=n,baseCutoffSlider,parseFloat(baseCutoffSlider.value),false);
+  read('rfeedback',(n)=>REVERB_FEEDBACK=n,reverbFeedbackSlider,parseFloat(reverbFeedbackSlider.value));
+  read('rwetdry',(n)=>REVERB_WET_DRY=n,reverbWetDrySlider,parseFloat(reverbWetDrySlider.value));
+  read('inputgain',(n)=>INPUT_GAIN=n,inputGainSlider,parseFloat(inputGainSlider.value));
+  
+  // New musical params
+  readSelect('tones',(v)=>HARM_TONES=parseInt(v,10),harmonyCountSel,harmonyCountSel.value);
+  readSelect('chord',(v)=>CHORD=v,chordTypeSel,chordTypeSel.value);
+  readSelect('scale',(v)=>SCALE=v,scaleTypeSel,scaleTypeSel.value);
+  read('detune',(n)=>DETUNE_CENTS=n,detuneSlider,parseFloat(detuneSlider.value),false);
+  read('spread',(n)=>STEREO_SPREAD=n,spreadSlider,parseFloat(spreadSlider.value));
+  read('drift',(n)=>DRIFT=n,driftSlider,parseFloat(driftSlider.value));
+  read('softlp',(n)=>SOFT_LP=n,softLPSlider,parseFloat(softLPSlider.value),false);
+  read('decompbands',(n)=>DECOMPOSE_BAND_COUNT=n,decomposeBandCountSlider,parseInt(decomposeBandCountSlider.value),false);
+
+
+  if(isAudioInitialized){ 
+    delayNode.delayTime.value=REVERB_FEEDBACK; 
+    feedbackGainNode.gain.value=REVERB_WET_DRY; 
+    wetGainNode.gain.value=REVERB_WET_DRY; 
+    dryGainNode.gain.value=1-REVERB_WET_DRY; 
+    if(micGainNode) micGainNode.gain.value=INPUT_GAIN;
+    if(synthSoftLPFilter) synthSoftLPFilter.frequency.setValueAtTime(SOFT_LP, audioContext.currentTime);
+    if(voc?.carrierLP) voc.carrierLP.frequency.setValueAtTime(SOFT_LP, audioContext.currentTime);
+
+    activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); });
+    decomposedVoices.forEach(pd=>{ const {normX, normY}=pd; pd.voice.updateParameters(normX, normY); });
+  }
+  drawSmithChart();
+}
+
+/* ====== LOOP & EVENTS ====== */
+function animate(){ requestAnimationFrame(animate); drawSmithChart(); }
+window.addEventListener('resize', resizeCanvas);
+canvas.addEventListener('pointerdown', handlePointerDown);
+canvas.addEventListener('pointermove', handlePointerMove);
+canvas.addEventListener('pointerup', handlePointerUp);
+canvas.addEventListener('pointerleave', handlePointerUp);
+canvas.addEventListener('pointercancel', handlePointerUp);
+
+// First user interaction to init audio (autoplay policy)
+document.addEventListener('click', initAudio, {once:true});
+document.addEventListener('touchstart', initAudio, {once:true});
+
+// Boot
+(function init(){
+  // Close all details sections by default on mobile
+  if (window.innerWidth <= 768) {
+    const detailsElements = document.querySelectorAll('#main-menu-content details');
+    detailsElements.forEach(detail => detail.removeAttribute('open'));
+    mainMenuContent.style.display = 'none'; // Hide menu initially on mobile
+    btnToggleMenu.textContent='⋯'; 
+    btnToggleMenu.title='Show Menu'; 
+  }
+
+  resizeCanvas(); setTimeout(resizeCanvas,100);
+  animate();
+  window.addEventListener('load', ()=>{ console.log('[Boot] polyharmonic decomposer+vocoder v0.7'); applyUrlState(); ensureSynthAnalyser(); });
+})();
+
+</script>
+</body>
+</html>

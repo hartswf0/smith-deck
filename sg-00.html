@@ -1,0 +1,2434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RF Audio Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-blue: #00e5ff;
+            --neon-green: #00ff99;
+            --neon-red: #ff3366;
+            --neon-purple: #cc33ff;
+            --dark-background: #0d0d1a;
+            --control-bg: #1a1a2e; /* Darker than background for controls */
+            --card-bg: #1f203d; /* Even darker for the main decks */
+            --text-color: #eee;
+            --button-text-color: #0d0d1a;
+            --border-glow-A: #ff3366;
+            --border-glow-B: #00e5ff;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Space Mono', monospace;
+            background-color: var(--dark-background);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            font-size: 14px; /* Base font size */
+        }
+
+        .header-title {
+            text-align: center;
+            font-size: 2.5em;
+            color: var(--neon-green);
+            text-shadow: 0 0 10px var(--neon-green), 0 0 20px var(--neon-green);
+            padding: 15px 0;
+            letter-spacing: 0.1em;
+            margin-bottom: 10px;
+        }
+
+        .main-decks {
+            display: flex;
+            flex-grow: 1;
+            gap: 20px;
+            padding: 0 20px 20px;
+            overflow: auto; /* Allow scrolling on smaller screens if content overflows */
+        }
+
+        .deck {
+            flex: 1;
+            background-color: var(--card-bg);
+            border: 2px solid;
+            border-radius: 10px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            min-width: 300px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .deck.deck-a { border-color: var(--border-glow-A); box-shadow: 0 0 20px var(--border-glow-A); }
+        .deck.deck-b { border-color: var(--border-glow-B); box-shadow: 0 0 20px var(--border-glow-B); }
+
+        .deck-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .deck-header h2 {
+            margin: 0;
+            font-size: 1.3em;
+            color: var(--text-color);
+            letter-spacing: 0.05em;
+        }
+
+        .deck-header .status-indicator {
+            background-color: var(--control-bg);
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+            color: var(--text-color);
+            border: 1px solid;
+        }
+        .deck-a .status-indicator { border-color: var(--border-glow-A); color: var(--border-glow-A); }
+        .deck-b .status-indicator { border-color: var(--border-glow-B); color: var(--border-glow-B); }
+
+
+        .canvas-container {
+            flex-grow: 1;
+            background-color: #000;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+
+        .canvas-container canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: crosshair;
+            touch-action: none;
+        }
+
+        .visualizer-container {
+            background-color: #000;
+            border-radius: 5px;
+            padding: 5px;
+            margin-bottom: 15px;
+            height: 100px; /* Fixed height for visualizers */
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        .visualizer-container canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+        }
+
+        .control-panel {
+            background-color: var(--control-bg);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-panel label {
+            font-size: 0.9em;
+            color: var(--text-color);
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .control-panel span.value {
+            color: var(--neon-green);
+        }
+
+        .control-panel .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .control-panel .slider-group span {
+            min-width: 60px; /* Ensure value display doesn't jump */
+            text-align: right;
+            font-size: 0.9em;
+        }
+
+
+        input[type="range"] {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: rgba(0, 229, 255, 0.2);
+            outline: none;
+            border-radius: 3px;
+            transition: background 0.15s ease-in-out;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            cursor: grab;
+            box-shadow: 0 0 8px var(--neon-blue);
+            transition: background 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            cursor: grab;
+            box-shadow: 0 0 8px var(--neon-blue);
+            transition: background 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        }
+        input[type="range"]:active::-webkit-slider-thumb { cursor: grabbing; }
+        input[type="range"]:active::-moz-range-thumb { cursor: grabbing; }
+
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap; /* Allow wrapping for small screens */
+            justify-content: center;
+        }
+
+        .button-group button {
+            background: var(--control-bg);
+            color: var(--text-color);
+            border: 1px solid var(--neon-blue);
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Space Mono', monospace;
+            font-size: 0.85em;
+            transition: background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+            box-shadow: 0 0 5px rgba(0, 229, 255, 0.2);
+            flex: 1 1 auto; /* Allows buttons to grow and shrink */
+            min-width: 70px; /* Minimum width for buttons */
+        }
+
+        .button-group button:hover {
+            background: rgba(0, 229, 255, 0.1);
+            box-shadow: 0 0 10px var(--neon-blue);
+            border-color: var(--neon-blue);
+        }
+
+        .button-group button.active {
+            background: var(--neon-red);
+            color: var(--button-text-color);
+            border-color: var(--neon-red);
+            box-shadow: 0 0 10px var(--neon-red), 0 0 20px var(--neon-red);
+        }
+        .deck-a .button-group button.active {
+            background: var(--border-glow-A);
+            color: var(--button-text-color);
+            border-color: var(--border-glow-A);
+            box-shadow: 0 0 10px var(--border-glow-A), 0 0 20px var(--border-glow-A);
+        }
+        .deck-b .button-group button.active {
+            background: var(--border-glow-B);
+            color: var(--button-text-color);
+            border-color: var(--border-glow-B);
+            box-shadow: 0 0 10px var(--border-glow-B), 0 0 20px var(--border-glow-B);
+        }
+        .deck-b .button-group button.active.sin { background: var(--neon-green); border-color: var(--neon-green); box-shadow: 0 0 10px var(--neon-green); }
+        .deck-b .button-group button.active.saw { background: var(--neon-purple); border-color: var(--neon-purple); box-shadow: 0 0 10px var(--neon-purple); }
+        .deck-b .button-group button.active.sqr { background: var(--neon-red); border-color: var(--neon-red); box-shadow: 0 0 10px var(--neon-red); }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+            background-color: var(--control-bg);
+            border: 1px solid var(--neon-blue);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            box-shadow: inset 0 0 5px rgba(0, 229, 255, 0.2);
+        }
+
+        .toggle-switch.checked {
+            background-color: var(--neon-green);
+            border-color: var(--neon-green);
+            box-shadow: inset 0 0 5px var(--neon-green);
+        }
+
+        .toggle-switch:before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: var(--text-color);
+            top: 1px;
+            left: 1px;
+            transition: transform 0.2s;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        .toggle-switch.checked:before {
+            transform: translateX(20px);
+        }
+
+        .control-group-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        /* --- Global Controls --- */
+        #controls-container {
+            flex-shrink: 0;
+            background: var(--control-bg);
+            padding: 10px 20px;
+            box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        #shareUrl {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            max-width: 800px;
+            justify-content: center;
+        }
+
+        #shareUrl input {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid var(--neon-blue);
+            color: var(--text-color);
+            padding: 5px 8px;
+            border-radius: 4px;
+            flex-grow: 1;
+            font-size: 0.8em;
+        }
+
+        #shareUrl button {
+            background: var(--neon-green);
+            color: var(--button-text-color);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 0 8px rgba(0, 255, 153, 0.5);
+        }
+
+        #shareUrl button:hover {
+            background: #4dffb9;
+            box-shadow: 0 0 12px #4dffb9;
+        }
+
+        #global-settings {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 1000px;
+            justify-items: center;
+            padding-bottom: 5px;
+        }
+
+        #global-actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        #global-actions button {
+            background: var(--neon-purple);
+            color: var(--text-color);
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 0 8px rgba(204, 51, 255, 0.5);
+            flex-grow: 1;
+            max-width: 180px;
+        }
+
+        #global-actions button:hover {
+            background: #e066ff;
+            box-shadow: 0 0 12px #e066ff;
+        }
+
+        #global-actions button.active {
+            background: var(--neon-green);
+            box-shadow: 0 0 12px var(--neon-green);
+            color: var(--button-text-color);
+        }
+
+        #global-actions button#recordToggle.recording {
+            background: var(--neon-red);
+            box-shadow: 0 0 12px var(--neon-red);
+            color: var(--button-text-color);
+        }
+
+        /* --- Learning Mode --- */
+        #learningModeOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            color: var(--text-color);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 200;
+            font-size: 1.1em;
+            text-align: center;
+            padding: 20px;
+        }
+
+        #learningModeOverlay.active { display: flex; }
+
+        #learningModeContent {
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 25px var(--neon-blue);
+            max-width: 700px;
+            max-height: 90%;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        #learningModeContent h2 {
+            color: var(--neon-blue);
+            margin-top: 0;
+            font-size: 1.5em;
+        }
+
+        #closeLearningMode {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: var(--neon-red);
+            font-size: 1.8em;
+            cursor: pointer;
+        }
+
+        #learningModeContent button {
+            background: var(--neon-purple);
+            color: var(--text-color);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 0 8px rgba(204, 51, 255, 0.5);
+            margin: 5px;
+        }
+        #learningModeContent button:hover {
+            background: #e066ff;
+            box-shadow: 0 0 12px #e066ff;
+        }
+        #learningModeContent ul { text-align: left; }
+
+        /* --- Responsive Adjustments --- */
+        @media (max-width: 1024px) {
+            .main-decks {
+                flex-direction: column;
+                padding: 10px;
+                gap: 15px;
+            }
+            .deck {
+                min-width: unset;
+                padding: 10px;
+            }
+            .header-title {
+                font-size: 2em;
+                padding: 10px 0;
+                margin-bottom: 5px;
+            }
+            .deck-header h2 { font-size: 1.1em; }
+            .deck-header .status-indicator { font-size: 0.8em; padding: 4px 8px; }
+            .controls-grid { grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
+            .control-panel { padding: 8px; gap: 5px; }
+            .control-panel label { font-size: 0.85em; }
+            .control-panel .slider-group span { min-width: 50px; font-size: 0.8em; }
+            .button-group button { font-size: 0.8em; padding: 6px 10px; min-width: 60px; }
+            #controls-container { padding: 8px 10px; gap: 8px; }
+            #shareUrl { flex-direction: column; gap: 5px; }
+            #shareUrl input { font-size: 0.75em; width: calc(100% - 16px); }
+            #shareUrl button { font-size: 0.75em; width: 100%; }
+            #global-settings { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            #global-actions { gap: 10px; flex-direction: column; max-width: 250px; }
+            #global-actions button { max-width: none; font-size: 0.85em; }
+            #learningModeContent { font-size: 0.9em; padding: 20px; }
+            #closeLearningMode { font-size: 1.5em; }
+        }
+
+        @media (max-width: 500px) {
+             .main-decks { padding: 5px; gap: 10px; }
+             .deck { padding: 8px; }
+             .deck-header h2 { font-size: 1em; }
+             .controls-grid { grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 5px; }
+             .control-panel { padding: 5px; }
+             .control-panel label { font-size: 0.8em; }
+             .button-group button { font-size: 0.75em; padding: 5px 8px; min-width: 50px; }
+             .visualizer-container { height: 80px; }
+             #global-settings { grid-template-columns: 1fr; }
+        }
+
+    </style>
+</head>
+<body>
+    <h1 class="header-title">RF AUDIO EXPLORER</h1>
+
+    <div class="main-decks">
+        <div class="deck deck-a">
+            <div class="deck-header">
+                <h2>DECK A: RF SAMPLER</h2>
+                <div class="status-indicator">VSWR: <span id="vswrValue">1.0:1</span></div>
+            </div>
+            <div class="canvas-container">
+                <canvas id="smithChartCanvasA"></canvas>
+            </div>
+            <div class="visualizer-container">
+                <canvas id="rfSpectrumCanvas"></canvas>
+            </div>
+            <div class="controls-grid">
+                <div class="control-panel">
+                    <label for="freqA">FREQUENCY</label>
+                    <div class="slider-group">
+                        <input type="range" id="freqA" min="0.1" max="150" value="88.1" step="0.1">
+                        <span id="freqAValue" class="value">88.1 MHz</span>
+                    </div>
+                    <small style="color: grey; font-size: 0.7em;" id="stationInfo"></small>
+                </div>
+                <div class="control-panel">
+                    <label>SOURCE / MODE</label>
+                    <div class="button-group">
+                        <button id="sourceSimulated" class="active">SIMULATED</button>
+                        <button id="sourceWebRadio">WEB RADIO</button>
+                    </div>
+                </div>
+                <div class="control-panel">
+                    <label>MODULATION TYPE</label>
+                    <div class="button-group">
+                        <button id="modeFm" class="active">FM</button>
+                        <button id="modeAm">AM</button>
+                        <button id="modeSsb">SSB</button>
+                    </div>
+                </div>
+                <div class="control-panel">
+                    <div class="control-group-row">
+                        <label for="autoScanToggle">AUTO SCAN</label>
+                        <div id="autoScanToggle" class="toggle-switch"></div>
+                    </div>
+                </div>
+                <div class="control-panel">
+                    <div class="control-group-row">
+                        <label for="detailGridToggleA">DETAIL GRID</label>
+                        <div id="detailGridToggleA" class="toggle-switch checked"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="deck deck-b">
+            <div class="deck-header">
+                <h2>DECK B: SIGNAL SHAPER</h2>
+                <div class="status-indicator">Q: <span id="qValue">1.6</span></div>
+            </div>
+            <div class="canvas-container">
+                <canvas id="smithChartCanvasB"></canvas>
+            </div>
+            <div class="visualizer-container">
+                <canvas id="waveformCanvas"></canvas>
+            </div>
+            <div class="controls-grid">
+                <div class="control-panel">
+                    <label for="pitchB">PITCH</label>
+                    <div class="slider-group">
+                        <input type="range" id="pitchB" min="20" max="2000" value="440" step="1">
+                        <span id="pitchBValue" class="value">440 Hz</span>
+                    </div>
+                </div>
+                <div class="control-panel">
+                    <label for="filterB">FILTER</label>
+                    <div class="slider-group">
+                        <input type="range" id="filterB" min="100" max="10000" value="2500" step="10">
+                        <span id="filterBValue" class="value">2.5 kHz</span>
+                    </div>
+                </div>
+                <div class="control-panel">
+                    <label for="resonanceB">RESONANCE</label>
+                    <div class="slider-group">
+                        <input type="range" id="resonanceB" min="0.1" max="20" value="0.5" step="0.1">
+                        <span id="resonanceBValue" class="value">0.5</span>
+                    </div>
+                </div>
+                <div class="control-panel">
+                    <label>WAVE SHAPE</label>
+                    <div class="button-group">
+                        <button id="waveSin" class="active sin">SIN</button>
+                        <button id="waveSaw" class="saw">SAW</button>
+                        <button id="waveSqr" class="sqr">SQR</button>
+                    </div>
+                </div>
+                <div class="control-panel">
+                    <div class="control-group-row">
+                        <label for="monitorToggle">MONITOR</label>
+                        <div id="monitorToggle" class="toggle-switch checked"></div>
+                    </div>
+                </div>
+                <div class="control-panel">
+                    <div class="control-group-row">
+                        <label for="effectsToggle">EFFECTS</label>
+                        <div id="effectsToggle" class="toggle-switch checked"></div>
+                    </div>
+                </div>
+                <div class="control-panel">
+                    <div class="control-group-row">
+                        <label for="detailGridToggleB">DETAIL GRID</label>
+                        <div id="detailGridToggleB" class="toggle-switch checked"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="controls-container">
+        <div id="shareUrl">
+            <input type="text" id="shareUrlInput" readonly placeholder="Shareable URL will appear here">
+            <button id="copyShareUrl">Copy</button>
+        </div>
+
+        <div id="global-settings">
+            <div class="control-panel">
+                <label for="reverbFeedback">Delay Time (s): <span id="reverbFeedbackValue">0.5</span></label>
+                <div class="slider-group">
+                    <input type="range" id="reverbFeedback" min="0" max="2" value="0.5" step="0.01">
+                </div>
+            </div>
+            <div class="control-panel">
+                <label for="reverbWetDry">Delay Mix: <span id="reverbWetDryValue">0.3</span></label>
+                <div class="slider-group">
+                    <input type="range" id="reverbWetDry" min="0" max="1" value="0.3" step="0.01">
+                </div>
+            </div>
+            <div class="control-panel">
+                <label for="z0">Z₀ (Ω): <span id="z0Value">50</span></label>
+                <div class="slider-group">
+                    <input type="range" id="z0" min="10" max="600" value="50" step="1">
+                </div>
+            </div>
+            <div class="control-panel">
+                <label for="micInputGain">Mic Gain: <span id="micInputGainValue">0.5</span></label>
+                <div class="slider-group">
+                    <input type="range" id="micInputGain" min="0" max="1" value="0.5" step="0.01">
+                </div>
+            </div>
+        </div>
+
+        <div id="global-actions">
+            <button id="micInputToggle">Mic Input OFF</button>
+            <button id="learningModeToggle">Learning Mode OFF</button>
+            <button id="recordToggle">Record</button>
+            <button id="resetApp">Reset App</button>
+        </div>
+    </div>
+
+    <div id="learningModeOverlay">
+        <div id="learningModeContent">
+            <button id="closeLearningMode">×</button>
+            <h2>Learning Mode: Explore Impedance Concepts</h2>
+            <p><strong>Impedance Matching Pathways (Deck A):</strong> Drag a point, then click a pathway button to see the impedance transform. The goal is to reach the center (perfect match, Γ=0, VSWR=1).</p>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; flex-wrap: wrap;">
+                <button data-path="lMatch" title="L-Match Tuner">L-Match</button>
+                <button data-path="stubTuner" title="Single-Stub Tuner">Stub Tuner</button>
+            </div>
+            <p><strong>Key Resonant Circles:</strong> Observe the effect of these areas on sound (applies to both charts).</p>
+            <ul style="text-align: left; max-width: 400px; margin: 0 auto 20px;">
+                <li><strong>Center (Γ=0, VSWR=1):</strong> Perfect match, often a cleaner, purer sound.</li>
+                <li><strong>Outer Circle (|Γ|=1):</strong> Full reflection, max amplitude, often complex/distorted timbre.</li>
+                <li><strong>Constant Resistance Circles:</strong> Moving along these changes reactance, affecting timbre/filter.</li>
+                <li><strong>Constant Reactance Arcs:</strong> Moving along these changes resistance, affecting gain/purity.</li>
+            </ul>
+            <p><strong>Musical Sequences (Deck B):</strong> Explore pre-defined impedance paths and hear their sonic journey applied to the shaper.</p>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; justify-content: center; flex-wrap: wrap;">
+                <button data-sequence="radialOut">Radial Out</button>
+                <button data-sequence="circleSweep">Circle Sweep</button>
+            </div>
+            <p><strong>Challenge:</strong> Can you find a path to the center that generates a pleasing musical phrase?</p>
+        </div>
+    </div>
+
+    <audio id="webRadioAudio" controls style="display:none;" preload="auto"></audio>
+
+    <script>
+        // --- Global Constants & State ---
+        let audioContext;
+        let isAudioInitialized = false;
+
+        const DECK_A_COLOR = 'var(--border-glow-A)'; // Red
+        const DECK_B_COLOR = 'var(--border-glow-B)'; // Blue
+        const NEON_GREEN_RGB = '0, 255, 153';
+
+        const canvasA = document.getElementById('smithChartCanvasA');
+        const ctxA = canvasA.getContext('2d');
+        const canvasB = document.getElementById('smithChartCanvasB');
+        const ctxB = canvasB.getContext('2d');
+
+        const rfSpectrumCanvas = document.getElementById('rfSpectrumCanvas');
+        const rfSpectrumCtx = rfSpectrumCanvas.getContext('2d');
+        const waveformCanvas = document.getElementById('waveformCanvas');
+        const waveformCtx = waveformCanvas.getContext('2d');
+
+        // UI Elements
+        const mainDecks = document.querySelector('.main-decks');
+        const controlsContainer = document.getElementById('controls-container');
+
+        // Deck A Controls
+        const vswrValueDisplay = document.getElementById('vswrValue');
+        const freqASlider = document.getElementById('freqA');
+        const freqAValueDisplay = document.getElementById('freqAValue');
+        const stationInfoDisplay = document.getElementById('stationInfo');
+
+        const sourceSimulatedBtn = document.getElementById('sourceSimulated');
+        const sourceWebRadioBtn = document.getElementById('sourceWebRadio');
+        let currentRadioSource = 'simulated'; // 'simulated', 'webradio'
+
+        const modeFmBtn = document.getElementById('modeFm');
+        const modeAmBtn = document.getElementById('modeAm');
+        const modeSsbBtn = document.getElementById('modeSsb');
+        let currentRFMode = 'fm'; // 'fm', 'am', 'ssb' (only applies to simulated)
+
+        const autoScanToggle = document.getElementById('autoScanToggle');
+        const detailGridToggleA = document.getElementById('detailGridToggleA');
+
+        // Deck B Controls
+        const qValueDisplay = document.getElementById('qValue');
+        const pitchBSlider = document.getElementById('pitchB');
+        const pitchBValueDisplay = document.getElementById('pitchBValue');
+        const filterBSlider = document.getElementById('filterB');
+        const filterBValueDisplay = document.getElementById('filterBValue');
+        const resonanceBSlider = document.getElementById('resonanceB');
+        const resonanceBValueDisplay = document.getElementById('resonanceBValue');
+        const waveSinBtn = document.getElementById('waveSin');
+        const waveSawBtn = document.getElementById('waveSaw');
+        const waveSqrBtn = document.getElementById('waveSqr');
+        let currentWaveShape = 'sine'; // 'sine', 'sawtooth', 'square'
+        const monitorToggle = document.getElementById('monitorToggle');
+        const effectsToggle = document.getElementById('effectsToggle');
+        const detailGridToggleB = document.getElementById('detailGridToggleB');
+
+        // Global Controls
+        const reverbFeedbackSlider = document.getElementById('reverbFeedback');
+        const reverbFeedbackValueDisplay = document.getElementById('reverbFeedbackValue');
+        const reverbWetDrySlider = document.getElementById('reverbWetDry');
+        const reverbWetDryValueDisplay = document.getElementById('reverbWetDryValue');
+        const z0Slider = document.getElementById('z0');
+        const z0ValueDisplay = document.getElementById('z0Value');
+        const micInputGainSlider = document.getElementById('micInputGain');
+        const micInputGainValueDisplay = document.getElementById('micInputGainValue');
+
+        const micInputToggle = document.getElementById('micInputToggle');
+        const learningModeToggle = document.getElementById('learningModeToggle');
+        const learningModeOverlay = document.getElementById('learningModeOverlay');
+        const closeLearningModeBtn = document.getElementById('closeLearningMode');
+        const shareUrlInput = document.getElementById('shareUrlInput');
+        const copyShareUrlBtn = document.getElementById('copyShareUrl');
+        const learningModeContent = document.getElementById('learningModeContent');
+        const recordToggle = document.getElementById('recordToggle');
+        const resetAppBtn = document.getElementById('resetApp');
+
+        // Global Audio Parameters
+        let Z0 = parseFloat(z0Slider.value);
+        let RF_FREQ_MHZ = parseFloat(freqASlider.value); // Base frequency for simulated, or search term for web radio
+        let autoScanActive = false;
+        let detailGridA = true;
+        let detailGridB = true;
+
+        let SHAPER_PITCH = parseFloat(pitchBSlider.value);
+        let SHAPER_FILTER = parseFloat(filterBSlider.value);
+        let SHAPER_RESONANCE = parseFloat(resonanceBSlider.value);
+        let monitorActive = true;
+        let effectsActive = true;
+
+        let REVERB_FEEDBACK = parseFloat(reverbFeedbackSlider.value);
+        let REVERB_WET_DRY = parseFloat(reverbWetDrySlider.value);
+        let MIC_INPUT_GAIN = parseFloat(micInputGainSlider.value);
+
+        let smithRadiusA, smithRadiusB;
+        let centerA = { x: 0, y: 0 };
+        let centerB = { x: 0, y: 0 };
+
+        let activePointsA = new Map();
+        let activePointsB = new Map();
+
+        let micInputEnabled = false;
+        let micStream = null;
+        let micSourceNode, micGainNode;
+
+        let learningModeActive = false;
+        let learningAnimation = null;
+
+        let isRecording = false;
+        let mediaRecorder;
+        let recordedChunks = [];
+        let destinationStream;
+
+        // Audio Nodes
+        let masterGain;
+        let delayNode, feedbackGainNode, wetGainNode, dryGainNode;
+
+        // Deck A RF Sampler Nodes
+        let rfModeGain; // For simulated RF
+        let webRadioModeGain; // For web radio stream
+        let deckAGain;
+        let deckASpectrumAnalyser;
+
+        // Simulated RF specific
+        let rfCarrierOsc;
+        let rfModulatorOsc;
+        let modulationGainNode;
+        let fmOscDeviation = 500; // Hz
+        let noiseSource;
+        let ssbVoiceSource;
+        let amCarrierGainNode; // For proper AM modulation
+
+        // Web Radio specific
+        const webRadioAudioElement = document.getElementById('webRadioAudio');
+        let webRadioSourceNode;
+        let webRadioStreamFilter; // Filter for web radio stream, modulated by Smith Chart A
+        let webRadioStreamGain;   // Gain for web radio stream, modulated by Smith Chart A
+        let availableRadioStations = [];
+        let currentStationIndex = -1;
+        let isLoadingStation = false;
+        const RADIO_BROWSER_API_URL = 'https://nl1.radio-browser.info/json/stations/search'; // nl1 for non-https. use public.radio-browser.info for HTTPS and get a new one every 60min to avoid rate limiting. For now, nl1 is more lenient on CORS.
+
+        // Deck B Signal Shaper Nodes
+        let shaperFilter;
+        let shaperGain;
+        let shaperOsc;
+        let shaperOscGain;
+        let shaperAnalyser;
+
+        // Auto Scan variables
+        let autoScanInterval = null;
+        let autoScanDirection = 1;
+        const AUTO_SCAN_STEP = 0.5; // MHz (simulated) or index step (web radio)
+
+        // --- Utility Functions ---
+        function varToRgba(varName, alpha = 1) {
+            const color = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+            const r = parseInt(color.slice(1, 3), 16);
+            const g = parseInt(color.slice(3, 5), 16);
+            const b = parseInt(color.slice(5, 7), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        function createToggleSwitch(element, initialState, onChange) {
+            element.classList.toggle('checked', initialState);
+            element.addEventListener('click', () => {
+                const newState = !element.classList.contains('checked');
+                element.classList.toggle('checked', newState);
+                onChange(newState);
+            });
+        }
+
+        // --- Audio Engine Components ---
+
+        // Smith Chart Voice Class for Deck A (RF Sampler Modulation)
+        class RFModulatorVoice {
+            constructor(normX, normY) {
+                this.normX = normX;
+                this.normY = normY;
+
+                // Modulator for the carrier (simulated) or stream (web radio)
+                this.modulator = audioContext.createOscillator();
+                this.modulatorGain = audioContext.createGain(); // For modulation depth
+
+                this.modulator.connect(this.modulatorGain);
+                this.modulator.start();
+
+                this.updateParameters(normX, normY);
+            }
+
+            updateParameters(normX, normY) {
+                this.normX = normX;
+                this.normY = normY;
+
+                const r = Math.sqrt(normX * normX + normY * normY); // |Γ|
+                const angle = Math.atan2(normY, normX); // ∠Γ
+
+                // Mapping RF modulation parameters from Smith Chart A
+                const minModFreq = 10;
+                const maxModFreq = 1000;
+                let modFreq = minModFreq + (normX + 1) / 2 * (maxModFreq - minModFreq);
+                modFreq = Math.max(1, Math.min(maxModFreq, modFreq));
+                this.modulator.frequency.setValueAtTime(modFreq, audioContext.currentTime);
+
+                const minModDepth = 0.1;
+                const maxModDepth = 1.0;
+                let modDepth = minModDepth + (normY + 1) / 2 * (maxModDepth - minModDepth);
+                modDepth = Math.max(0, Math.min(1, modDepth));
+                this.modulatorGain.gain.setValueAtTime(modDepth, audioContext.currentTime);
+
+                // Timbre of modulator
+                const numHarmonics = 8;
+                const real = new Float32Array(numHarmonics + 1);
+                const imag = new Float32Array(numHarmonics + 1);
+                real[1] = 1 - r * 0.5;
+                for (let i = 2; i <= numHarmonics; i++) {
+                    let amp = r * (1 / i);
+                    let phaseShift = angle * i / (2 * Math.PI);
+                    real[i] = amp * Math.cos(phaseShift);
+                    imag[i] = amp * Math.sin(phaseShift);
+                }
+                const wave = audioContext.createPeriodicWave(real, imag, { disableNormalization: false });
+                this.modulator.setPeriodicWave(wave);
+
+                // Update VSWR display
+                const vswr = (1 + r) / (1 - r);
+                vswrValueDisplay.textContent = `${vswr.toFixed(1)}:1`;
+            }
+
+            // Connects the modulator to the relevant audio path based on current source and mode
+            connectModulator(mode, source) {
+                this.modulatorGain.disconnect();
+
+                if (currentRadioSource === 'simulated') {
+                    if (mode === 'fm') {
+                        this.modulatorGain.connect(source.frequency);
+                    } else if (mode === 'am') {
+                        // For AM, modulator controls amCarrierGainNode's gain
+                        this.modulatorGain.connect(amCarrierGainNode.gain);
+                    } else if (mode === 'ssb') {
+                        // For SSB simulation, modulator affects SSB voice source
+                        this.modulatorGain.connect(ssbVoiceSource.detune); // Small detune for warble
+                        this.modulatorGain.connect(ssbVoiceSource.Q); // Affects filter sharpness
+                    }
+                } else { // webRadioSource
+                    // For Web Radio, the Smith Chart modulates the stream's filter and gain
+                    this.modulatorGain.connect(webRadioStreamFilter.frequency); // Modulate filter cutoff
+                    this.modulatorGain.connect(webRadioStreamFilter.Q);       // Modulate filter Q
+                    this.modulatorGain.connect(webRadioStreamGain.gain);     // Modulate stream gain
+                }
+            }
+
+            stop() {
+                this.modulator.stop();
+                this.modulator.disconnect();
+                this.modulatorGain.disconnect();
+            }
+        }
+
+
+        // Smith Chart Voice Class for Deck B (Signal Shaper Effects)
+        class ShaperVoice {
+            constructor(normX, normY) {
+                this.normX = normX;
+                this.normY = normY;
+
+                this.filter = audioContext.createBiquadFilter();
+                this.gain = audioContext.createGain();
+
+                // Connect to shaper input (input will be connected externally)
+                this.filter.connect(this.gain);
+                this.gain.connect(shaperAnalyser);
+                this.gain.connect(dryGainNode);
+                this.gain.connect(wetGainNode);
+
+                this.filter.type = 'lowpass';
+                this.updateParameters(normX, normY);
+            }
+
+            updateParameters(normX, normY) {
+                this.normX = normX;
+                this.normY = normY;
+
+                const r = Math.sqrt(normX * normX + normY * normY); // |Γ|
+                const angle = Math.atan2(normY, normX); // ∠Γ
+
+                // Filter Frequency modulation: Based on X-axis
+                const baseCutoff = SHAPER_FILTER;
+                const cutoffModRange = 0.5;
+                let modulatedCutoff = baseCutoff * (1 + normX * cutoffModRange);
+                modulatedCutoff = Math.max(50, Math.min(audioContext.sampleRate / 2, modulatedCutoff));
+                this.filter.frequency.setValueAtTime(modulatedCutoff, audioContext.currentTime);
+
+                // Filter Q (Resonance) modulation: Based on Y-axis
+                const baseQ = SHAPER_RESONANCE;
+                const qModRange = 5;
+                let modulatedQ = baseQ + (normY + 1) / 2 * qModRange;
+                modulatedQ = Math.max(0.1, Math.min(50, modulatedQ));
+                this.filter.Q.setValueAtTime(modulatedQ, audioContext.currentTime);
+                qValueDisplay.textContent = modulatedQ.toFixed(1);
+
+                // Gain (Amplitude) modulation: Based on |Γ|
+                const minGain = 0.1;
+                const maxGain = 1.0;
+                let gain = minGain + r * (maxGain - minGain);
+                this.gain.gain.setValueAtTime(gain, audioContext.currentTime);
+
+                // Filter type based on angle
+                if (angle > Math.PI / 2) {
+                    this.filter.type = 'highpass';
+                } else if (angle < -Math.PI / 2) {
+                    this.filter.type = 'bandpass';
+                } else {
+                    this.filter.type = 'lowpass';
+                }
+
+                if (shaperOsc && shaperOscGain) {
+                    let oscFreq = SHAPER_PITCH * Math.pow(2, normY * 0.5);
+                    shaperOsc.frequency.setValueAtTime(oscFreq, audioContext.currentTime);
+                }
+            }
+
+            stop() {
+                this.filter.disconnect();
+                this.gain.disconnect();
+            }
+        }
+
+
+        // --- Audio Initialization ---
+        function initAudio() {
+            if (isAudioInitialized) return;
+            audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+
+            masterGain = audioContext.createGain();
+            masterGain.gain.setValueAtTime(0.7, audioContext.currentTime);
+
+            destinationStream = audioContext.createMediaStreamDestination();
+            masterGain.connect(destinationStream);
+            masterGain.connect(audioContext.destination);
+
+            delayNode = audioContext.createDelay(2);
+            feedbackGainNode = audioContext.createGain();
+            wetGainNode = audioContext.createGain();
+            dryGainNode = audioContext.createGain();
+
+            dryGainNode.connect(masterGain);
+            wetGainNode.connect(delayNode);
+            delayNode.connect(feedbackGainNode);
+            feedbackGainNode.connect(delayNode);
+            feedbackGainNode.connect(masterGain);
+
+            delayNode.delayTime.setValueAtTime(REVERB_FEEDBACK, audioContext.currentTime);
+            feedbackGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime);
+            wetGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime);
+            dryGainNode.gain.setValueAtTime(1 - REVERB_WET_DRY, audioContext.currentTime);
+
+            // Deck B: Signal Shaper Setup (initialized first as Deck A feeds into it)
+            shaperFilter = audioContext.createBiquadFilter();
+            shaperFilter.type = 'lowpass';
+            shaperFilter.frequency.setValueAtTime(SHAPER_FILTER, audioContext.currentTime);
+            shaperFilter.Q.setValueAtTime(SHAPER_RESONANCE, audioContext.currentTime);
+
+            shaperGain = audioContext.createGain();
+            shaperGain.gain.setValueAtTime(0.7, audioContext.currentTime);
+            shaperFilter.connect(shaperGain); // Shaper filter feeds its gain
+
+            // Secondary oscillator for Wave Shape buttons (connects to shaperFilter)
+            shaperOsc = audioContext.createOscillator();
+            shaperOsc.type = currentWaveShape;
+            shaperOsc.frequency.setValueAtTime(SHAPER_PITCH, audioContext.currentTime);
+            shaperOsc.start();
+
+            shaperOscGain = audioContext.createGain();
+            shaperOscGain.gain.setValueAtTime(0, audioContext.currentTime);
+            shaperOsc.connect(shaperOscGain);
+            shaperOscGain.connect(shaperFilter); // Secondary osc mixes into shaper filter
+
+            shaperAnalyser = audioContext.createAnalyser();
+            shaperAnalyser.fftSize = 2048;
+            shaperGain.connect(shaperAnalyser);
+            // Shaper output connects to global delay/master
+            shaperGain.connect(dryGainNode);
+            shaperGain.connect(wetGainNode);
+
+            // Deck A: RF Sampler Setup
+            deckAGain = audioContext.createGain();
+            deckAGain.gain.setValueAtTime(0.8, audioContext.currentTime);
+            deckAGain.connect(shaperFilter); // Deck A output feeds into Deck B shaper
+
+            rfModeGain = audioContext.createGain(); // Gain for the simulated RF path
+            rfModeGain.connect(deckAGain);
+
+            webRadioModeGain = audioContext.createGain(); // Gain for the web radio path
+            webRadioModeGain.connect(deckAGain);
+
+            deckASpectrumAnalyser = audioContext.createAnalyser();
+            deckASpectrumAnalyser.fftSize = 2048;
+            rfModeGain.connect(deckASpectrumAnalyser); // Visualize the chosen source
+
+            // Simulated RF specific node setup
+            rfCarrierOsc = audioContext.createOscillator();
+            rfCarrierOsc.frequency.setValueAtTime(RF_FREQ_MHZ * 1e6, audioContext.currentTime);
+            rfCarrierOsc.type = 'sine';
+            rfCarrierOsc.start();
+
+            rfModulatorOsc = audioContext.createOscillator();
+            rfModulatorOsc.type = 'sine';
+            rfModulatorOsc.frequency.setValueAtTime(440, audioContext.currentTime);
+            rfModulatorOsc.start();
+
+            modulationGainNode = audioContext.createGain(); // Modulator output gain
+            modulationGainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+
+            amCarrierGainNode = audioContext.createGain(); // For AM modulation
+            amCarrierGainNode.gain.setValueAtTime(1, audioContext.currentTime);
+            rfCarrierOsc.connect(amCarrierGainNode); // Carrier passes through this gain
+
+            const bufferSize = audioContext.sampleRate * 2;
+            const noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1;
+            }
+            noiseSource = audioContext.createBufferSource();
+            noiseSource.buffer = noiseBuffer;
+            noiseSource.loop = true;
+            noiseSource.start();
+
+            ssbVoiceSource = audioContext.createBiquadFilter();
+            ssbVoiceSource.type = 'bandpass';
+            ssbVoiceSource.frequency.setValueAtTime(1500, audioContext.currentTime);
+            ssbVoiceSource.Q.setValueAtTime(2, audioContext.currentTime);
+            noiseSource.connect(ssbVoiceSource); // Noise feeds SSB filter
+
+            // Web Radio specific node setup
+            webRadioSourceNode = audioContext.createMediaElementSource(webRadioAudioElement);
+            webRadioStreamFilter = audioContext.createBiquadFilter(); // Filter for stream
+            webRadioStreamGain = audioContext.createGain();   // Gain for stream
+
+            webRadioSourceNode.connect(webRadioStreamFilter);
+            webRadioStreamFilter.connect(webRadioStreamGain);
+            webRadioStreamGain.connect(webRadioModeGain); // Stream output feeds into its mode gain
+
+            isAudioInitialized = true;
+            console.log("Audio Context Initialized");
+            applyInitialAudioRouting();
+            applyUrlState(); // Apply state after audio init
+        }
+
+        function applyInitialAudioRouting() {
+            // Disconnect all to reset
+            rfCarrierOsc.disconnect();
+            rfModulatorOsc.disconnect();
+            modulationGainNode.disconnect();
+            noiseSource.disconnect();
+            ssbVoiceSource.disconnect();
+            amCarrierGainNode.disconnect();
+
+            rfModeGain.gain.setValueAtTime(currentRadioSource === 'simulated' ? 1 : 0, audioContext.currentTime);
+            webRadioModeGain.gain.setValueAtTime(currentRadioSource === 'webradio' ? 1 : 0, audioContext.currentTime);
+
+            if (currentRadioSource === 'simulated') {
+                applyRFMode(currentRFMode); // Connect simulated RF path
+            } else {
+                // Already connected: webRadioSourceNode -> webRadioStreamFilter -> webRadioStreamGain -> webRadioModeGain
+                // Just ensure visualiser is connected
+                webRadioModeGain.connect(deckASpectrumAnalyser);
+            }
+        }
+
+        // Connect/disconnect nodes based on RF mode (for simulated source)
+        function applyRFMode(mode) {
+            // Disconnect all previous simulated RF sampler paths
+            rfCarrierOsc.disconnect();
+            rfModulatorOsc.disconnect();
+            modulationGainNode.disconnect();
+            noiseSource.disconnect();
+            ssbVoiceSource.disconnect();
+            amCarrierGainNode.disconnect();
+            rfModeGain.disconnect(); // Ensure rfModeGain is not getting extra inputs
+            deckAGain.disconnect(deckASpectrumAnalyser); // Disconnect old analyser connection if any
+
+            // Connect simulated path output to rfModeGain, and then rfModeGain to DeckA's analyser
+            rfModeGain.connect(deckASpectrumAnalyser);
+
+            // Connect static noise (background ambience) at low level
+            const backgroundNoiseGain = audioContext.createGain();
+            backgroundNoiseGain.gain.setValueAtTime(0.05, audioContext.currentTime);
+            noiseSource.connect(backgroundNoiseGain);
+            backgroundNoiseGain.connect(rfModeGain);
+
+
+            if (mode === 'fm') {
+                rfCarrierOsc.connect(rfModeGain); // Carrier outputs to rfModeGain
+                rfModulatorOsc.connect(modulationGainNode);
+                modulationGainNode.connect(rfCarrierOsc.frequency); // Modulator output affects carrier frequency
+                modulationGainNode.gain.setValueAtTime(fmOscDeviation, audioContext.currentTime); // Max deviation
+                rfCarrierOsc.frequency.setValueAtTime(RF_FREQ_MHZ * 1e6, audioContext.currentTime); // Ensure base freq is set
+            } else if (mode === 'am') {
+                rfCarrierOsc.connect(amCarrierGainNode); // Carrier passes through amCarrierGainNode
+                amCarrierGainNode.connect(rfModeGain);   // amCarrierGainNode outputs to rfModeGain
+
+                // Modulator output affects amCarrierGainNode's gain (for AM depth)
+                // A better way is to sum modulator output with a DC offset for AM
+                const amModulatorEnvelope = audioContext.createGain();
+                amModulatorEnvelope.gain.setValueAtTime(0.5, audioContext.currentTime); // Max modulation depth 50%
+                rfModulatorOsc.connect(amModulatorEnvelope);
+
+                const dcOffset = audioContext.createConstantSource();
+                dcOffset.offset.setValueAtTime(1, audioContext.currentTime); // DC offset of 1
+                dcOffset.start();
+
+                const amSum = audioContext.createGain(); // Sum of DC offset and modulator
+                dcOffset.connect(amSum);
+                amModulatorEnvelope.connect(amSum);
+                amSum.connect(amCarrierGainNode.gain); // This will modulate the carrier gain
+                rfCarrierOsc.frequency.setValueAtTime(RF_FREQ_MHZ * 1e6, audioContext.currentTime); // Ensure base freq is set
+
+            } else if (mode === 'ssb') {
+                // SSB simulation: filtered noise, not a carrier.
+                rfCarrierOsc.disconnect(); // Ensure carrier is off
+                noiseSource.connect(ssbVoiceSource);
+                ssbVoiceSource.connect(rfModeGain); // Filtered noise (SSB voice) outputs to rfModeGain
+            }
+
+            // Update mode buttons (Deck A)
+            [modeFmBtn, modeAmBtn, modeSsbBtn].forEach(btn => btn.classList.remove('active'));
+            if (mode === 'fm') modeFmBtn.classList.add('active');
+            else if (mode === 'am') modeAmBtn.classList.add('active');
+            else if (mode === 'ssb') modeSsbBtn.classList.add('active');
+        }
+
+        // --- Web Radio Specific Functions ---
+        async function fetchRadioStations(query = '') {
+            stationInfoDisplay.textContent = 'Searching...';
+            try {
+                const response = await fetch(`${RADIO_BROWSER_API_URL}?name=${query}&limit=50&hidebroken=true`); // Search by name (can be frequency like '88.1')
+                const data = await response.json();
+                availableRadioStations = data.filter(s => s.url_resolved && s.codec && s.codec.includes('mp3') || s.codec.includes('aac')); // Filter for playable streams
+                console.log("Fetched stations:", availableRadioStations);
+
+                if (availableRadioStations.length > 0) {
+                    currentStationIndex = 0;
+                    playRadioStation(currentStationIndex);
+                    freqASlider.max = availableRadioStations.length - 1; // Adjust slider for station browsing
+                    freqASlider.min = 0;
+                    freqASlider.step = 1;
+                    freqASlider.value = currentStationIndex;
+                } else {
+                    stationInfoDisplay.textContent = 'No stations found.';
+                    currentStationIndex = -1;
+                    stopRadioStation();
+                    freqASlider.max = 0; // Disable slider
+                    freqASlider.min = 0;
+                    freqASlider.value = 0;
+                }
+            } catch (error) {
+                console.error('Error fetching radio stations:', error);
+                stationInfoDisplay.textContent = 'Error fetching stations.';
+                currentStationIndex = -1;
+                stopRadioStation();
+            }
+        }
+
+        function playRadioStation(index) {
+            if (index < 0 || index >= availableRadioStations.length) return;
+
+            isLoadingStation = true;
+            const station = availableRadioStations[index];
+            stationInfoDisplay.textContent = `Loading: ${station.name} (${station.countrycode || ''})`;
+            console.log("Attempting to play:", station.url_resolved);
+
+            // Stop previous station if playing
+            webRadioAudioElement.pause();
+            webRadioAudioElement.src = station.url_resolved;
+            webRadioAudioElement.load(); // Reload the source
+
+            webRadioAudioElement.play()
+                .then(() => {
+                    stationInfoDisplay.textContent = `${station.name} - ${station.countrycode || ''} (${station.bitrate || '?'}kbps)`;
+                    isLoadingStation = false;
+                })
+                .catch(e => {
+                    console.error("Error playing stream:", e);
+                    stationInfoDisplay.textContent = `Error playing: ${station.name}. Try another.`;
+                    isLoadingStation = false;
+                });
+            currentStationIndex = index;
+            freqAValueDisplay.textContent = `CH ${currentStationIndex + 1}`;
+            freqASlider.value = currentStationIndex; // Update slider position
+        }
+
+        function stopRadioStation() {
+            webRadioAudioElement.pause();
+            webRadioAudioElement.src = '';
+            stationInfoDisplay.textContent = '';
+        }
+
+        // Handle Web Audio API errors on the HTML Audio element
+        webRadioAudioElement.addEventListener('error', (e) => {
+            console.error('HTML Audio Element Error:', e);
+            stationInfoDisplay.textContent = `Stream Error: ${e.message || e.target.error.code}. Try another.`;
+            isLoadingStation = false;
+        });
+        webRadioAudioElement.addEventListener('waiting', () => {
+             if (!isLoadingStation) stationInfoDisplay.textContent += ' (buffering...)';
+        });
+        webRadioAudioElement.addEventListener('playing', () => {
+             if (!isLoadingStation && currentStationIndex !== -1) {
+                 const station = availableRadioStations[currentStationIndex];
+                 stationInfoDisplay.textContent = `${station.name} - ${station.countrycode || ''} (${station.bitrate || '?'}kbps)`;
+             }
+        });
+
+
+        // --- Visualizer Functions ---
+        function drawSpectrum() {
+            if (!isAudioInitialized || !deckASpectrumAnalyser || !monitorActive) {
+                rfSpectrumCtx.clearRect(0, 0, rfSpectrumCanvas.width, rfSpectrumCanvas.height);
+                return;
+            }
+
+            const bufferLength = deckASpectrumAnalyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            deckASpectrumAnalyser.getByteFrequencyData(dataArray);
+
+            rfSpectrumCtx.clearRect(0, 0, rfSpectrumCanvas.width, rfSpectrumCanvas.height);
+            rfSpectrumCtx.fillStyle = '#000';
+            rfSpectrumCtx.fillRect(0, 0, rfSpectrumCanvas.width, rfSpectrumCanvas.height);
+
+            const barWidth = (rfSpectrumCanvas.width / bufferLength) * 2;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i += 2) {
+                const barHeight = dataArray[i] / 255 * rfSpectrumCanvas.height;
+                const gradient = rfSpectrumCtx.createLinearGradient(0, rfSpectrumCanvas.height, 0, 0);
+                gradient.addColorStop(0, `rgba(${NEON_GREEN_RGB}, 0.2)`);
+                gradient.addColorStop(0.5, `rgba(${NEON_GREEN_RGB}, 0.6)`);
+                gradient.addColorStop(1, `rgba(255, 51, 102, 1)`);
+
+                rfSpectrumCtx.fillStyle = gradient;
+                rfSpectrumCtx.fillRect(x, rfSpectrumCanvas.height - barHeight, barWidth, barHeight);
+                x += barWidth + 1;
+            }
+        }
+
+        function drawWaveform() {
+            if (!isAudioInitialized || !shaperAnalyser || !monitorActive) {
+                waveformCtx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+                return;
+            }
+
+            const bufferLength = shaperAnalyser.fftSize;
+            const dataArray = new Uint8Array(bufferLength);
+            shaperAnalyser.getByteTimeDomainData(dataArray);
+
+            waveformCtx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+            waveformCtx.fillStyle = '#000';
+            waveformCtx.fillRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+
+            waveformCtx.lineWidth = 2;
+            waveformCtx.strokeStyle = DECK_B_COLOR;
+            waveformCtx.shadowColor = DECK_B_COLOR;
+            waveformCtx.shadowBlur = 10;
+
+            waveformCtx.beginPath();
+            const sliceWidth = waveformCanvas.width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * waveformCanvas.height / 2;
+
+                if (i === 0) {
+                    waveformCtx.moveTo(x, y);
+                } else {
+                    waveformCtx.lineTo(x, y);
+                }
+                x += sliceWidth;
+            }
+
+            waveformCtx.lineTo(waveformCanvas.width, waveformCanvas.height / 2);
+            waveformCtx.stroke();
+            waveformCtx.shadowBlur = 0;
+        }
+
+
+        // --- Smith Chart Drawing Functions ---
+        function resizeCanvas() {
+            const containerA = canvasA.parentElement;
+            const containerB = canvasB.parentElement;
+
+            canvasA.width = containerA.clientWidth;
+            canvasA.height = containerA.clientHeight;
+            canvasB.width = containerB.clientWidth;
+            canvasB.height = containerB.clientHeight;
+
+            smithRadiusA = Math.min(canvasA.width, canvasA.height) * 0.45;
+            centerA = { x: canvasA.width / 2, y: canvasA.height / 2 };
+            smithRadiusB = Math.min(canvasB.width, canvasB.height) * 0.45;
+            centerB = { x: canvasB.width / 2, y: canvasB.height / 2 };
+
+            rfSpectrumCanvas.width = rfSpectrumCanvas.parentElement.clientWidth;
+            rfSpectrumCanvas.height = rfSpectrumCanvas.parentElement.clientHeight;
+            waveformCanvas.width = waveformCanvas.parentElement.clientWidth;
+            waveformCanvas.height = waveformCanvas.parentElement.clientHeight;
+
+            drawAllSmithCharts();
+        }
+
+        function drawSmithChart(canvas, ctx, radius, center, pointsMap, borderColor, detailGridActive) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, radius, 0, 2 * Math.PI);
+            ctx.strokeStyle = borderColor;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            if (detailGridActive) {
+                const resistanceValues = [0, 0.2, 0.5, 1, 2, 5];
+                resistanceValues.forEach(r_norm => {
+                    const gammaMag = (r_norm - 1) / (r_norm + 1);
+                    if (gammaMag >= 1) return;
+                    if (r_norm === 0) {
+                    } else {
+                        const circleCenter_x = center.x + radius * gammaMag;
+                        const circleRadius = radius * (1 - gammaMag);
+                        ctx.beginPath();
+                        ctx.arc(circleCenter_x, center.y, circleRadius, 0, 2 * Math.PI);
+                        ctx.strokeStyle = varToRgba('--neon-green', 0.2 + (1 - r_norm / 10) * 0.2);
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+
+                        if (learningModeActive && r_norm !== 0) {
+                            ctx.fillStyle = varToRgba('--neon-green', 0.8);
+                            ctx.font = '10px Space Mono';
+                            const labelX = circleCenter_x + circleRadius * Math.cos(Math.PI * 0.1);
+                            const labelY = center.y + circleRadius * Math.sin(Math.PI * 0.1);
+                            ctx.fillText(`${r_norm * Z0}Ω`, labelX, labelY);
+                        }
+                    }
+                });
+
+                const reactanceValues = [0.2, 0.5, 1, 2, 5];
+                reactanceValues.forEach(x_norm => {
+                    const cx_ind = center.x + radius;
+                    const cy_ind = center.y + radius / x_norm;
+                    const r_ind = radius / x_norm;
+                    ctx.beginPath();
+                    ctx.arc(cx_ind, cy_ind, r_ind, Math.PI - Math.acos(radius / r_ind), Math.PI);
+                    ctx.strokeStyle = varToRgba('--neon-red', 0.2 + x_norm * 0.1);
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    if (learningModeActive) {
+                        ctx.fillStyle = varToRgba('--neon-red', 0.8);
+                        ctx.font = '10px Space Mono';
+                        const labelX = cx_ind + r_ind * Math.cos(Math.PI * 0.8);
+                        const labelY = cy_ind + r_ind * Math.sin(Math.PI * 0.8);
+                        ctx.fillText(`+j${x_norm * Z0}`, labelX, labelY);
+                    }
+
+                    const cx_cap = center.x + radius;
+                    const cy_cap = center.y - radius / x_norm;
+                    const r_cap = radius / x_norm;
+                    ctx.beginPath();
+                    ctx.arc(cx_cap, cy_cap, r_cap, Math.PI, Math.PI + Math.acos(radius / r_cap));
+                    ctx.strokeStyle = varToRgba('--neon-purple', 0.2 + x_norm * 0.1);
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    if (learningModeActive) {
+                        ctx.fillStyle = varToRgba('--neon-purple', 0.8);
+                        ctx.font = '10px Space Mono';
+                        const labelX = cx_cap + r_cap * Math.cos(Math.PI * 1.2);
+                        const labelY = cy_cap + r_cap * Math.sin(Math.PI * 1.2);
+                        ctx.fillText(`-j${x_norm * Z0}`, labelX, labelY);
+                    }
+                });
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(center.x - radius, center.y);
+            ctx.lineTo(center.x + radius, center.y);
+            ctx.strokeStyle = varToRgba('--neon-blue', 0.5);
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(center.x - 5, center.y);
+            ctx.lineTo(center.x + 5, center.y);
+            ctx.moveTo(center.x, center.y - 5);
+            ctx.lineTo(center.x, center.y + 5);
+            ctx.strokeStyle = varToRgba('--neon-blue', 0.8);
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            pointsMap.forEach((pointData) => {
+                drawActivePoint(ctx, pointData.x, pointData.y, borderColor);
+            });
+        }
+
+        function drawAllSmithCharts() {
+            drawSmithChart(canvasA, ctxA, smithRadiusA, centerA, activePointsA, DECK_A_COLOR, detailGridA);
+            drawSmithChart(canvasB, ctxB, smithRadiusB, centerB, activePointsB, DECK_B_COLOR, detailGridB);
+        }
+
+        function drawActivePoint(ctx, x, y, color) {
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 15;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        // --- Coordinate Conversions ---
+        function screenToNormalizedGamma(screenX, screenY, canvasCenter, canvasRadius) {
+            const relativeX = screenX - canvasCenter.x;
+            const relativeY = screenY - canvasCenter.y;
+
+            let normX = relativeX / canvasRadius;
+            let normY = relativeY / canvasRadius;
+
+            const mag = Math.sqrt(normX * normX + normY * normY);
+            if (mag > 1) {
+                normX /= mag;
+                normY /= mag;
+            }
+            return { x: normX, y: normY };
+        }
+
+        function normalizedGammaToScreen(normX, normY, canvasCenter, canvasRadius) {
+            const screenX = canvasCenter.x + normX * canvasRadius;
+            const screenY = canvasCenter.y + normY * canvasRadius;
+            return { x: screenX, y: screenY };
+        }
+
+        // --- Event Handlers (Pointer/Touch) ---
+        function handlePointerDown(event, canvasId) {
+            event.preventDefault();
+            initAudio();
+
+            const canvas = document.getElementById(canvasId);
+            const rect = canvas.getBoundingClientRect();
+            let clientX, clientY, pointerId;
+
+            if (event.touches) {
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+                pointerId = event.touches[0].identifier;
+            } else {
+                clientX = event.clientX;
+                clientY = event.clientY;
+                pointerId = 'mouse';
+            }
+
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            let normCoords, voice;
+            let currentPointsMap, canvasCenter, smithRadius;
+
+            if (canvasId === 'smithChartCanvasA') {
+                currentPointsMap = activePointsA;
+                canvasCenter = centerA;
+                smithRadius = smithRadiusA;
+                normCoords = screenToNormalizedGamma(x, y, canvasCenter, smithRadius);
+                voice = new RFModulatorVoice(normCoords.x, normCoords.y);
+                // Connect modulator to the active source
+                if (currentRadioSource === 'simulated') {
+                    voice.connectModulator(currentRFMode, rfCarrierOsc);
+                } else { // webRadio
+                    voice.connectModulator(currentRFMode, webRadioAudioElement); // For web radio, pass audio element
+                }
+            } else { // smithChartCanvasB
+                currentPointsMap = activePointsB;
+                canvasCenter = centerB;
+                smithRadius = smithRadiusB;
+                normCoords = screenToNormalizedGamma(x, y, canvasCenter, smithRadius);
+                voice = new ShaperVoice(normCoords.x, normCoords.y);
+                // Connect the main audio path output to the shaper voice's filter
+                deckAGain.connect(voice.filter);
+                if (micInputEnabled && micSourceNode) {
+                    micGainNode.connect(voice.filter); // Mic also feeds into Shaper voice
+                }
+                shaperOscGain.connect(voice.filter); // Secondary osc also feeds into Shaper voice
+            }
+
+            currentPointsMap.set(pointerId, { x: x, y: y, voice: voice });
+
+            drawAllSmithCharts();
+            updateShareUrl();
+        }
+
+        function handlePointerMove(event, canvasId) {
+            event.preventDefault();
+            if (!isAudioInitialized) return;
+
+            const canvas = document.getElementById(canvasId);
+            const rect = canvas.getBoundingClientRect();
+            let currentPointsMap, canvasCenter, smithRadius;
+            if (canvasId === 'smithChartCanvasA') {
+                currentPointsMap = activePointsA;
+                canvasCenter = centerA;
+                smithRadius = smithRadiusA;
+            } else {
+                currentPointsMap = activePointsB;
+                canvasCenter = centerB;
+                smithRadius = smithRadiusB;
+            }
+
+            const updatePoint = (id, clientX, clientY) => {
+                if (currentPointsMap.has(id)) {
+                    const x = clientX - rect.left;
+                    const y = clientY - rect.top;
+
+                    const { x: normX, y: normY } = screenToNormalizedGamma(x, y, canvasCenter, smithRadius);
+                    const pointData = currentPointsMap.get(id);
+                    pointData.x = x;
+                    pointData.y = y;
+                    pointData.voice.updateParameters(normX, normY);
+                    if (canvasId === 'smithChartCanvasA') {
+                        // Reconnect modulator if mode changed while dragging
+                        if (currentRadioSource === 'simulated') {
+                            pointData.voice.connectModulator(currentRFMode, rfCarrierOsc);
+                        } else {
+                            pointData.voice.connectModulator(currentRFMode, webRadioAudioElement);
+                        }
+                    }
+                }
+            };
+
+            if (event.touches) {
+                for (let i = 0; i < event.touches.length; i++) {
+                    const touch = event.touches[i];
+                    updatePoint(touch.identifier, touch.clientX, touch.clientY);
+                }
+            } else if (event.buttons === 1) { // Left mouse button pressed
+                updatePoint('mouse', event.clientX, event.clientY);
+            }
+        }
+
+        function handlePointerUp(event, canvasId) {
+            event.preventDefault();
+            if (!isAudioInitialized) return;
+
+            let currentPointsMap;
+            if (canvasId === 'smithChartCanvasA') {
+                currentPointsMap = activePointsA;
+            } else {
+                currentPointsMap = activePointsB;
+            }
+
+            const removePoint = (id) => {
+                if (currentPointsMap.has(id)) {
+                    currentPointsMap.get(id).voice.stop();
+                    currentPointsMap.delete(id);
+                }
+            };
+
+            if (event.touches) {
+                let activeTouchIds = new Set();
+                for (let i = 0; i < event.touches.length; i++) {
+                    activeTouchIds.add(event.touches[i].identifier);
+                }
+                currentPointsMap.forEach((pointData, id) => {
+                    if (!activeTouchIds.has(id)) {
+                        removePoint(id);
+                    }
+                });
+            } else {
+                removePoint('mouse');
+            }
+
+            drawAllSmithCharts();
+            updateShareUrl();
+        }
+
+        // --- UI Control Handlers ---
+        // Deck A
+        freqASlider.addEventListener('input', () => {
+            if (currentRadioSource === 'simulated') {
+                RF_FREQ_MHZ = parseFloat(freqASlider.value);
+                freqAValueDisplay.textContent = `${RF_FREQ_MHZ.toFixed(1)} MHz`;
+                if (isAudioInitialized) {
+                    rfCarrierOsc.frequency.setValueAtTime(RF_FREQ_MHZ * 1e6, audioContext.currentTime);
+                }
+            } else { // Web Radio mode, slider controls station index
+                const newIndex = parseInt(freqASlider.value);
+                if (newIndex !== currentStationIndex && !isLoadingStation) {
+                    playRadioStation(newIndex);
+                }
+            }
+            updateShareUrl();
+        });
+
+        // Source buttons (SIMULATED / WEB RADIO)
+        [sourceSimulatedBtn, sourceWebRadioBtn].forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!isAudioInitialized) return;
+                const newSource = btn.id.replace('source', '').toLowerCase();
+                if (newSource === currentRadioSource) return; // No change
+
+                currentRadioSource = newSource;
+
+                // Update button active state
+                sourceSimulatedBtn.classList.remove('active');
+                sourceWebRadioBtn.classList.remove('active');
+                btn.classList.add('active');
+
+                // Adjust frequency slider for new mode
+                if (currentRadioSource === 'simulated') {
+                    freqASlider.min = 0.1; freqASlider.max = 150; freqASlider.step = 0.1;
+                    freqASlider.value = RF_FREQ_MHZ;
+                    freqAValueDisplay.textContent = `${RF_FREQ_MHZ.toFixed(1)} MHz`;
+                    stationInfoDisplay.textContent = '';
+                    stopRadioStation();
+                } else { // web radio
+                    freqASlider.min = 0; freqASlider.max = 0; freqASlider.step = 1; // Temporarily disable/reset
+                    freqASlider.value = 0;
+                    freqAValueDisplay.textContent = `CH 1`; // Default
+                    fetchRadioStations('jazz'); // Default search, or previous search from URL state
+                }
+                // Reconnect existing active points' modulators
+                activePointsA.forEach(pointData => {
+                    pointData.voice.connectModulator(currentRFMode, currentRadioSource === 'simulated' ? rfCarrierOsc : webRadioAudioElement);
+                });
+
+                applyInitialAudioRouting(); // Reconfigure the main audio path
+                updateShareUrl();
+            });
+        });
+
+        // Modulation Type buttons (FM / AM / SSB) - only active for simulated
+        [modeFmBtn, modeAmBtn, modeSsbBtn].forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!isAudioInitialized) return;
+                currentRFMode = btn.id.replace('mode', '').toLowerCase();
+                if (currentRadioSource === 'simulated') {
+                    applyRFMode(currentRFMode);
+                }
+                // Reconnect active points' modulators
+                activePointsA.forEach(pointData => {
+                    pointData.voice.connectModulator(currentRFMode, currentRadioSource === 'simulated' ? rfCarrierOsc : webRadioAudioElement);
+                });
+                updateShareUrl();
+            });
+        });
+
+        createToggleSwitch(autoScanToggle, autoScanActive, (newState) => {
+            autoScanActive = newState;
+            if (newState) {
+                if (!isAudioInitialized) initAudio();
+                startAutoScan();
+            } else {
+                stopAutoScan();
+            }
+            updateShareUrl();
+        });
+
+        createToggleSwitch(detailGridToggleA, detailGridA, (newState) => {
+            detailGridA = newState;
+            drawAllSmithCharts();
+            updateShareUrl();
+        });
+
+        // Deck B
+        pitchBSlider.addEventListener('input', () => {
+            SHAPER_PITCH = parseFloat(pitchBSlider.value);
+            pitchBValueDisplay.textContent = `${SHAPER_PITCH} Hz`;
+            if (isAudioInitialized && shaperOsc) {
+                shaperOsc.frequency.setValueAtTime(SHAPER_PITCH, audioContext.currentTime);
+            }
+            updateShareUrl();
+        });
+
+        filterBSlider.addEventListener('input', () => {
+            SHAPER_FILTER = parseFloat(filterBSlider.value);
+            filterBValueDisplay.textContent = `${(SHAPER_FILTER / 1000).toFixed(1)} kHz`;
+            if (isAudioInitialized && shaperFilter) {
+                shaperFilter.frequency.setValueAtTime(SHAPER_FILTER, audioContext.currentTime);
+            }
+            updateShareUrl();
+        });
+
+        resonanceBSlider.addEventListener('input', () => {
+            SHAPER_RESONANCE = parseFloat(resonanceBSlider.value);
+            resonanceBValueDisplay.textContent = SHAPER_RESONANCE.toFixed(1);
+            if (isAudioInitialized && shaperFilter) {
+                shaperFilter.Q.setValueAtTime(SHAPER_RESONANCE, audioContext.currentTime);
+                qValueDisplay.textContent = SHAPER_RESONANCE.toFixed(1);
+            }
+            updateShareUrl();
+        });
+
+        [waveSinBtn, waveSawBtn, waveSqrBtn].forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (!isAudioInitialized) return;
+                currentWaveShape = btn.id.replace('wave', '').toLowerCase();
+                if (shaperOsc) {
+                    shaperOsc.type = currentWaveShape;
+                }
+                [waveSinBtn, waveSawBtn, waveSqrBtn].forEach(b => b.classList.remove('active', 'sin', 'saw', 'sqr'));
+                btn.classList.add('active');
+                btn.classList.add(currentWaveShape);
+                updateShareUrl();
+            });
+        });
+
+        createToggleSwitch(monitorToggle, monitorActive, (newState) => {
+            monitorActive = newState;
+            updateShareUrl();
+        });
+        createToggleSwitch(effectsToggle, effectsActive, (newState) => {
+            effectsActive = newState;
+            if (isAudioInitialized) {
+                // Disconnect shaper from everything first
+                shaperGain.disconnect();
+                shaperGain.disconnect(dryGainNode); // Explicitly disconnect if already connected
+                shaperGain.disconnect(wetGainNode); // Explicitly disconnect if already connected
+                shaperGain.disconnect(masterGain); // Explicitly disconnect if already connected
+
+                if (!newState) {
+                    // Bypass delay, route directly to master
+                    shaperGain.connect(masterGain);
+                } else {
+                    // Route through delay path
+                    shaperGain.connect(dryGainNode);
+                    shaperGain.connect(wetGainNode);
+                }
+            }
+            updateShareUrl();
+        });
+        createToggleSwitch(detailGridToggleB, detailGridB, (newState) => {
+            detailGridB = newState;
+            drawAllSmithCharts();
+            updateShareUrl();
+        });
+
+
+        // Global Controls
+        reverbFeedbackSlider.addEventListener('input', () => {
+            REVERB_FEEDBACK = parseFloat(reverbFeedbackSlider.value);
+            reverbFeedbackValueDisplay.textContent = REVERB_FEEDBACK.toFixed(2);
+            if (isAudioInitialized) {
+                delayNode.delayTime.setValueAtTime(REVERB_FEEDBACK, audioContext.currentTime);
+            }
+            updateShareUrl();
+        });
+
+        reverbWetDrySlider.addEventListener('input', () => {
+            REVERB_WET_DRY = parseFloat(reverbWetDrySlider.value);
+            reverbWetDryValueDisplay.textContent = REVERB_WET_DRY.toFixed(2);
+            if (isAudioInitialized) {
+                feedbackGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime);
+                wetGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime);
+                dryGainNode.gain.setValueAtTime(1 - REVERB_WET_DRY, audioContext.currentTime);
+            }
+            updateShareUrl();
+        });
+
+        z0Slider.addEventListener('input', () => {
+            Z0 = parseFloat(z0Slider.value);
+            z0ValueDisplay.textContent = Z0;
+            drawAllSmithCharts();
+            activePointsA.forEach(pointData => {
+                const { x, y } = screenToNormalizedGamma(pointData.x, pointData.y, centerA, smithRadiusA);
+                pointData.voice.updateParameters(x, y);
+            });
+            activePointsB.forEach(pointData => {
+                const { x, y } = screenToNormalizedGamma(pointData.x, pointData.y, centerB, smithRadiusB);
+                pointData.voice.updateParameters(x, y);
+            });
+            updateShareUrl();
+        });
+
+        micInputGainSlider.addEventListener('input', () => {
+            MIC_INPUT_GAIN = parseFloat(micInputGainSlider.value);
+            micInputGainValueDisplay.textContent = MIC_INPUT_GAIN.toFixed(2);
+            if (micGainNode) {
+                micGainNode.gain.setValueAtTime(MIC_INPUT_GAIN, audioContext.currentTime);
+            }
+            updateShareUrl();
+        });
+
+        micInputToggle.addEventListener('click', async () => {
+            initAudio();
+            micInputEnabled = !micInputEnabled;
+            if (micInputEnabled) {
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    micSourceNode = audioContext.createMediaStreamSource(micStream);
+                    micGainNode = audioContext.createGain();
+                    micGainNode.gain.setValueAtTime(MIC_INPUT_GAIN, audioContext.currentTime);
+
+                    micSourceNode.connect(micGainNode);
+                    micGainNode.connect(deckAGain); // Mic input is treated as RF input for Deck A
+                    micGainNode.connect(deckASpectrumAnalyser); // Visualize mic input too
+
+                    micInputToggle.textContent = 'Mic Input ON';
+                    micInputToggle.classList.add('active');
+                } catch (err) {
+                    console.error('Error accessing microphone:', err);
+                    alert('Could not access microphone. Please ensure permissions are granted.');
+                    micInputEnabled = false;
+                    micInputToggle.textContent = 'Mic Input OFF';
+                    micInputToggle.classList.remove('active');
+                }
+            } else {
+                if (micStream) {
+                    micStream.getTracks().forEach(track => track.stop());
+                    if (micSourceNode) micSourceNode.disconnect();
+                    if (micGainNode) micGainNode.disconnect();
+                    micStream = null;
+                    micSourceNode = null;
+                    micGainNode = null;
+                }
+                micInputToggle.textContent = 'Mic Input OFF';
+                micInputToggle.classList.remove('active');
+            }
+            updateShareUrl();
+        });
+
+        learningModeToggle.addEventListener('click', () => {
+            learningModeActive = !learningModeActive;
+            learningModeToggle.textContent = `Learning Mode ${learningModeActive ? 'ON' : 'OFF'}`;
+            learningModeToggle.classList.toggle('active', learningModeActive);
+            learningModeOverlay.classList.toggle('active', learningModeActive);
+            drawAllSmithCharts();
+            updateShareUrl();
+        });
+
+        closeLearningModeBtn.addEventListener('click', () => {
+            learningModeActive = false;
+            learningModeToggle.textContent = 'Learning Mode OFF';
+            learningModeToggle.classList.remove('active');
+            learningModeOverlay.classList.remove('active');
+            clearLearningAnimation();
+            drawAllSmithCharts();
+            updateShareUrl();
+        });
+
+        learningModeContent.addEventListener('click', (event) => {
+            if (event.target.tagName === 'BUTTON') {
+                const pathType = event.target.dataset.path;
+                const sequenceType = event.target.dataset.sequence;
+                if (pathType) {
+                    runLearningPath(pathType, 'smithChartCanvasA', activePointsA, centerA, smithRadiusA, RFModulatorVoice, currentRFMode, currentRadioSource === 'simulated' ? rfCarrierOsc : webRadioAudioElement);
+                } else if (sequenceType) {
+                    runLearningSequence(sequenceType, 'smithChartCanvasB', activePointsB, centerB, smithRadiusB, ShaperVoice);
+                }
+            }
+        });
+
+        function clearLearningAnimation() {
+            if (learningAnimation) {
+                clearInterval(learningAnimation);
+                learningAnimation = null;
+            }
+            activePointsA.forEach((pointData, id) => {
+                if (id.startsWith('learning') || id.startsWith('sequence')) {
+                    pointData.voice.stop();
+                    activePointsA.delete(id);
+                }
+            });
+            activePointsB.forEach((pointData, id) => {
+                if (id.startsWith('learning') || id.startsWith('sequence')) {
+                    pointData.voice.stop();
+                    activePointsB.delete(id);
+                }
+            });
+            drawAllSmithCharts();
+        }
+
+        function runLearningPath(type, canvasId, pointsMap, chartCenter, chartRadius, VoiceClass, mode = null, sourceNode = null) {
+            clearLearningAnimation();
+            initAudio();
+
+            let startGamma = { real: 0.8, imag: 0.5 };
+
+            let { x: startX, y: startY } = normalizedGammaToScreen(startGamma.real, startGamma.imag, chartCenter, chartRadius);
+            const voice = new VoiceClass(startGamma.real, startGamma.imag);
+            pointsMap.set(`learning-${canvasId}`, { x: startX, y: startY, voice: voice });
+
+            if (canvasId === 'smithChartCanvasA') {
+                voice.connectModulator(mode, sourceNode);
+            } else {
+                deckAGain.connect(voice.filter);
+                if (micInputEnabled && micSourceNode) micGainNode.connect(voice.filter);
+                shaperOscGain.connect(voice.filter);
+            }
+
+            let step = 0;
+            const maxSteps = 100;
+
+            learningAnimation = setInterval(() => {
+                if (step > maxSteps) {
+                    clearLearningAnimation();
+                    return;
+                }
+
+                let currentGamma;
+                const progress = step / maxSteps;
+
+                if (type === 'lMatch') {
+                    const spiralFactor = Math.pow(1 - progress, 2);
+                    currentGamma = {
+                        real: startGamma.real * spiralFactor,
+                        imag: startGamma.imag * spiralFactor
+                    };
+                } else if (type === 'stubTuner') {
+                    const angleSweep = Math.sin(progress * Math.PI) * Math.PI * 0.5;
+                    const radiusShrink = 0.8 * (1 - progress);
+                    currentGamma = {
+                        real: (0.8 * Math.cos(angleSweep)) * radiusShrink,
+                        imag: (0.8 * Math.sin(angleSweep)) * radiusShrink
+                    };
+                }
+
+                let { x: screenX, y: screenY } = normalizedGammaToScreen(currentGamma.real, currentGamma.imag, chartCenter, chartRadius);
+                const pointData = pointsMap.get(`learning-${canvasId}`);
+                pointData.x = screenX;
+                pointData.y = screenY;
+                pointData.voice.updateParameters(currentGamma.real, currentGamma.imag);
+                if (canvasId === 'smithChartCanvasA') {
+                     pointData.voice.connectModulator(mode, sourceNode); // Re-connect on update
+                }
+
+                drawAllSmithCharts();
+                step++;
+            }, 50);
+        }
+
+        function runLearningSequence(type, canvasId, pointsMap, chartCenter, chartRadius, VoiceClass) {
+            clearLearningAnimation();
+            initAudio();
+
+            let points = [];
+            if (type === 'radialOut') {
+                for (let i = 0; i <= 100; i++) {
+                    let r = i / 100;
+                    points.push({ real: r * 0.7, imag: r * 0.3 });
+                }
+            } else if (type === 'circleSweep') {
+                for (let i = 0; i <= 100; i++) {
+                    let angle = (i / 100) * 2 * Math.PI;
+                    let r = 0.7;
+                    points.push({ real: r * Math.cos(angle), imag: r * Math.sin(angle) });
+                }
+            }
+
+            let sequenceStep = 0;
+            const voice = new VoiceClass(points[0].real, points[0].imag);
+            pointsMap.set(`sequence-${canvasId}`, { x: 0, y: 0, voice: voice });
+
+            deckAGain.connect(voice.filter);
+            if (micInputEnabled && micSourceNode) micGainNode.connect(voice.filter);
+            shaperOscGain.connect(voice.filter);
+
+            learningAnimation = setInterval(() => {
+                if (sequenceStep >= points.length) {
+                    clearLearningAnimation();
+                    return;
+                }
+
+                const currentGamma = points[sequenceStep];
+                let { x: screenX, y: screenY } = normalizedGammaToScreen(currentGamma.real, currentGamma.imag, chartCenter, chartRadius);
+                const pointData = pointsMap.get(`sequence-${canvasId}`);
+                pointData.x = screenX;
+                pointData.y = screenY;
+                pointData.voice.updateParameters(currentGamma.real, currentGamma.imag);
+
+                drawAllSmithCharts();
+                sequenceStep++;
+            }, 100);
+        }
+
+        // Auto Scan Logic
+        function startAutoScan() {
+            if (autoScanInterval) return;
+            if (!isAudioInitialized) initAudio();
+
+            autoScanInterval = setInterval(() => {
+                if (currentRadioSource === 'simulated') {
+                    let currentFreq = parseFloat(freqASlider.value);
+                    currentFreq += autoScanDirection * AUTO_SCAN_STEP;
+
+                    if (currentFreq >= parseFloat(freqASlider.max)) {
+                        currentFreq = parseFloat(freqASlider.max);
+                        autoScanDirection = -1;
+                    } else if (currentFreq <= parseFloat(freqASlider.min)) {
+                        currentFreq = parseFloat(freqASlider.min);
+                        autoScanDirection = 1;
+                    }
+                    freqASlider.value = currentFreq.toFixed(1);
+                } else { // Web Radio auto scan
+                    let newIndex = currentStationIndex + autoScanDirection;
+                    if (newIndex >= availableRadioStations.length || newIndex < 0) {
+                        autoScanDirection *= -1; // Reverse direction
+                        newIndex = currentStationIndex + autoScanDirection; // Step back in bounds
+                    }
+                    freqASlider.value = newIndex;
+                    playRadioStation(newIndex);
+                }
+                freqASlider.dispatchEvent(new Event('input')); // Trigger update
+            }, 500);
+        }
+
+        function stopAutoScan() {
+            if (autoScanInterval) {
+                clearInterval(autoScanInterval);
+                autoScanInterval = null;
+            }
+        }
+
+        // --- Recording Functionality ---
+        recordToggle.addEventListener('click', () => {
+            initAudio();
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        function startRecording() {
+            recordedChunks = [];
+            const options = { mimeType: 'audio/webm; codecs=opus' };
+
+            try {
+                mediaRecorder = new MediaRecorder(destinationStream.stream, options);
+            } catch (e) {
+                console.error('MediaRecorder creation failed:', e);
+                alert('Recording is not supported in this browser or an error occurred.');
+                return;
+            }
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                document.body.appendChild(a);
+                a.style = 'display: none';
+                a.href = url;
+                a.download = `rf_audio_explorer_${new Date().toISOString()}.webm`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                recordedChunks = [];
+            };
+
+            mediaRecorder.start();
+            isRecording = true;
+            recordToggle.textContent = 'Recording...';
+            recordToggle.classList.add('recording');
+            console.log('Recording started');
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                isRecording = false;
+                recordToggle.textContent = 'Record';
+                recordToggle.classList.remove('recording');
+                console.log('Recording stopped');
+            }
+        }
+
+        // --- URL State Management ---
+        function updateShareUrl() {
+            const params = new URLSearchParams();
+            params.set('z0', Z0);
+            params.set('rfeedback', REVERB_FEEDBACK.toFixed(2));
+            params.set('rwetdry', REVERB_WET_DRY.toFixed(2));
+            params.set('micgain', MIC_INPUT_GAIN.toFixed(2));
+            params.set('mic', micInputEnabled ? '1' : '0');
+            params.set('learn', learningModeActive ? '1' : '0');
+
+            // Deck A state
+            params.set('sourceA', currentRadioSource);
+            if (currentRadioSource === 'simulated') {
+                params.set('freqA', RF_FREQ_MHZ.toFixed(1));
+                params.set('modeA', currentRFMode);
+            } else {
+                params.set('stationIdx', currentStationIndex);
+                if (availableRadioStations[currentStationIndex]) {
+                    params.set('stationUrl', availableRadioStations[currentStationIndex].url_resolved);
+                }
+            }
+            params.set('autoScan', autoScanActive ? '1' : '0');
+            params.set('gridA', detailGridA ? '1' : '0');
+            if (activePointsA.size > 0) {
+                 const firstPlayablePoint = Array.from(activePointsA.entries()).find(([id]) => !id.startsWith('learning') && !id.startsWith('sequence'));
+                 if (firstPlayablePoint) {
+                    const { x: normX, y: normY } = screenToNormalizedGamma(firstPlayablePoint[1].x, firstPlayablePoint[1].y, centerA, smithRadiusA);
+                    params.set('pAx', normX.toFixed(3));
+                    params.set('pAy', normY.toFixed(3));
+                 }
+            }
+
+            // Deck B state
+            params.set('pitchB', SHAPER_PITCH);
+            params.set('filterB', SHAPER_FILTER);
+            params.set('resB', SHAPER_RESONANCE.toFixed(1));
+            params.set('waveB', currentWaveShape);
+            params.set('monitorB', monitorActive ? '1' : '0');
+            params.set('effectsB', effectsActive ? '1' : '0');
+            params.set('gridB', detailGridB ? '1' : '0');
+            if (activePointsB.size > 0) {
+                 const firstPlayablePoint = Array.from(activePointsB.entries()).find(([id]) => !id.startsWith('learning') && !id.startsWith('sequence'));
+                 if (firstPlayablePoint) {
+                    const { x: normX, y: normY } = screenToNormalizedGamma(firstPlayablePoint[1].x, firstPlayablePoint[1].y, centerB, smithRadiusB);
+                    params.set('pBx', normX.toFixed(3));
+                    params.set('pBy', normY.toFixed(3));
+                 }
+            }
+
+            const newUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+            shareUrlInput.value = newUrl;
+            window.history.replaceState({}, '', newUrl);
+        }
+
+        function applyUrlState() {
+            const params = new URLSearchParams(window.location.search);
+
+            const readParam = (name, setter, element, initialValue, isFloat = true, suffix = '') => {
+                const value = params.get(name);
+                if (value !== null) {
+                    const parsedValue = isFloat ? parseFloat(value) : (name.includes('grid') || name.includes('autoScan') || name.includes('mic') || name.includes('learn') || name.includes('monitor') || name.includes('effects') ? (value === '1') : value);
+                    if (!isNaN(parsedValue) || typeof parsedValue === 'boolean' || typeof parsedValue === 'string') {
+                        setter(parsedValue);
+                        if (element.tagName === 'INPUT') element.value = parsedValue;
+                        const valueSpan = document.getElementById(`${element.id}Value`);
+                        if (valueSpan) valueSpan.textContent = (isFloat ? parsedValue.toFixed(isFloat === 1 ? 1 : 2) : parsedValue) + suffix;
+                        if (element.classList.contains('toggle-switch')) {
+                             element.classList.toggle('checked', parsedValue);
+                        } else if (element.classList.contains('button-group') && typeof parsedValue === 'string') {
+                            Array.from(element.children).forEach(btn => btn.classList.remove('active', 'sin', 'saw', 'sqr'));
+                            const targetBtn = document.getElementById(`${element.id.includes('mode') ? 'mode' : (element.id.includes('wave') ? 'wave' : 'source')}${parsedValue.charAt(0).toUpperCase() + parsedValue.slice(1)}`);
+                            if (targetBtn) {
+                                targetBtn.classList.add('active');
+                                if (element.id.includes('wave')) targetBtn.classList.add(parsedValue);
+                            }
+                        }
+                    }
+                } else {
+                    if (element.tagName === 'INPUT') element.value = initialValue;
+                    const valueSpan = document.getElementById(`${element.id}Value`);
+                    if (valueSpan) valueSpan.textContent = (isFloat ? initialValue.toFixed(isFloat === 1 ? 1 : 2) : initialValue) + suffix;
+                    if (element.classList.contains('toggle-switch')) {
+                        element.classList.toggle('checked', initialValue);
+                    } else if (element.classList.contains('button-group') && typeof initialValue === 'string') {
+                        Array.from(element.children).forEach(btn => btn.classList.remove('active', 'sin', 'saw', 'sqr'));
+                        const targetBtn = document.getElementById(`${element.id.includes('mode') ? 'mode' : (element.id.includes('wave') ? 'wave' : 'source')}${initialValue.charAt(0).toUpperCase() + initialValue.slice(1)}`);
+                        if (targetBtn) {
+                            targetBtn.classList.add('active');
+                            if (element.id.includes('wave')) targetBtn.classList.add(initialValue);
+                        }
+                    }
+                }
+            };
+
+            // Global settings
+            readParam('z0', (val) => Z0 = val, z0Slider, parseFloat(z0Slider.value), false);
+            readParam('rfeedback', (val) => REVERB_FEEDBACK = val, reverbFeedbackSlider, parseFloat(reverbFeedbackSlider.value));
+            readParam('rwetdry', (val) => REVERB_WET_DRY = val, reverbWetDrySlider, parseFloat(reverbWetDrySlider.value));
+            readParam('micgain', (val) => MIC_INPUT_GAIN = val, micInputGainSlider, parseFloat(micInputGainSlider.value));
+
+            // Deck A settings
+            readParam('sourceA', (val) => currentRadioSource = val, sourceSimulatedBtn.parentElement, 'simulated', false);
+            if (currentRadioSource === 'simulated') {
+                readParam('freqA', (val) => RF_FREQ_MHZ = val, freqASlider, parseFloat(freqASlider.value), true, ' MHz');
+                readParam('modeA', (val) => currentRFMode = val, modeFmBtn.parentElement, 'fm', false);
+            } else { // Web radio mode
+                // Set default slider for web radio initially to prevent errors before stations are loaded
+                freqASlider.min = 0; freqASlider.max = 0; freqASlider.step = 1; freqASlider.value = 0;
+                freqAValueDisplay.textContent = 'CH 1'; // Temporary display
+                // The actual station will be loaded in a timeout below
+            }
+            readParam('autoScan', (val) => autoScanActive = val, autoScanToggle, false, false);
+            readParam('gridA', (val) => detailGridA = val, detailGridToggleA, true, false);
+
+            // Deck B settings
+            readParam('pitchB', (val) => SHAPER_PITCH = val, pitchBSlider, parseFloat(pitchBSlider.value), false, ' Hz');
+            readParam('filterB', (val) => SHAPER_FILTER = val, filterBSlider, parseFloat(filterBSlider.value), false, ' kHz');
+            readParam('resB', (val) => SHAPER_RESONANCE = val, resonanceBSlider, parseFloat(resonanceBSlider.value));
+            readParam('waveB', (val) => currentWaveShape = val, waveSinBtn.parentElement, 'sine', false);
+            readParam('monitorB', (val) => monitorActive = val, monitorToggle, true, false);
+            readParam('effectsB', (val) => effectsActive = val, effectsToggle, true, false);
+            readParam('gridB', (val) => detailGridB = val, detailGridToggleB, true, false);
+
+            // Mic Input Toggle
+            const micParam = params.get('mic');
+            if (micParam === '1' && !micInputEnabled) {
+                setTimeout(() => micInputToggle.click(), 200);
+            }
+
+            // Learning Mode Toggle
+            const learnParam = params.get('learn');
+            if (learnParam === '1' && !learningModeActive) {
+                setTimeout(() => learningModeToggle.click(), 200);
+            }
+
+            // Apply initial points from URL (defer to ensure canvas is sized)
+            setTimeout(async () => {
+                if (currentRadioSource === 'webradio') {
+                    await fetchRadioStations('global'); // Fetch some stations first
+                    const urlStationIdx = parseInt(params.get('stationIdx'));
+                    if (!isNaN(urlStationIdx) && urlStationIdx >= 0 && urlStationIdx < availableRadioStations.length) {
+                         currentStationIndex = urlStationIdx;
+                         playRadioStation(currentStationIndex);
+                    } else if (availableRadioStations.length > 0) {
+                        playRadioStation(0);
+                    }
+                }
+
+                if (params.get('pAx') !== null && params.get('pAy') !== null) {
+                    const normX = parseFloat(params.get('pAx'));
+                    const normY = parseFloat(params.get('pAy'));
+                    if (!isNaN(normX) && !isNaN(normY)) {
+                        const { x: screenX, y: screenY } = normalizedGammaToScreen(normX, normY, centerA, smithRadiusA);
+                        const voice = new RFModulatorVoice(normX, normY);
+                        voice.connectModulator(currentRFMode, currentRadioSource === 'simulated' ? rfCarrierOsc : webRadioAudioElement);
+                        activePointsA.set('mouse', { x: screenX, y: screenY, voice: voice });
+                    }
+                }
+                if (params.get('pBx') !== null && params.get('pBy') !== null) {
+                    const normX = parseFloat(params.get('pBx'));
+                    const normY = parseFloat(params.get('pBy'));
+                    if (!isNaN(normX) && !isNaN(normY)) {
+                        const { x: screenX, y: screenY } = normalizedGammaToScreen(normX, normY, centerB, smithRadiusB);
+                        const voice = new ShaperVoice(normX, normY);
+                        deckAGain.connect(voice.filter);
+                        if (micInputEnabled && micSourceNode) micGainNode.connect(voice.filter);
+                        shaperOscGain.connect(voice.filter);
+                        activePointsB.set('mouse', { x: screenX, y: screenY, voice: voice });
+                    }
+                }
+                drawAllSmithCharts();
+            }, 300);
+
+            if (isAudioInitialized) {
+                delayNode.delayTime.setValueAtTime(REVERB_FEEDBACK, audioContext.currentTime);
+                feedbackGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime);
+                wetGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime);
+                dryGainNode.gain.setValueAtTime(1 - REVERB_WET_DRY, audioContext.currentTime);
+                if (micGainNode) micGainNode.gain.setValueAtTime(MIC_INPUT_GAIN, audioContext.currentTime);
+
+                if (currentRadioSource === 'simulated') {
+                    rfCarrierOsc.frequency.setValueAtTime(RF_FREQ_MHZ * 1e6, audioContext.currentTime);
+                }
+                applyInitialAudioRouting(); // Re-apply routing based on URL state
+
+                shaperFilter.frequency.setValueAtTime(SHAPER_FILTER, audioContext.currentTime);
+                shaperFilter.Q.setValueAtTime(SHAPER_RESONANCE, audioContext.currentTime);
+                shaperOsc.frequency.setValueAtTime(SHAPER_PITCH, audioContext.currentTime);
+                shaperOsc.type = currentWaveShape;
+            }
+
+            freqAValueDisplay.textContent = currentRadioSource === 'simulated' ? `${RF_FREQ_MHZ.toFixed(1)} MHz` : `CH ${currentStationIndex + 1}`;
+            filterBValueDisplay.textContent = `${(SHAPER_FILTER / 1000).toFixed(1)} kHz`;
+
+            updateShareUrl();
+        }
+
+        copyShareUrlBtn.addEventListener('click', async () => {
+            try {
+                await navigator.clipboard.writeText(shareUrlInput.value);
+                alert('URL copied to clipboard!');
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                shareUrlInput.select();
+                document.execCommand('copy');
+                alert('URL copied to clipboard! (Fallback method)');
+            }
+        });
+
+        resetAppBtn.addEventListener('click', () => {
+            if (confirm("Are you sure you want to reset all settings to default?")) {
+                window.location.href = window.location.pathname;
+            }
+        });
+
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            drawAllSmithCharts();
+            drawSpectrum();
+            drawWaveform();
+        }
+
+        // --- Event Listeners ---
+        window.addEventListener('resize', resizeCanvas);
+        canvasA.addEventListener('pointerdown', (e) => handlePointerDown(e, 'smithChartCanvasA'));
+        canvasA.addEventListener('pointermove', (e) => handlePointerMove(e, 'smithChartCanvasA'));
+        canvasA.addEventListener('pointerup', (e) => handlePointerUp(e, 'smithChartCanvasA'));
+        canvasA.addEventListener('pointerleave', (e) => handlePointerUp(e, 'smithChartCanvasA'));
+        canvasA.addEventListener('pointercancel', (e) => handlePointerUp(e, 'smithChartCanvasA'));
+
+        canvasB.addEventListener('pointerdown', (e) => handlePointerDown(e, 'smithChartCanvasB'));
+        canvasB.addEventListener('pointermove', (e) => handlePointerMove(e, 'smithChartCanvasB'));
+        canvasB.addEventListener('pointerup', (e) => handlePointerUp(e, 'smithChartCanvasB'));
+        canvasB.addEventListener('pointerleave', (e) => handlePointerUp(e, 'smithChartCanvasB'));
+        canvasB.addEventListener('pointercancel', (e) => handlePointerUp(e, 'smithChartCanvasB'));
+
+        // Initial setup
+        const initialSetup = () => {
+             resizeCanvas();
+             setTimeout(resizeCanvas, 100);
+             setTimeout(resizeCanvas, 500);
+        };
+        initialSetup();
+        animate();
+
+        document.addEventListener('click', initAudio, { once: true });
+        document.addEventListener('touchstart', initAudio, { once: true });
+
+        window.addEventListener('load', () => {
+             applyUrlState();
+        });
+
+    </script>
+</body>
+</html>

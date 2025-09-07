@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>The Smith Chart Sonifier — Puppet + Vocoder</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap');
+  :root{
+    --neon-blue:#00e5ff; --neon-green:#00ff99; --neon-red:#ff3366; --neon-purple:#cc33ff;
+    --dark-background:#0d0d1a; --control-bg:rgba(0,0,0,.7); --text-color:#eee; --button-text-color:var(--dark-background);
+  }
+  #sgStamp{position:fixed;left:12px;top:8px;z-index:10000;background:rgba(0,0,0,.55);border:1px solid rgba(0,229,255,.35);border-radius:999px;padding:4px 10px;color:#8ff;font:12px/1.2 'Space Mono', monospace;pointer-events:none}
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--dark-background);color:var(--text-color);font-family:'Space Mono', monospace}
+  body{display:flex;flex-direction:column;overflow:hidden;-webkit-user-select:none;user-select:none}
+  canvas{flex:1;display:block;min-height:200px;touch-action:none;background:var(--dark-background);cursor:crosshair}
+  #controls-container{position:relative;left:0;right:0;background:var(--control-bg);padding:10px;box-shadow:0 0 15px rgba(0,229,255,.3);z-index:100;display:flex;flex-direction:column;align-items:center;gap:10px;flex-shrink:0}
+  #global-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:15px;width:100%;max-width:1000px;justify-items:center;padding-bottom:5px}
+  .control-group{display:flex;flex-direction:column;align-items:center;gap:5px}
+  .control-group label{font-size:.9em;color:var(--neon-green);white-space:nowrap}
+  .control-group input[type="range"]{width:140px;appearance:none;height:8px;background:rgba(0,229,255,.2);border-radius:4px;outline:none}
+  .control-group input[type="range"]::-webkit-slider-thumb{appearance:none;width:18px;height:18px;background:var(--neon-blue);border-radius:50%;box-shadow:0 0 8px var(--neon-blue);cursor:pointer}
+  .control-group input[type="range"]::-moz-range-thumb{width:18px;height:18px;background:var(--neon-blue);border-radius:50%;box-shadow:0 0 8px var(--neon-blue);cursor:pointer}
+  #action-buttons{display:flex;gap:12px;margin-top:5px;flex-wrap:wrap;justify-content:center;width:100%;max-width:980px}
+  .pill-btn{background:#0b1d1d;border:1px solid var(--neon-blue);color:#e5faff;border-radius:999px;padding:10px 14px;cursor:pointer;box-shadow:0 0 10px rgba(0,229,255,.35);transition:background .15s,box-shadow .15s,transform .05s,color .15s,border-color .15s}
+  .pill-btn:hover{box-shadow:0 0 12px rgba(0,229,255,.5)}
+  .pill-btn:active{transform:translateY(1px)}
+  #listenMix.listen-active{background:var(--neon-blue);color:var(--button-text-color);border-color:var(--neon-blue);box-shadow:0 0 15px var(--neon-blue)}
+  #listenRadio.listen-active{background:var(--neon-green);color:var(--button-text-color);border-color:var(--neon-green);box-shadow:0 0 15px var(--neon-green)}
+  #listenSynth.listen-active{background:var(--neon-purple);color:var(--button-text-color);border-color:var(--neon-purple);box-shadow:0 0 15px var(--neon-purple)}
+  #micInputToggle.active{background:var(--neon-red);color:var(--button-text-color);border-color:var(--neon-red);box-shadow:0 0 15px var(--neon-red)}
+  #learningModeToggle.active{background:var(--neon-blue);color:var(--button-text-color);border-color:var(--neon-blue);box-shadow:0 0 15px var(--neon-blue)}
+  #recordToggle.recording{background:var(--neon-red);color:var(--button-text-color);border-color:var(--neon-red);box-shadow:0 0 15px var(--neon-red)}
+  #learningModeOverlay{position:absolute;top:0;left:0;width:100%;height:100%;display:none;justify-content:center;align-items:center;flex-direction:column;background:rgba(0,0,0,.7);color:var(--text-color);z-index:200;padding:20px}
+  #learningModeOverlay.active{display:flex}
+  #learningModeContent{background:rgba(0,0,0,.85);padding:30px;border-radius:10px;box-shadow:0 0 25px var(--neon-blue);max-width:80%;max-height:80%;overflow:auto;position:relative}
+  #learningModeContent h2{color:var(--neon-blue);margin-top:0}
+  #closeLearningMode{position:absolute;top:10px;right:10px;background:none;border:none;color:var(--neon-red);font-size:1.5em;cursor:pointer}
+  #learningModeContent button{background:var(--neon-purple);color:var(--text-color);border:none;padding:8px 12px;border-radius:5px;cursor:pointer;font-size:.9em;box-shadow:0 0 8px rgba(204,51,255,.5);margin:5px;transition:background .3s,box-shadow .3s}
+  #learningModeContent button:hover{background:#e066ff;box-shadow:0 0 12px #e066ff}
+  @media (max-width:768px){
+    #controls-container{padding:8px;gap:8px}
+    #global-controls{grid-template-columns:repeat(2,1fr);gap:10px}
+    .control-group input[type="range"]{width:100px}
+    #action-buttons{gap:10px;flex-direction:column;max-width:320px}
+    #learningModeContent{font-size:1em;padding:20px}
+  }
+</style>
+</head>
+<body>
+  <canvas id="smithChartCanvas"></canvas>
+
+  <!-- Quick action glyph buttons -->
+  <div id="quickButtons" style="position:fixed;top:8px;right:10px;z-index:10001;display:flex;gap:6px;align-items:center">
+    <button id="btnFullscreen" aria-label="Toggle Fullscreen" title="Fullscreen" class="pill-btn" style="padding:6px 8px">⛶</button>
+    <button id="btnToggleMenu" aria-label="Show/Hide Menu" title="Show/Hide Menu" class="pill-btn" style="padding:6px 8px">☰</button>
+  </div>
+
+  <div id="sgStamp">Smith Graph • puppet+vocoder • v0.4.0</div>
+
+  <div id="controls-container">
+    <!-- Listen Controls -->
+    <div id="vizBar" style="display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin:6px 0 10px 0">
+      <button data-listen="mix"   id="listenMix"   class="pill-btn">Mix</button>
+      <button data-listen="radio" id="listenRadio" class="pill-btn">Radio</button>
+      <button data-listen="synth" id="listenSynth" class="pill-btn">Synth</button>
+      <span style="width:8px"></span>
+      <button id="autoMatch" class="pill-btn">Auto Match</button>
+      <label style="display:flex;gap:6px;align-items:center;color:#8ff;margin-left:4px;font:12px 'Space Mono', monospace">
+        <input type="checkbox" id="followToggle"> Follow
+      </label>
+    </div>
+
+    <!-- Radio Bar -->
+    <div id="radioBar" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;width:100%;max-width:1000px">
+      <label style="color:var(--neon-green)">Radio • <span id="radioStatus">Stopped</span></label>
+      <select id="radioSource" style="min-width:220px;background:rgba(0,0,0,.5);border:1px solid var(--neon-blue);color:var(--text-color);padding:6px 8px;border-radius:4px">
+        <option value="off">Off</option>
+        <option value="https://ice4.somafm.com/groovesalad-128-mp3">SomaFM Groove Salad</option>
+        <option value="https://streams.ilovemusic.de/iloveradio1.mp3">I Love Radio</option>
+        <option value="https://stream.live.vc.bbcmedia.co.uk/bbc_radio_one">BBC R1 (may block CORS)</option>
+        <option value="custom-url">Add Custom Stream URL...</option>
+        <option value="local-file">Local File…</option>
+      </select>
+      <div id="customUrlInputContainer" style="display:none; gap: 5px; align-items: center;">
+        <input type="text" id="dynamicRadioUrl" placeholder="Enter stream URL" style="flex:1;min-width:150px;max-width:300px;background:rgba(0,0,0,.5);border:1px solid var(--neon-blue);color:var(--text-color);padding:6px 8px;border-radius:4px">
+        <button id="loadCustomRadioBtn" class="pill-btn" style="padding: 6px 12px; font-size: 0.8em; box-shadow:none; border-color:var(--neon-green)">Load</button>
+      </div>
+      <span id="radioNow" style="font-size:.9em;color:var(--neon-blue);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis">—</span>
+    </div>
+
+    <!-- Knobs/Sliders -->
+    <div id="global-controls">
+      <div class="control-group"><label>Line Length (s): <span id="reverbFeedbackValue">0.50</span></label><input type="range" id="reverbFeedback" min="0" max="2" value="0.5" step="0.01"></div>
+      <div class="control-group"><label>Reflectivity: <span id="reverbWetDryValue">0.30</span></label><input type="range" id="reverbWetDry" min="0" max="1" value="0.3" step="0.01"></div>
+      <div class="control-group"><label>Z₀ (Ω): <span id="z0Value">50</span></label><input type="range" id="z0" min="10" max="600" value="50" step="1"></div>
+      <div class="control-group"><label>Base Freq (Hz): <span id="baseFreqValue">440</span></label><input type="range" id="baseFreq" min="50" max="1000" value="440" step="1"></div>
+      <div class="control-group"><label>Base Cutoff (Hz): <span id="baseCutoffValue">2000</span></label><input type="range" id="baseCutoff" min="100" max="8000" value="2000" step="10"></div>
+      <div class="control-group"><label>Mic Gain: <span id="inputGainValue">0.50</span></label><input type="range" id="inputGain" min="0" max="1" value="0.5" step="0.01"></div>
+      <div class="control-group">
+        <label for="blendMode">Blend Mode</label>
+        <select id="blendMode" style="width:160px;background:rgba(0,0,0,.5);border:1px solid var(--neon-blue);color:var(--text-color);padding:4px 6px;border-radius:4px">
+          <option value="crossfade">Crossfade</option>
+          <option value="multiply">Multiply (AM)</option>
+          <option value="screen">Screen (Sum)</option>
+          <option value="difference">Difference</option>
+          <option value="duck">Sidechain Duck</option>
+        </select>
+      </div>
+      <div class="control-group"><label>Blend Amount: <span id="blendAmountValue">0.40</span></label><input type="range" id="blendAmount" min="0" max="1" value="0.4" step="0.01"></div>
+    </div>
+
+    <!-- Actions -->
+    <div id="action-buttons">
+      <button id="micInputToggle" class="pill-btn">Mic Input OFF</button>
+      <button id="learningModeToggle" class="pill-btn">Learning Mode OFF</button>
+      <button id="recordToggle" class="pill-btn">Record</button>
+      <!-- NEW: Puppet + Vocoder controls -->
+      <button id="puppetToggle" class="pill-btn">Puppet Mode OFF</button>
+      <button id="vocoderToggle" class="pill-btn">Vocoder OFF</button>
+      <select id="vocoderBands" class="pill-btn" style="padding:8px 12px">
+        <option value="16">16 bands</option>
+        <option value="24" selected>24 bands</option>
+        <option value="32">32 bands</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Learning overlay (unchanged content, trimmed for brevity) -->
+  <div id="learningModeOverlay">
+    <div id="learningModeContent">
+      <button id="closeLearningMode">×</button>
+      <h2>Learning Mode: Explore Impedance Concepts</h2>
+      <p><strong>Impedance Matching Pathways:</strong> Drag a point, then click a pathway button to see the impedance transform.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:20px">
+        <button data-path="lMatch">L-Match</button>
+        <button data-path="stubTuner">Stub Tuner</button>
+      </div>
+      <p><strong>Musical Sequences:</strong></p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:20px">
+        <button data-sequence="radialOut">Radial Out</button>
+        <button data-sequence="circleSweep">Circle Sweep</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ====== CORE STATE ====== */
+let audioContext, isAudioInitialized=false;
+const canvas=document.getElementById('smithChartCanvas'), ctx=canvas.getContext('2d');
+const controlsContainer=document.getElementById('controls-container');
+
+const reverbFeedbackSlider=rebind('reverbFeedback'), reverbFeedbackValue=el('reverbFeedbackValue');
+const reverbWetDrySlider=rebind('reverbWetDry'), reverbWetDryValue=el('reverbWetDryValue');
+const z0Slider=rebind('z0'), z0Value=el('z0Value');
+const baseFreqSlider=rebind('baseFreq'), baseFreqValue=el('baseFreqValue');
+const baseCutoffSlider=rebind('baseCutoff'), baseCutoffValue=el('baseCutoffValue');
+const micInputToggle=el('micInputToggle'), inputGainSlider=rebind('inputGain'), inputGainValue=el('inputGainValue');
+const learningModeToggle=el('learningModeToggle'), learningModeOverlay=el('learningModeOverlay');
+const closeLearningModeBtn=el('closeLearningMode'), learningModeContent=el('learningModeContent');
+const recordToggle=el('recordToggle');
+const listenButtons=[...document.querySelectorAll('#vizBar [data-listen]')];
+const blendModeSel=el('blendMode'), blendAmountSlider=rebind('blendAmount'), blendAmountValue=el('blendAmountValue');
+const radioSourceSel=el('radioSource'), customUrlInputContainer=el('customUrlInputContainer'), dynamicRadioUrl=el('dynamicRadioUrl'), loadCustomRadioBtn=el('loadCustomRadioBtn');
+const radioStatusSpan=el('radioStatus'), radioNowSpan=el('radioNow');
+const btnFullscreen=el('btnFullscreen'), btnToggleMenu=el('btnToggleMenu');
+
+// NEW controls
+const puppetToggle = el('puppetToggle');
+const vocoderToggle = el('vocoderToggle');
+const vocoderBandsSel = el('vocoderBands');
+
+let Z0=parseFloat(z0Slider.value), BASE_FREQ=parseFloat(baseFreqSlider.value), BASE_CUTOFF=parseFloat(baseCutoffSlider.value);
+let REVERB_FEEDBACK=parseFloat(reverbFeedbackSlider.value), REVERB_WET_DRY=parseFloat(reverbWetDrySlider.value), INPUT_GAIN=parseFloat(inputGainSlider.value);
+
+let smithChartRadius, center={x:0,y:0};
+let activePoints=new Map();
+let micInputEnabled=false, micStream=null, analyserNode, frequencyData, inputSource, micGainNode;
+
+let learningModeActive=false, learningAnimation=null;
+let isRecording=false, mediaRecorder, recordedChunks=[], destinationStream;
+
+let listenMode='mix'; let radioSoloGain, synthSoloGain;
+let followTimer=null;
+
+let masterGain, monitorGain, delayNode, feedbackGainNode, wetGainNode, dryGainNode, synthOutGain, radioOutGain, mixBus, limiter;
+let synthAnalyser, synthBuffer, synthMeterGain, radioAnalyser, mixAnalyser, envPrev=0;
+let blendMode='crossfade', blendAmount=0.4;
+
+let mediaEl=null, mediaNode=null, radioFilter=null, radioPreGain=null, radioDryGain=null, radioWetGain=null, radioPanner=null, radioEnabled=false;
+let lastGamma={x:0,y:0};
+
+let activeRing=null, ringSynthAngle=0, ringRadioAngle=0, ringSynthTrim=1.0, ringRadioTrim=1.0, ringSynthDetent=-1, ringRadioDetent=-1;
+const RING_DETENTS_COARSE=36, RING_DETENTS_FINE=180; let ringSnapMode='coarse';
+
+function el(id){ return document.getElementById(id); }
+function rebind(id){ const e=el(id); return e; }
+
+/* ====== AUDIO INIT ====== */
+function initAudio(){
+  if(isAudioInitialized) return;
+  audioContext = new (window.AudioContext||window.webkitAudioContext)();
+
+  destinationStream = audioContext.createMediaStreamDestination();
+
+  masterGain = audioContext.createGain();
+  const compressor = audioContext.createDynamicsCompressor();
+  compressor.threshold.value=-8; compressor.knee.value=12; compressor.ratio.value=2; compressor.attack.value=0.003; compressor.release.value=0.25;
+  limiter = compressor;
+
+  mixBus = audioContext.createGain(); mixBus.connect(limiter); limiter.connect(masterGain);
+  masterGain.gain.value=0.5;
+  monitorGain = audioContext.createGain(); monitorGain.gain.value=1.0; masterGain.connect(monitorGain); monitorGain.connect(audioContext.destination);
+  masterGain.connect(destinationStream);
+
+  // Delay / Reverb-ish
+  delayNode = audioContext.createDelay(2);
+  feedbackGainNode = audioContext.createGain();
+  wetGainNode = audioContext.createGain();
+  dryGainNode = audioContext.createGain();
+
+  synthOutGain = audioContext.createGain(); synthOutGain.gain.value=1;
+  synthOutGain.connect(wetGainNode); synthOutGain.connect(dryGainNode);
+
+  dryGainNode.connect(mixBus);
+  wetGainNode.connect(delayNode); delayNode.connect(feedbackGainNode); feedbackGainNode.connect(delayNode); feedbackGainNode.connect(mixBus);
+
+  delayNode.delayTime.value=REVERB_FEEDBACK;
+  feedbackGainNode.gain.value=REVERB_WET_DRY;
+  wetGainNode.gain.value=REVERB_WET_DRY;
+  dryGainNode.gain.value=1-REVERB_WET_DRY;
+
+  // Radio chain
+  radioFilter = audioContext.createBiquadFilter(); radioFilter.type='lowpass'; radioFilter.frequency.value=BASE_CUTOFF; radioFilter.Q.value=1;
+  radioPreGain = audioContext.createGain(); radioPreGain.gain.value=0.6;
+  radioDryGain = audioContext.createGain(); radioDryGain.gain.value=0.5;
+  radioWetGain = audioContext.createGain(); radioWetGain.gain.value=0.25;
+  radioPanner = audioContext.createStereoPanner(); radioPanner.pan.value=0;
+
+  radioFilter.connect(radioPreGain);
+  radioPreGain.connect(radioDryGain); radioDryGain.connect(radioPanner); radioPanner.connect(mixBus);
+  radioPreGain.connect(radioWetGain); radioWetGain.connect(delayNode);
+
+  radioOutGain = audioContext.createGain(); radioOutGain.gain.value=1;
+
+  // Solos
+  radioSoloGain = audioContext.createGain(); radioSoloGain.gain.value=0; radioPanner.connect(radioSoloGain); radioSoloGain.connect(masterGain);
+  synthSoloGain = audioContext.createGain(); synthSoloGain.gain.value=0; dryGainNode.connect(synthSoloGain); synthSoloGain.connect(masterGain);
+
+  isAudioInitialized = true;
+  setListenMode('mix');
+}
+
+/* ====== ANALYSERS + BLEND ====== */
+function ensureSynthAnalyser(){
+  if (synthAnalyser) return;
+  synthAnalyser = audioContext.createAnalyser(); synthAnalyser.fftSize=512; synthBuffer=new Uint8Array(synthAnalyser.frequencyBinCount);
+  synthMeterGain = audioContext.createGain(); synthMeterGain.gain.value=1;
+  try{ synthOutGain.connect(synthMeterGain); }catch{}
+  synthMeterGain.connect(synthAnalyser);
+
+  if (!radioAnalyser){ radioAnalyser = audioContext.createAnalyser(); radioAnalyser.fftSize=512; }
+  if (!mixAnalyser){ mixAnalyser = audioContext.createAnalyser(); mixAnalyser.fftSize=512; }
+  try{ radioPanner.connect(radioAnalyser); }catch{}
+  try{ mixBus.connect(mixAnalyser); }catch{}
+}
+function getSynthEnv(){
+  if (!synthAnalyser) return 0;
+  synthAnalyser.getByteTimeDomainData(synthBuffer);
+  let sum=0; for (let i=0;i<synthBuffer.length;i++){ const v=(synthBuffer[i]-128)/128; sum+=v*v; }
+  const raw=Math.min(1, Math.sqrt(sum/synthBuffer.length)*2.0);
+  const a = (raw>envPrev)? 0.3: 0.08;
+  envPrev = envPrev + a*(raw-envPrev);
+  return envPrev;
+}
+function applyBlendMode(){
+  if(!isAudioInitialized) return;
+  ensureSynthAnalyser();
+  const env=getSynthEnv(); const amt=blendAmount;
+  switch(blendMode){
+    case 'crossfade':{
+      const t=amt;
+      const radioLevel = ringRadioTrim*(1-t);
+      const synthLevel = ringSynthTrim*(0.2+0.8*t);
+      if(radioPreGain) radioPreGain.gain.setTargetAtTime(radioLevel, audioContext.currentTime, 0.03);
+      if(synthOutGain) synthOutGain.gain.setTargetAtTime(synthLevel, audioContext.currentTime, 0.03);
+      radioWetGain.gain.setTargetAtTime(Math.max(0, REVERB_WET_DRY*(0.7-0.6*t)), audioContext.currentTime, 0.05);
+      wetGainNode.gain.setTargetAtTime(Math.min(1, REVERB_WET_DRY*(0.6+0.8*t)), audioContext.currentTime, 0.05);
+      break;}
+    case 'multiply':{
+      const k = Math.pow(env,0.6); const lvl=(1-amt)+amt*k;
+      if(radioPreGain) radioPreGain.gain.setTargetAtTime(lvl*ringRadioTrim, audioContext.currentTime, 0.03);
+      if(radioWetGain) radioWetGain.gain.setTargetAtTime(REVERB_WET_DRY*(1-0.7*amt*k), audioContext.currentTime, 0.05);
+      break;}
+    case 'screen':{
+      const lift=1+1.2*amt;
+      if(synthOutGain) synthOutGain.gain.setTargetAtTime(ringSynthTrim*lift, audioContext.currentTime, 0.05);
+      if(radioPreGain) radioPreGain.gain.setTargetAtTime(ringRadioTrim*lift, audioContext.currentTime, 0.05);
+      wetGainNode.gain.setTargetAtTime(Math.min(1, REVERB_WET_DRY*(0.8+0.8*amt)), audioContext.currentTime, 0.05);
+      radioWetGain.gain.setTargetAtTime(Math.min(1, REVERB_WET_DRY*(0.7+0.9*amt)), audioContext.currentTime, 0.05);
+      break;}
+    case 'difference':{
+      if(!applyBlendMode.phaseFlipper && dryGainNode && mixBus){
+        const inverter=audioContext.createGain(); inverter.gain.value=-1;
+        try{ dryGainNode.disconnect(mixBus);}catch{}
+        dryGainNode.connect(inverter); inverter.connect(mixBus);
+        applyBlendMode.phaseFlipper = inverter;
+      }
+      radioWetGain.gain.setTargetAtTime(Math.max(0, REVERB_WET_DRY*(0.4-0.35*amt)), audioContext.currentTime, 0.05);
+      break;}
+    case 'duck':{
+      const depth=Math.pow(amt,0.5); const duck=Math.max(0, 1 - depth*Math.pow(env,0.6));
+      if(radioPreGain) radioPreGain.gain.setTargetAtTime(duck*ringRadioTrim, audioContext.currentTime, 0.03);
+      if(radioWetGain) radioWetGain.gain.setTargetAtTime(duck*REVERB_WET_DRY, audioContext.currentTime, 0.03);
+      break;}
+  }
+}
+
+/* ====== LISTEN ====== */
+function applyListenRouting(){
+  if(!masterGain||!mixBus||!radioSoloGain||!synthSoloGain) return;
+  if(listenMode==='mix'){
+    mixBus.gain.setTargetAtTime(1, audioContext.currentTime, 0.02);
+    radioSoloGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+    synthSoloGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+  } else if(listenMode==='radio'){
+    mixBus.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+    radioSoloGain.gain.setTargetAtTime(1, audioContext.currentTime, 0.02);
+    synthSoloGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+  } else {
+    mixBus.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+    radioSoloGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.02);
+    synthSoloGain.gain.setTargetAtTime(1, audioContext.currentTime, 0.02);
+  }
+}
+async function setListenMode(mode){
+  listenMode=mode;
+  listenButtons.forEach(b=>b.classList.toggle('listen-active', b.dataset.listen===mode));
+  try{ if(audioContext?.state==='suspended'){ await audioContext.resume(); } }catch{}
+  try{ if(mode!=='synth' && mediaEl && mediaEl.paused){ await mediaEl.play(); } }catch(e){}
+  applyListenRouting();
+}
+
+/* ====== RADIO / FILE / MIC ====== */
+function setRadioStatus(t){ radioStatusSpan.textContent=t; }
+function hostnameOf(u){ try{ return new URL(u).hostname; }catch{ return ''; } }
+function isBlockedUrl(u){ try{ const h=new URL(u).hostname.replace(/^www\./,''); return h.endsWith('youtube.com')||h.endsWith('youtu.be'); }catch{ return false; } }
+
+function connectRadio(url){
+  initAudio();
+  disconnectRadio();
+  if(!url){ setRadioStatus('Stopped'); radioEnabled=false; radioSourceSel.value='off'; radioNowSpan.textContent='—'; return; }
+  if(isBlockedUrl(url)){ setRadioStatus('Blocked'); alert('YouTube/Vimeo are typically blocked by CORS. Use direct MP3/AAC URLs.'); radioSourceSel.value='off'; radioNowSpan.textContent='—'; return; }
+
+  mediaEl = new Audio(); mediaEl.crossOrigin='anonymous'; mediaEl.src=url; mediaEl.loop=true; mediaEl.preload='none';
+  mediaEl.addEventListener('error', e=>{ console.error(e); setRadioStatus('Error loading'); radioSourceSel.value='off'; radioNowSpan.textContent='—'; });
+  mediaEl.addEventListener('waiting', ()=>setRadioStatus('Buffering…'));
+  mediaEl.addEventListener('stalled', ()=>setRadioStatus('Buffering…'));
+  mediaEl.addEventListener('playing', ()=>setRadioStatus('Playing'));
+  mediaEl.addEventListener('pause', ()=>setRadioStatus('Paused'));
+  mediaNode = audioContext.createMediaElementSource(mediaEl);
+  mediaNode.connect(radioFilter);
+  radioNowSpan.textContent = hostnameOf(url) || 'Stream';
+  mediaEl.play().then(()=>{ radioEnabled=true; }).catch(e=>{ console.warn('Autoplay failed:',e); setRadioStatus('Play blocked'); radioEnabled=false; });
+}
+function disconnectRadio(){
+  try{ if(mediaEl){ mediaEl.pause(); mediaEl.src=''; } }catch{}
+  try{ if(mediaNode){ mediaNode.disconnect(); } }catch{}
+  mediaEl=null; mediaNode=null; radioEnabled=false;
+}
+let localFileInput=null;
+radioSourceSel.addEventListener('change', ()=>{
+  initAudio();
+  const v=radioSourceSel.value;
+  if(v==='off'){ disconnectRadio(); setRadioStatus('Stopped'); radioNowSpan.textContent='—'; customUrlInputContainer.style.display='none'; }
+  else if(v==='custom-url'){ customUrlInputContainer.style.display='flex'; dynamicRadioUrl.value=''; dynamicRadioUrl.focus(); setRadioStatus('Enter URL'); }
+  else if(v==='local-file'){
+    if(!localFileInput){ localFileInput=document.createElement('input'); localFileInput.type='file'; localFileInput.accept='audio/*'; localFileInput.style.display='none'; document.body.appendChild(localFileInput);
+      localFileInput.addEventListener('change', ()=>{ const f=localFileInput.files?.[0]; if(!f) return; const url=URL.createObjectURL(f); connectRadio(url); radioNowSpan.textContent=`Local: ${f.name}`; });
+    }
+    localFileInput.click();
+  }
+  else { customUrlInputContainer.style.display='none'; connectRadio(v); }
+});
+loadCustomRadioBtn.addEventListener('click', ()=>{ const url=dynamicRadioUrl.value.trim(); if(url) connectRadio(url); else setRadioStatus('Please enter a URL'); });
+
+/* MIC */
+micInputToggle.addEventListener('click', async ()=>{
+  initAudio();
+  micInputEnabled = !micInputEnabled;
+  if(micInputEnabled){
+    try{
+      micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+      inputSource = audioContext.createMediaStreamSource(micStream);
+      analyserNode = audioContext.createAnalyser(); analyserNode.fftSize=2048;
+      micGainNode = audioContext.createGain(); micGainNode.gain.value=INPUT_GAIN;
+      frequencyData = new Uint8Array(analyserNode.frequencyBinCount);
+
+      inputSource.connect(micGainNode); micGainNode.connect(analyserNode);
+      analyserNode.connect(masterGain); // audible mic monitor (through master)
+      micInputToggle.textContent='Mic Input ON'; micInputToggle.classList.add('active');
+    }catch(err){
+      console.error(err); alert('Mic permission denied.'); micInputEnabled=false; micInputToggle.textContent='Mic Input OFF'; micInputToggle.classList.remove('active');
+    }
+  } else {
+    try{
+      micStream?.getTracks().forEach(t=>t.stop());
+      inputSource?.disconnect(); micGainNode?.disconnect(); analyserNode?.disconnect();
+    }catch{}
+    micStream=null; inputSource=null; analyserNode=null; micGainNode=null; frequencyData=null;
+    micInputToggle.textContent='Mic Input OFF'; micInputToggle.classList.remove('active');
+  }
+});
+
+/* ====== PUPPET MODE (spectrogram drives chart) ====== */
+let puppetOn=false, puppetTimer=null;
+function spectralFeatures(analyser){
+  if(!analyser||!audioContext) return {centroid:0, energy:0};
+  const data=new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(data);
+  let num=0, den=0, sum=0;
+  for(let i=0;i<data.length;i++){ const mag=data[i]; const f=(i/data.length)*(audioContext.sampleRate/2); num+=f*mag; den+=mag; sum+=mag; }
+  if(den<1) return {centroid:0, energy:0};
+  return {centroid:num/den, energy:sum/(255*data.length)};
+}
+function featuresToGamma(feat){
+  const f = Math.max(50, Math.min(8000, feat.centroid||BASE_FREQ));
+  const normX = Math.tanh((f-BASE_CUTOFF)/(BASE_CUTOFF*0.6));
+  const r = Math.min(0.95, 0.15 + 0.8*(feat.energy||0));
+  const ang = (normX*0.8*Math.PI) + 0.12*Math.sin(ringRadioAngle*2);
+  return {x:r*Math.cos(ang), y:r*Math.sin(ang)};
+}
+function startPuppet(){
+  if(puppetTimer) return;
+  // Prefer mix analyser; else radio; else synth
+  const ana = mixAnalyser || radioAnalyser || synthAnalyser;
+  puppetTimer=setInterval(()=>{
+    if(!isAudioInitialized) return;
+    const useAna = mixAnalyser || radioAnalyser || synthAnalyser;
+    if(!useAna) return;
+    const feat=spectralFeatures(useAna), g=featuresToGamma(feat);
+    lastGamma={x:g.x, y:g.y};
+    if(!activePoints.has('puppet')){
+      const v=new Voice(g.x,g.y); v.gain.gain.setTargetAtTime(0.15, audioContext.currentTime, 0.03);
+      const scr=normalizedGammaToScreen(g.x,g.y); activePoints.set('puppet',{x:scr.x,y:scr.y,voice:v});
+    } else {
+      const p=activePoints.get('puppet'), scr=normalizedGammaToScreen(g.x,g.y);
+      p.x=scr.x; p.y=scr.y; p.voice.updateParameters(g.x,g.y);
+    }
+  }, 33);
+}
+function stopPuppet(){
+  if(puppetTimer){ clearInterval(puppetTimer); puppetTimer=null; }
+  if(activePoints.has('puppet')){ try{ activePoints.get('puppet').voice.stop(); }catch{} activePoints.delete('puppet'); }
+}
+puppetToggle.addEventListener('click', ()=>{
+  initAudio();
+  puppetOn=!puppetOn;
+  puppetToggle.textContent=`Puppet Mode ${puppetOn?'ON':'OFF'}`;
+  puppetToggle.classList.toggle('active', puppetOn);
+  if(puppetOn) startPuppet(); else stopPuppet();
+});
+
+/* ====== VOCODER (per-band envelopes, no worklet) ====== */
+let vocoderOn=false, voc=null;
+function makeAbsCurve(len=1024){
+  const c=new Float32Array(len);
+  for(let i=0;i<len;i++){ const x = (i/(len-1))*2-1; c[i]=Math.abs(x); }
+  return c;
+}
+function buildVocoder(bands=24){
+  if(!isAudioInitialized) initAudio();
+  destroyVocoder();
+
+  const ctx=audioContext, fmin=120, fmax=Math.min(6000, ctx.sampleRate/2-200);
+  const edges=[]; for(let i=0;i<=bands;i++){ const t=i/bands; edges.push(fmin*Math.pow(fmax/fmin,t)); }
+
+  // Carrier = Saw + Noise -> LP (de-ess) -> per-band BP -> VCA -> sum
+  const carrierBus = ctx.createGain(); carrierBus.gain.value=1;
+  const saw=ctx.createOscillator(); saw.type='sawtooth'; saw.frequency.value=BASE_FREQ;
+  const sawG=ctx.createGain(); sawG.gain.value=0.35; saw.connect(sawG).connect(carrierBus); saw.start();
+
+  const noiseBuf=ctx.createBuffer(1, 2*ctx.sampleRate, ctx.sampleRate);
+  const ch=noiseBuf.getChannelData(0); for(let i=0;i<noiseBuf.length;i++) ch[i]=Math.random()*2-1;
+  const noise=ctx.createBufferSource(); noise.buffer=noiseBuf; noise.loop=true;
+  const noiseBP=ctx.createBiquadFilter(); noiseBP.type='bandpass'; noiseBP.frequency.value=1200; noiseBP.Q.value=0.7;
+  const noiseG=ctx.createGain(); noiseG.gain.value=0.65; noise.connect(noiseBP).connect(noiseG).connect(carrierBus); noise.start();
+
+  const carrierLP=ctx.createBiquadFilter(); carrierLP.type='lowpass'; carrierLP.frequency.value=8000; carrierBus.connect(carrierLP);
+
+  // Modulator tap: prefer mic, else radio, else mix
+  const modTap=ctx.createGain(); modTap.gain.value=1;
+  try{
+    if(inputSource) inputSource.connect(modTap);
+    else if(radioPanner) radioPanner.connect(modTap);
+    else mixBus.connect(modTap);
+  }catch{}
+
+  const absCurve=makeAbsCurve();
+  const outGain=ctx.createGain(); outGain.gain.value=0.9;
+
+  const bandNodes=[];
+  for(let i=0;i<bands;i++){
+    const f1=edges[i], f2=edges[i+1], fc=Math.sqrt(f1*f2), bw=f2-f1, q=Math.max(0.707, fc/bw);
+
+    // Modulator envelope: bandpass -> |x| -> lowpass (envelope)
+    const mBP=ctx.createBiquadFilter(); mBP.type='bandpass'; mBP.frequency.value=fc; mBP.Q.value=q;
+    const rect=ctx.createWaveShaper(); rect.curve=absCurve;
+    const envLP=ctx.createBiquadFilter(); envLP.type='lowpass'; envLP.frequency.value=35; envLP.Q.value=0.0001;
+    const envScale=ctx.createGain(); envScale.gain.value=0.015; // scale envelope to musical range
+
+    modTap.connect(mBP).connect(rect).connect(envLP).connect(envScale);
+
+    // Carrier shaping
+    const cBP=ctx.createBiquadFilter(); cBP.type='bandpass'; cBP.frequency.value=fc; cBP.Q.value=q;
+    const vca=ctx.createGain(); vca.gain.value=0;
+
+    carrierLP.connect(cBP).connect(vca).connect(outGain);
+
+    // Baseline to avoid complete nulls & allow sum of multiple sources
+    const base = ctx.createConstantSource(); base.offset.value=0.0008; base.connect(vca.gain); base.start();
+
+    // Connect envelope (audio-rate) directly to AudioParam; sums with baseline
+    envScale.connect(vca.gain);
+
+    bandNodes.push({envLP, envScale, vca, cBP, mBP, base});
+  }
+
+  // Route into your existing buses
+  outGain.connect(wetGainNode); // ambience
+  outGain.connect(dryGainNode); // direct
+  outGain.connect(synthSoloGain); // audible in Synth listen
+
+  voc = {bands:bandNodes, carrierLP, saw, noise, out:outGain, modTap, carrierBus};
+}
+function destroyVocoder(){
+  if(!voc) return;
+  try{
+    voc.out.disconnect(); voc.carrierLP.disconnect(); voc.carrierBus?.disconnect?.();
+    voc.saw.stop(); voc.noise.stop();
+    voc.bands.forEach(b=>{
+      try{ b.base.stop(); }catch{}
+      [b.envLP,b.envScale,b.vca,b.cBP,b.mBP].forEach(n=>{try{n.disconnect();}catch{}});
+    });
+  }catch(e){ console.warn(e); }
+  voc=null;
+}
+vocoderToggle.addEventListener('click', ()=>{
+  initAudio();
+  vocoderOn=!vocoderOn;
+  vocoderToggle.textContent=`Vocoder ${vocoderOn?'ON':'OFF'}`;
+  vocoderToggle.classList.toggle('active', vocoderOn);
+  if(vocoderOn) buildVocoder(parseInt(vocoderBandsSel.value,10)||24); else destroyVocoder();
+});
+vocoderBandsSel.addEventListener('change', ()=>{ if(vocoderOn) buildVocoder(parseInt(vocoderBandsSel.value,10)||24); });
+
+/* ====== VOICE (synth point) ====== */
+class Voice{
+  constructor(x,y){
+    this.x=x; this.y=y;
+    this.osc=audioContext.createOscillator();
+    this.filter=audioContext.createBiquadFilter();
+    this.gain=audioContext.createGain();
+    this.osc.connect(this.filter); this.filter.connect(this.gain); this.gain.connect(synthOutGain);
+    this.osc.type='sine'; this.filter.type='lowpass'; this.osc.start();
+    this.updateParameters(x,y);
+  }
+  updateParameters(nx,ny){
+    const r=Math.sqrt(nx*nx+ny*ny), angle=Math.atan2(ny,nx);
+    const denom=(1-nx)*(1-nx)+ny*ny;
+    const Z_norm={real:((1+nx)*(1-nx)+ny*ny)/denom, imag:(ny*(1-nx)+ny*(1+nx))/denom};
+
+    const pitchRange=2; const freq = BASE_FREQ*Math.pow(2, ny*pitchRange);
+    this.osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+
+    const cutoffRange=0.8; let cutoff=BASE_CUTOFF*(1+nx*cutoffRange);
+    cutoff=Math.max(50, Math.min(audioContext.sampleRate/2, cutoff)); this.filter.frequency.setValueAtTime(cutoff, audioContext.currentTime);
+
+    const minG=0.05, maxG=0.5; const g=minG + r*(maxG-minG); this.gain.gain.setValueAtTime(g, audioContext.currentTime);
+    const q=0.5 + r*(10-0.5); this.filter.Q.setValueAtTime(q, audioContext.currentTime);
+
+    const numH=16, real=new Float32Array(numH+1), imag=new Float32Array(numH+1);
+    real[0]=0; imag[0]=0; real[1] = 1 - r*0.5;
+    for(let i=2;i<=numH;i++){ const amp=r*(1/(i*i)), ph=angle*i/Math.PI; real[i]=amp*Math.cos(ph); imag[i]=amp*Math.sin(ph); }
+    if(r>0.8){ for(let i=2;i<=numH;i++){ if(i%2){ const add=(r-0.8)*(1/i); const ph=angle*i/Math.PI; real[i]+=add*Math.cos(ph); imag[i]+=add*Math.sin(ph);} } }
+    const wave=audioContext.createPeriodicWave(real,imag,{disableNormalization:false}); this.osc.setPeriodicWave(wave);
+  }
+  stop(){ try{this.osc.stop();}catch{} try{this.osc.disconnect(); this.filter.disconnect(); this.gain.disconnect();}catch{} }
+}
+
+/* ====== UI BINDINGS ====== */
+if (listenButtons.length) listenButtons.forEach(btn=>btn.addEventListener('click',()=>setListenMode(btn.dataset.listen)));
+
+document.getElementById('autoMatch')?.addEventListener('click', autoMatchOnce);
+document.getElementById('followToggle')?.addEventListener('change', e=>setFollow(e.target.checked));
+
+function autoMatchOnce(){
+  const hz=getRadioPeakHz(); if(!hz||hz<50) return;
+  const freq=Math.max(50,Math.min(1000,Math.round(hz))); baseFreqSlider.value=freq; baseFreqValue.textContent=freq; BASE_FREQ=freq;
+  const cutoff=Math.max(100,Math.min(8000,Math.round(hz*3))); baseCutoffSlider.value=cutoff; baseCutoffValue.textContent=cutoff; BASE_CUTOFF=cutoff;
+  activePoints.forEach(p=>{ const {x,y}=screenToNormalizedGamma(p.x,p.y); p.voice.updateParameters(x,y); });
+}
+function getRadioPeakHz(){
+  try{
+    if(!radioAnalyser||!audioContext) return null;
+    const data=new Uint8Array(radioAnalyser.frequencyBinCount); radioAnalyser.getByteFrequencyData(data);
+    let maxV=0,maxI=0; for(let i=0;i<data.length;i++){ if(data[i]>maxV){maxV=data[i];maxI=i;} }
+    return (maxI/data.length)*(audioContext.sampleRate/2);
+  }catch{return null;}
+}
+function setFollow(on){ if(followTimer){clearInterval(followTimer);followTimer=null;} if(on){ followTimer=setInterval(autoMatchOnce,2000);} }
+
+/* Sliders */
+reverbFeedbackSlider.addEventListener('input',()=>{ REVERB_FEEDBACK=parseFloat(reverbFeedbackSlider.value); reverbFeedbackValue.textContent=REVERB_FEEDBACK.toFixed(2); if(isAudioInitialized) delayNode.delayTime.setValueAtTime(REVERB_FEEDBACK, audioContext.currentTime); });
+reverbWetDrySlider.addEventListener('input',()=>{ REVERB_WET_DRY=parseFloat(reverbWetDrySlider.value); reverbWetDryValue.textContent=REVERB_WET_DRY.toFixed(2);
+  if(isAudioInitialized){ feedbackGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); wetGainNode.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); dryGainNode.gain.setValueAtTime(1-REVERB_WET_DRY, audioContext.currentTime);
+    if(radioWetGain&&radioDryGain){ radioWetGain.gain.setValueAtTime(REVERB_WET_DRY, audioContext.currentTime); radioDryGain.gain.setValueAtTime(1-REVERB_WET_DRY, audioContext.currentTime); } }
+});
+z0Slider.addEventListener('input',()=>{ Z0=parseFloat(z0Slider.value); z0Value.textContent=Z0; drawSmithChart(); activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); });
+baseFreqSlider.addEventListener('input',()=>{ BASE_FREQ=parseFloat(baseFreqSlider.value); baseFreqValue.textContent=BASE_FREQ;
+  activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); if(voc?.saw) try{ voc.saw.frequency.setValueAtTime(BASE_FREQ, audioContext.currentTime); }catch{} });
+baseCutoffSlider.addEventListener('input',()=>{ BASE_CUTOFF=parseFloat(baseCutoffSlider.value); baseCutoffValue.textContent=BASE_CUTOFF;
+  activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); }); updateRadioFromGamma(); });
+inputGainSlider.addEventListener('input',()=>{ INPUT_GAIN=parseFloat(inputGainSlider.value); inputGainValue.textContent=INPUT_GAIN.toFixed(2); if(micGainNode) micGainNode.gain.setValueAtTime(INPUT_GAIN, audioContext.currentTime); });
+
+blendModeSel.addEventListener('change',()=>{ blendMode=blendModeSel.value;
+  if(blendMode!=='difference' && applyBlendMode.phaseFlipper && dryGainNode && mixBus){ try{ applyBlendMode.phaseFlipper.disconnect(); }catch{} try{ dryGainNode.disconnect(); }catch{} dryGainNode.connect(mixBus); applyBlendMode.phaseFlipper=null; }});
+blendAmountSlider.addEventListener('input',()=>{ blendAmount=parseFloat(blendAmountSlider.value)||0; blendAmountValue.textContent=blendAmount.toFixed(2); });
+
+/* ====== CHART ====== */
+function resizeCanvas(){
+  canvas.width=window.innerWidth;
+  canvas.height=Math.max(160, window.innerHeight - controlsContainer.offsetHeight);
+  smithChartRadius=Math.min(canvas.width, canvas.height)*0.4; center={x:canvas.width/2,y:canvas.height/2};
+  drawSmithChart();
+}
+function drawSmithChart(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Outer circle
+  ctx.beginPath(); ctx.arc(center.x,center.y,smithChartRadius,0,Math.PI*2);
+  ctx.strokeStyle=varToRgba('--neon-blue',0.8); ctx.lineWidth=2; ctx.stroke();
+
+  // Resistance circles
+  [0,0.2,0.5,1,2,5,10].forEach(rn=>{
+    const gMag=(1-rn)/(1+rn); if(gMag<0||gMag>1) return;
+    const cx=center.x+smithChartRadius*gMag, r=smithChartRadius*(1-gMag);
+    ctx.beginPath(); ctx.arc(cx,center.y,r,0,Math.PI*2);
+    ctx.strokeStyle=varToRgba('--neon-green',0.2+gMag*0.4); ctx.lineWidth=1; ctx.stroke();
+    if(learningModeActive && rn!==0 && rn!==10){ ctx.fillStyle=varToRgba('--neon-green',0.8); ctx.font='10px Space Mono';
+      const lx=cx+r*Math.cos(Math.PI*0.1), ly=center.y+r*Math.sin(Math.PI*0.1); ctx.fillText(`${(rn*Z0).toFixed(0)}Ω`, lx, ly); }
+  });
+
+  // Reactance arcs
+  [0.2,0.5,1,2,5].forEach(xn=>{
+    const cx=center.x+smithChartRadius, r=smithChartRadius/xn;
+    // inductive
+    ctx.beginPath(); ctx.arc(cx, center.y+smithChartRadius/xn, r, Math.PI-Math.acos(smithChartRadius/r), Math.PI);
+    ctx.strokeStyle=varToRgba('--neon-red',0.2+xn*0.1); ctx.lineWidth=1; ctx.stroke();
+    if(learningModeActive){ ctx.fillStyle=varToRgba('--neon-red',0.8); ctx.font='10px Space Mono';
+      const lx=cx+r*Math.cos(Math.PI*0.8), ly=center.y+smithChartRadius/xn + r*Math.sin(Math.PI*0.8); ctx.fillText(`+j${(xn*Z0).toFixed(0)}`, lx, ly); }
+    // capacitive
+    ctx.beginPath(); ctx.arc(cx, center.y-smithChartRadius/xn, r, Math.PI, Math.PI+Math.acos(smithChartRadius/r));
+    ctx.strokeStyle=varToRgba('--neon-purple',0.2+xn*0.1); ctx.lineWidth=1; ctx.stroke();
+    if(learningModeActive){ ctx.fillStyle=varToRgba('--neon-purple',0.8); ctx.font='10px Space Mono';
+      const lx2=cx+r*Math.cos(Math.PI*1.2), ly2=center.y-smithChartRadius/xn + r*Math.sin(Math.PI*1.2); ctx.fillText(`-j${(xn*Z0).toFixed(0)}`, lx2, ly2); }
+  });
+
+  // Horizontal axis
+  ctx.beginPath(); ctx.moveTo(center.x-smithChartRadius,center.y); ctx.lineTo(center.x+smithChartRadius,center.y);
+  ctx.strokeStyle=varToRgba('--neon-blue',0.5); ctx.lineWidth=1; ctx.stroke();
+
+  // Crosshair
+  ctx.beginPath(); ctx.moveTo(center.x-5,center.y); ctx.lineTo(center.x+5,center.y); ctx.moveTo(center.x,center.y-5); ctx.lineTo(center.x,center.y+5);
+  ctx.strokeStyle=varToRgba('--neon-blue',0.8); ctx.lineWidth=1; ctx.stroke();
+
+  // Rotary rings
+  const r1=smithChartRadius*1.08, r2=smithChartRadius*1.16, ringW=14, r1m=r1+ringW/2-2, r2m=r2-ringW/2+2;
+  // Synth ring
+  ctx.beginPath(); ctx.arc(center.x,center.y,r1m,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-purple',0.2); ctx.lineWidth=ringW; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,r1m,0,ringSynthAngle); ctx.strokeStyle=varToRgba('--neon-purple',0.85); ctx.lineWidth=ringW; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,r1,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-purple',0.4); ctx.lineWidth=2; ctx.stroke();
+  // Radio ring
+  ctx.beginPath(); ctx.arc(center.x,center.y,r2m,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-green',0.2); ctx.lineWidth=ringW; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,r2m,0,ringRadioAngle); ctx.strokeStyle=varToRgba('--neon-green',0.85); ctx.lineWidth=ringW; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,r2,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-green',0.4); ctx.lineWidth=2; ctx.stroke();
+
+  // ticks
+  const tickCount=100, tickLen=6; ctx.lineWidth=2;
+  for(let i=0;i<tickCount;i++){
+    const a=i*(2*Math.PI/tickCount), maj=i%10===0;
+    // synth ticks
+    let x1=center.x+(r1-(maj?14:tickLen))*Math.cos(a), y1=center.y+(r1-(maj?14:tickLen))*Math.sin(a);
+    let x2=center.x+r1*Math.cos(a), y2=center.y+r1*Math.sin(a);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.strokeStyle=varToRgba('--neon-purple', maj?0.5:0.25); ctx.stroke();
+    // radio ticks
+    let X1=center.x+(r2+(maj?14:tickLen))*Math.cos(a), Y1=center.y+(r2+(maj?14:tickLen))*Math.sin(a);
+    let X2=center.x+r2*Math.cos(a), Y2=center.y+r2*Math.sin(a);
+    ctx.beginPath(); ctx.moveTo(X1,Y1); ctx.lineTo(X2,Y2); ctx.strokeStyle=varToRgba('--neon-green', maj?0.5:0.25); ctx.stroke();
+    if(maj){
+      const label=`${i}%`; ctx.font='11px Space Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      const lx1=center.x+(r1-24)*Math.cos(a), ly1=center.y+(r1-24)*Math.sin(a); ctx.fillStyle=varToRgba('--neon-purple',0.9); ctx.fillText(label,lx1,ly1);
+      const lx2=center.x+(r2+24)*Math.cos(a), ly2=center.y+(r2+24)*Math.sin(a); ctx.fillStyle=varToRgba('--neon-green',0.9); ctx.fillText(label,lx2,ly2);
+    }
+  }
+  // handles + values
+  const hsx=center.x+r1m*Math.cos(ringSynthAngle), hsy=center.y+r1m*Math.sin(ringSynthAngle);
+  const hrx=center.x+r2m*Math.cos(ringRadioAngle), hry=center.y+r2m*Math.sin(ringRadioAngle);
+  dot(hsx,hsy,varToRgba('--neon-purple',0.95)); dot(hrx,hry,varToRgba('--neon-green',0.95));
+  labelPct(hsx,hsy,ringSynthTrim, '--neon-purple', ringSynthAngle);
+  labelPct(hrx,hry,ringRadioTrim, '--neon-green', ringRadioAngle);
+
+  // Active points
+  activePoints.forEach(p=>drawActivePoint(p.x,p.y,varToRgba('--neon-blue',1)));
+
+  // Mic peaks
+  if(micInputEnabled && frequencyData) drawMicInputPoints();
+
+  // Blend update
+  if(isAudioInitialized) applyBlendMode();
+
+  // Mini spectrums
+  if(isAudioInitialized){
+    const W=Math.min(260, canvas.width*0.32), H=60, gap=8; let ox=12, oy=12;
+    drawSpectrumPanel(radioAnalyser,ox,oy,W,H,varToRgba('--neon-green',0.9)); oy+=H+gap;
+    drawSpectrumPanel(synthAnalyser,ox,oy,W,H,varToRgba('--neon-purple',0.9)); oy+=H+gap;
+    drawSpectrumPanel(mixAnalyser,  ox,oy,W,H,varToRgba('--neon-blue',0.9));
+  }
+}
+function dot(x,y,col){ ctx.beginPath(); ctx.arc(x,y,6,0,Math.PI*2); ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=12; ctx.fill(); ctx.shadowBlur=0; }
+function labelPct(hx,hy,val,varName,ang){
+  ctx.font='12px Space Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=varToRgba(varName,1); const t=`${Math.round(val*100)}%`; const off=15;
+  ctx.fillText(t, hx+off*Math.cos(ang), hy+off*Math.sin(ang));
+}
+function drawActivePoint(x,y,color){ ctx.beginPath(); ctx.arc(x,y,8,0,Math.PI*2); ctx.fillStyle=color; ctx.shadowColor=color; ctx.shadowBlur=15; ctx.fill(); ctx.shadowBlur=0; }
+function drawMicInputPoints(){
+  const N=analyserNode.frequencyBinCount; analyserNode.getByteFrequencyData(frequencyData);
+  let peaks=[]; for(let i=0;i<N;i++){ const amp=frequencyData[i]/255, freq=i*audioContext.sampleRate/N/2;
+    if(amp>0.1 && freq>100 && freq<10000 && (i===0||frequencyData[i]>frequencyData[i-1]) && (i===N-1||frequencyData[i]>frequencyData[i+1])) peaks.push({freq,amp}); }
+  peaks.sort((a,b)=>b.amp-a.amp); const K=Math.min(peaks.length,5);
+  for(let i=0;i<K;i++){
+    const p=peaks[i]; const fN=Math.min(1, Math.max(0,(p.freq-100)/7900)); const aN=Math.min(1, Math.max(0,(p.amp-0.1)/0.9));
+    const ang=fN*Math.PI - Math.PI/2, rad=smithChartRadius*aN*0.9;
+    const sx=center.x+rad*Math.cos(ang), sy=center.y - rad*Math.sin(ang);
+    ctx.beginPath(); ctx.arc(sx,sy,8+aN*5,0,Math.PI*2); ctx.fillStyle=varToRgba('--neon-red',0.8*aN); ctx.shadowColor=varToRgba('--neon-red',1); ctx.shadowBlur=10+10*aN; ctx.fill(); ctx.shadowBlur=0;
+  }
+}
+function drawSpectrumPanel(analyser,x,y,w,h,color){
+  if(!analyser) return;
+  const data=new Uint8Array(analyser.frequencyBinCount); analyser.getByteFrequencyData(data);
+  ctx.save(); ctx.globalAlpha=0.9; ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(x,y,w,h); ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.strokeRect(x,y,w,h);
+  ctx.beginPath(); const len=data.length, step=Math.max(1,Math.floor(len/w));
+  for(let i=0;i<w;i++){ const idx=Math.min(len-1, i*step); const v=data[idx]/255; const yy=y + h - v*h; if(i===0) ctx.moveTo(x,yy); else ctx.lineTo(x+i,yy); }
+  ctx.strokeStyle=color; ctx.lineWidth=1.5; ctx.stroke(); ctx.restore();
+}
+function varToRgba(varName, a=1){ const color=getComputedStyle(document.documentElement).getPropertyValue(varName).trim(); const r=parseInt(color.slice(1,3),16), g=parseInt(color.slice(3,5),16), b=parseInt(color.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; }
+
+/* ====== COORDINATES / INPUT ====== */
+function screenToNormalizedGamma(sx,sy){
+  const rx=sx-center.x, ry=sy-center.y; let nx=rx/smithChartRadius, ny=ry/smithChartRadius;
+  const mag=Math.hypot(nx,ny); if(mag>1){ nx/=mag; ny/=mag; } return {x:nx,y:ny};
+}
+function normalizedGammaToScreen(nx,ny){ return {x:center.x+nx*smithChartRadius, y:center.y+ny*smithChartRadius}; }
+
+function handlePointerDown(e){
+  e.preventDefault(); initAudio();
+  const rect=canvas.getBoundingClientRect(); let x,y,pid;
+  if(e.touches){ x=e.touches[0].clientX-rect.left; y=e.touches[0].clientY-rect.top; pid=e.touches[0].identifier; }
+  else { x=e.clientX-rect.left; y=e.clientY-rect.top; pid='mouse'; ringSnapMode = e.altKey?'free':(e.shiftKey?'fine':'coarse'); }
+  const dx=x-center.x, dy=y-center.y, dist=Math.hypot(dx,dy);
+  const r1=smithChartRadius*1.08, r2=smithChartRadius*1.16, ringW=14, r1m=r1+ringW/2-2, r2m=r2-ringW/2+2;
+  if(Math.abs(dist-r2m)<=ringW/2+5){ activeRing='radio'; updateRingFromPoint('radio',dx,dy); drawSmithChart(); return; }
+  if(Math.abs(dist-r1m)<=ringW/2+5){ activeRing='synth'; updateRingFromPoint('synth',dx,dy); drawSmithChart(); return; }
+  const {x:nx,y:ny}=screenToNormalizedGamma(x,y); const v=new Voice(nx,ny);
+  activePoints.set(pid,{x,y,voice:v}); lastGamma={x:nx,y:ny}; updateRadioFromGamma(); drawSmithChart();
+}
+function handlePointerMove(e){
+  e.preventDefault(); if(!isAudioInitialized) return;
+  const rect=canvas.getBoundingClientRect();
+  if(e.touches){
+    for(let i=0;i<e.touches.length;i++){
+      const t=e.touches[i], x=t.clientX-rect.left, y=t.clientY-rect.top;
+      if(activeRing){ updateRingFromPoint(activeRing,x-center.x,y-center.y); drawSmithChart(); continue; }
+      if(activePoints.has(t.identifier)){ const {x:nx,y:ny}=screenToNormalizedGamma(x,y); const p=activePoints.get(t.identifier); p.x=x; p.y=y; p.voice.updateParameters(nx,ny); lastGamma={x:nx,y:ny}; updateRadioFromGamma(); }
+    }
+  } else if(e.buttons===1){
+    const x=e.clientX-rect.left, y=e.clientY-rect.top; ringSnapMode = e.altKey?'free':(e.shiftKey?'fine':'coarse');
+    if(activeRing){ updateRingFromPoint(activeRing,x-center.x,y-center.y); drawSmithChart(); return; }
+    if(activePoints.has('mouse')){ const {x:nx,y:ny}=screenToNormalizedGamma(x,y); const p=activePoints.get('mouse'); p.x=x; p.y=y; p.voice.updateParameters(nx,ny); lastGamma={x:nx,y:ny}; updateRadioFromGamma(); }
+  }
+}
+function handlePointerUp(e){
+  e.preventDefault(); if(!isAudioInitialized) return;
+  if(e.touches){
+    const ids=new Set(); for(let i=0;i<e.touches.length;i++) ids.add(e.touches[i].identifier);
+    activePoints.forEach((p,id)=>{ if(!ids.has(id)){ p.voice.stop(); activePoints.delete(id); } });
+    if(e.touches.length===0) activeRing=null;
+  } else {
+    if(activePoints.has('mouse')){ activePoints.get('mouse').voice.stop(); activePoints.delete('mouse'); }
+    activeRing=null;
+  }
+  drawSmithChart();
+}
+function updateRingFromPoint(which,dx,dy){
+  const ang=Math.atan2(dy,dx), a=(ang>=0?ang:(2*Math.PI+ang));
+  const detCount = (ringSnapMode==='fine')? RING_DETENTS_FINE : (ringSnapMode==='coarse'? RING_DETENTS_COARSE : 0);
+  let det=-1, snapped=a;
+  if(detCount>0){ det=Math.round(a/(2*Math.PI/detCount)); snapped=det*(2*Math.PI/detCount); if(which==='synth' && ringSynthDetent!==det){ vibe(6); ringSynthDetent=det; } if(which==='radio' && ringRadioDetent!==det){ vibe(6); ringRadioDetent=det; } }
+  if(which==='synth'){ ringSynthAngle=snapped; ringSynthTrim=Math.max(0,Math.min(1,snapped/(2*Math.PI))); }
+  else { ringRadioAngle=snapped; ringRadioTrim=Math.max(0,Math.min(1,snapped/(2*Math.PI))); }
+}
+function vibe(ms=8){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch{} }
+
+/* ====== RADIO PARAMS FROM GAMMA ====== */
+function updateRadioFromGamma(){
+  if(!isAudioInitialized||!radioFilter) return;
+  const x=lastGamma.x,y=lastGamma.y,r=Math.min(1,Math.hypot(x,y)), angle=Math.atan2(y,x);
+  const cutoffRange=0.8; let cutoff=BASE_CUTOFF*(1+x*cutoffRange); cutoff=Math.max(80,Math.min(audioContext.sampleRate/2,cutoff));
+  radioFilter.frequency.setValueAtTime(cutoff, audioContext.currentTime);
+  radioFilter.Q.setValueAtTime(0.5+9.5*r, audioContext.currentTime);
+  radioPanner.pan.setValueAtTime(Math.max(-1,Math.min(1,angle/Math.PI)), audioContext.currentTime);
+  const wet=Math.min(1, Math.max(0, REVERB_WET_DRY*(0.3+0.7*r))), dry=1-wet;
+  radioWetGain.gain.setValueAtTime(wet, audioContext.currentTime); radioDryGain.gain.setValueAtTime(dry, audioContext.currentTime);
+  const fb=Math.min(0.95, Math.max(0, REVERB_WET_DRY*(0.2+0.6*r))); feedbackGainNode.gain.setValueAtTime(fb, audioContext.currentTime);
+}
+
+/* ====== LEARNING MODE (unchanged core) ====== */
+function clearLearningAnimation(){ if(learningAnimation){ clearInterval(learningAnimation); learningAnimation=null; }
+  activePoints.forEach((pd,id)=>{ if(id==='learning'||id==='sequence'){ pd.voice.stop(); activePoints.delete(id);} }); drawSmithChart();
+}
+function runLearningPath(type){
+  clearLearningAnimation(); initAudio();
+  let startGamma={real:0.8,imag:0.5}; let {x:startX,y:startY}=normalizedGammaToScreen(startGamma.real,startGamma.imag);
+  const voice=new Voice(startGamma.real,startGamma.imag); activePoints.set('learning',{x:startX,y:startY,voice});
+  let step=0, maxSteps=100;
+  learningAnimation=setInterval(()=>{
+    if(step>maxSteps){ clearLearningAnimation(); return; }
+    let g;
+    if(type==='lMatch'){ const p=step/maxSteps, s=(1-p)**2; g={real:startGamma.real*s, imag:startGamma.imag*s}; }
+    else { const p=step/maxSteps, ang=Math.sin(p*Math.PI)*Math.PI*0.5, rad=0.8*(1-p); g={real:(0.8*Math.cos(ang))*rad, imag:(0.8*Math.sin(ang))*rad}; }
+    const scr=normalizedGammaToScreen(g.real,g.imag); const a=activePoints.get('learning'); a.x=scr.x; a.y=scr.y; a.voice.updateParameters(g.real,g.imag); drawSmithChart(); step++;
+  },50);
+}
+function runLearningSequence(type){
+  clearLearningAnimation(); initAudio();
+  let pts=[]; if(type==='radialOut'){ for(let i=0;i<=100;i++){ const r=i/100; pts.push({real:r*0.7, imag:r*0.3}); } }
+  else { for(let i=0;i<=100;i++){ const ang=(i/100)*2*Math.PI, r=0.7; pts.push({real:r*Math.cos(ang), imag:r*Math.sin(ang)}); } }
+  let k=0; const voice=new Voice(pts[0].real,pts[0].imag); activePoints.set('sequence',{x:0,y:0,voice});
+  learningAnimation=setInterval(()=>{ if(k>=pts.length){ clearLearningAnimation(); return; } const g=pts[k]; const scr=normalizedGammaToScreen(g.real,g.imag);
+    const a=activePoints.get('sequence'); a.x=scr.x; a.y=scr.y; a.voice.updateParameters(g.real,g.imag); drawSmithChart(); k++; }, 100);
+}
+learningModeToggle.addEventListener('click',()=>{ learningModeActive=!learningModeActive; learningModeToggle.textContent=`Learning Mode ${learningModeActive?'ON':'OFF'}`; learningModeToggle.classList.toggle('active',learningModeActive); learningModeOverlay.classList.toggle('active',learningModeActive); drawSmithChart(); });
+closeLearningModeBtn.addEventListener('click',()=>{ learningModeActive=false; learningModeToggle.textContent='Learning Mode OFF'; learningModeToggle.classList.remove('active'); learningModeOverlay.classList.remove('active'); clearLearningAnimation(); drawSmithChart(); });
+learningModeContent.addEventListener('click',(e)=>{ if(e.target.tagName==='BUTTON'){ const p=e.target.dataset.path, s=e.target.dataset.sequence; if(p) runLearningPath(p); else if(s) runLearningSequence(s); }});
+
+/* ====== RECORD ====== */
+recordToggle.addEventListener('click',()=>{ initAudio(); if(!isRecording) startRecording(); else stopRecording(); });
+function startRecording(){
+  recordedChunks=[]; let options={mimeType:'audio/webm; codecs=opus'};
+  try{ mediaRecorder=new MediaRecorder(destinationStream.stream, options);}catch(e){ console.error(e); alert('Recording not supported'); return; }
+  mediaRecorder.ondataavailable=(ev)=>{ if(ev.data.size>0) recordedChunks.push(ev.data); };
+  mediaRecorder.onstop=()=>{ const blob=new Blob(recordedChunks,{type:'audio/webm'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); document.body.appendChild(a); a.style='display:none'; a.href=url; a.download=`smith_chart_${new Date().toISOString()}.webm`; a.click(); URL.revokeObjectURL(url); document.body.removeChild(a); recordedChunks=[]; };
+  mediaRecorder.start(); isRecording=true; recordToggle.textContent='Recording…'; recordToggle.classList.add('recording');
+}
+function stopRecording(){ if(mediaRecorder&&mediaRecorder.state!=='inactive'){ mediaRecorder.stop(); isRecording=false; recordToggle.textContent='Record'; recordToggle.classList.remove('recording'); }}
+
+/* ====== QUICK BTNS ====== */
+btnFullscreen.addEventListener('click',()=>{ const d=document; if(!d.fullscreenElement && !d.webkitFullscreenElement){ const el=document.documentElement; if(el.requestFullscreen) el.requestFullscreen(); else if(el.webkitRequestFullscreen) el.webkitRequestFullscreen(); } else { if(d.exitFullscreen) d.exitFullscreen(); else if(d.webkitExitFullscreen) d.webkitExitFullscreen(); }});
+btnToggleMenu.addEventListener('click',()=>{ const hidden=controlsContainer.style.display==='none'; if(hidden){ controlsContainer.style.display='flex'; btnToggleMenu.textContent='☰'; btnToggleMenu.title='Hide Menu'; } else { controlsContainer.style.display='none'; btnToggleMenu.textContent='⋯'; btnToggleMenu.title='Show Menu'; } setTimeout(resizeCanvas,30); });
+
+/* ====== URL PARAM INIT (sliders only) ====== */
+function applyUrlState(){
+  const p=new URLSearchParams(location.search);
+  const read=(name,setter,elem,init,isFloat=true)=>{ const v=p.get(name); if(v!==null){ const n=isFloat?parseFloat(v):parseInt(v,10); if(!isNaN(n)){ setter(n); elem.value=n; const sp=el(`${elem.id}Value`); if(sp) sp.textContent=isFloat?n.toFixed(2):n; } } else { elem.value=init; const sp=el(`${elem.id}Value`); if(sp) sp.textContent=isFloat?init.toFixed(2):init; } };
+  read('z0',(n)=>Z0=n,z0Slider,parseFloat(z0Slider.value),false);
+  read('bfreq',(n)=>BASE_FREQ=n,baseFreqSlider,parseFloat(baseFreqSlider.value),false);
+  read('bcutoff',(n)=>BASE_CUTOFF=n,baseCutoffSlider,parseFloat(baseCutoffSlider.value),false);
+  read('rfeedback',(n)=>REVERB_FEEDBACK=n,reverbFeedbackSlider,parseFloat(reverbFeedbackSlider.value));
+  read('rwetdry',(n)=>REVERB_WET_DRY=n,reverbWetDrySlider,parseFloat(reverbWetDrySlider.value));
+  read('inputgain',(n)=>INPUT_GAIN=n,inputGainSlider,parseFloat(inputGainSlider.value));
+  if(isAudioInitialized){ delayNode.delayTime.value=REVERB_FEEDBACK; feedbackGainNode.gain.value=REVERB_WET_DRY; wetGainNode.gain.value=REVERB_WET_DRY; dryGainNode.gain.value=1-REVERB_WET_DRY; if(micGainNode) micGainNode.gain.value=INPUT_GAIN;
+    activePoints.forEach(pd=>{ const {x,y}=screenToNormalizedGamma(pd.x,pd.y); pd.voice.updateParameters(x,y); });
+  }
+  drawSmithChart();
+}
+
+/* ====== LOOP & EVENTS ====== */
+function animate(){ requestAnimationFrame(animate); drawSmithChart(); }
+window.addEventListener('resize', resizeCanvas);
+canvas.addEventListener('pointerdown', handlePointerDown);
+canvas.addEventListener('pointermove', handlePointerMove);
+canvas.addEventListener('pointerup', handlePointerUp);
+canvas.addEventListener('pointerleave', handlePointerUp);
+canvas.addEventListener('pointercancel', handlePointerUp);
+
+// First user interaction to init audio (autoplay policy)
+document.addEventListener('click', initAudio, {once:true});
+document.addEventListener('touchstart', initAudio, {once:true});
+
+// Boot
+(function init(){
+  resizeCanvas(); setTimeout(resizeCanvas,100);
+  animate();
+  window.addEventListener('load', ()=>{ console.log('[Boot] puppet+vocoder v0.4.0'); applyUrlState(); ensureSynthAnalyser(); });
+})();
+
+</script>
+</body>
+</html>

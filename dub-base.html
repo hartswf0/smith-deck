@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RF Audio Explorer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff88;
+            overflow-x: hidden;
+            touch-action: manipulation;
+            padding-bottom: env(safe-area-inset-bottom); /* prevent iOS home-bar overlap when no dock */
+        }
+
+        .app-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .header {
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+            border-bottom: 2px solid #00ff88;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 255, 136, 0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px #00ff88;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 10px #00ff88; }
+            to { text-shadow: 0 0 20px #00ff88, 0 0 30px #00ff88; }
+        }
+
+        .master-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .power-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #ff3333, #990000);
+            border: 3px solid #fff;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .power-btn.active {
+            background: radial-gradient(circle, #00ff88, #004d33);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.8);
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .decks-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px;
+            padding-bottom: calc(72px + env(safe-area-inset-bottom)); /* space for mobile dock */
+        }
+
+        @media (min-width: 768px) {
+            .decks-container {
+                flex-direction: row;
+                height: calc(100vh - 100px);
+                padding-bottom: 20px; /* no dock on desktop */
+            }
+        }
+
+        .deck {
+            flex: 1;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 2px solid #0066cc;
+            border-radius: 15px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 102, 204, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .deck.deck-a {
+            border-color: #ff6b6b;
+        }
+
+        .deck.deck-b {
+            border-color: #4ecdc4;
+        }
+
+        .deck-title {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            z-index: 10;
+        }
+
+        .deck-a .deck-title {
+            color: #ff6b6b;
+        }
+
+        .deck-b .deck-title {
+            color: #4ecdc4;
+        }
+
+        .smith-chart {
+            width: 100%;
+            height: 250px;
+            margin: 40px 0 20px 0;
+            position: relative;
+            cursor: crosshair;
+            touch-action: none;
+            border: 1px solid #333;
+            border-radius: 8px;
+        }
+
+        .impedance-marker {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #00ff88, #004d33);
+            border: 2px solid #ffffff;
+            transform: translate(-50%, -50%);
+            cursor: grab;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.8);
+            transition: all 0.1s ease;
+            z-index: 5;
+        }
+
+        .impedance-marker:active {
+            cursor: grabbing;
+            transform: translate(-50%, -50%) scale(1.2);
+        }
+
+        .spectrum-display {
+            height: 100px;
+            background: #000;
+            border: 2px solid #ff6b6b;
+            border-radius: 8px;
+            margin: 15px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .analyser-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .controls-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .control-group {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+        }
+
+        .control-label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .slider {
+            width: 100%;
+            height: 40px;
+            background: #333;
+            border-radius: 20px;
+            position: relative;
+            cursor: pointer;
+            touch-action: none;
+        }
+
+        .slider-track {
+            height: 100%;
+            background: linear-gradient(to right, #00ff88, #004d33);
+            border-radius: 20px;
+            width: 50%;
+            transition: width 0.1s ease;
+        }
+
+        .slider-thumb {
+            position: absolute;
+            width: 36px;
+            height: 36px;
+            background: radial-gradient(circle, #ffffff, #cccccc);
+            border-radius: 50%;
+            top: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            cursor: grab;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: transform 0.1s ease;
+        }
+
+        .slider-thumb:active {
+            cursor: grabbing;
+            transform: translateX(-50%) scale(1.1);
+        }
+
+        .toggle-switch {
+            width: 60px;
+            height: 30px;
+            background: #333;
+            border-radius: 15px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-switch.active {
+            background: #00ff88;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            background: white;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(30px);
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 8px;
+            background: #333;
+            border: none;
+            color: #888;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 12px;
+        }
+
+        .mode-btn.active {
+            background: #00ff88;
+            color: #000;
+        }
+
+        .value-display {
+            margin-top: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .deck-a .value-display {
+            color: #ff6b6b;
+        }
+
+        .deck-b .value-display {
+            color: #4ecdc4;
+        }
+
+        .preset-slots {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+
+        .preset-slot {
+            min-width: 50px;
+            height: 50px;
+            background: #222;
+            border: 2px solid #444;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .preset-slot.filled {
+            border-color: #00ff88;
+            background: rgba(0, 255, 136, 0.1);
+        }
+
+        .preset-slot:hover {
+            border-color: #00ff88;
+            transform: scale(1.05);
+        }
+
+        .waveform-selector {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 767px) {
+            .deck {
+                min-height: 400px;
+            }
+            
+            .controls-panel {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .slider { height: 44px; } /* larger touch target */
+            .slider-thumb { width: 38px; height: 38px; top: 3px; }
+            .slider-track { border-radius: 22px; }
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            padding: 5px 10px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 4px;
+            font-size: 12px;
+            border: 1px solid #00ff88;
+        }
+
+        .oscilloscope {
+            height: 80px;
+            background: #000;
+            border: 1px solid #4ecdc4;
+            border-radius: 4px;
+            margin: 10px 0;
+            position: relative;
+        }
+
+        /* Bottom Dock (mobile) */
+        .bottom-dock {
+            position: fixed;
+            left: 0; right: 0; bottom: 0;
+            height: 72px;
+            background: rgba(0,0,0,0.9);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(0,255,136,0.25);
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+            z-index: 1000;
+        }
+        .dock-btn {
+            width: 44px; height: 44px; border-radius: 12px;
+            border: 1px solid #1f1f1f; background:#141414; color:#00ff88;
+            display:flex; align-items:center; justify-content:center; font-weight:700;
+        }
+        .dock-status {
+            display:flex; flex-direction:column; line-height:1.1; min-width: 0;
+        }
+        .dock-status .label { font-size:11px; color:#8affc7; opacity:.8 }
+        .dock-status .value { font-size:14px; font-weight:700; color:#caffec; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+        .dock-volume { display:flex; align-items:center; gap:10px; min-width:140px }
+        .dock-volume .slider { height: 10px; border-radius:6px }
+        .dock-volume .slider-thumb { width:22px; height:22px; top:-6px }
+        @media (min-width: 768px){ .bottom-dock{ display:none } }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <div class="master-controls">
+                <div class="power-btn" id="master-power">⚡</div>
+                <div class="volume-control">
+                    <span>VOL</span>
+                    <div class="slider" id="master-volume">
+                        <div class="slider-track"></div>
+                        <div class="slider-thumb"></div>
+                    </div>
+                </div>
+            </div>
+            <h1>RF AUDIO EXPLORER</h1>
+            <div class="master-controls">
+                <button class="mode-btn" id="link-decks" style="background: #333;">LINK</button>
+                <button class="mode-btn" id="record-btn" style="background: #333;">REC</button>
+            </div>
+        </div>
+        
+        <div class="decks-container">
+            <!-- Deck A: RF Noise Generator -->
+            <div class="deck deck-a">
+                <div class="deck-title">DECK A: NOISE GEN</div>
+                <div class="status-indicator" id="status-a">FREQ: 440Hz</div>
+                
+                <canvas class="smith-chart" id="smith-a" width="400" height="250"></canvas>
+                <div class="impedance-marker" id="marker-a"></div>
+                
+                <div class="spectrum-display">
+                    <canvas class="analyser-canvas" id="analyser-a" width="400" height="100"></canvas>
+                </div>
+                
+                <div class="controls-panel">
+                    <div class="control-group">
+                        <div class="control-label">Frequency</div>
+                        <div class="slider" id="freq-slider-a">
+                            <div class="slider-track"></div>
+                            <div class="slider-thumb"></div>
+                        </div>
+                        <div class="value-display" id="freq-display-a">440 Hz</div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Noise Type</div>
+                        <div class="mode-selector">
+                            <button class="mode-btn active" data-noise="white">WHITE</button>
+                            <button class="mode-btn" data-noise="pink">PINK</button>
+                            <button class="mode-btn" data-noise="brown">BROWN</button>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Filter Q</div>
+                        <div class="slider" id="q-slider-a">
+                            <div class="slider-track"></div>
+                            <div class="slider-thumb"></div>
+                        </div>
+                        <div class="value-display" id="q-display-a">1.0</div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Gain</div>
+                        <div class="slider" id="gain-slider-a">
+                            <div class="slider-track"></div>
+                            <div class="slider-thumb"></div>
+                        </div>
+                        <div class="value-display" id="gain-display-a">0.5</div>
+                    </div>
+                </div>
+                
+                <div class="preset-slots">
+                    <div class="preset-slot" data-deck="a" data-slot="1">1</div>
+                    <div class="preset-slot" data-deck="a" data-slot="2">2</div>
+                    <div class="preset-slot" data-deck="a" data-slot="3">3</div>
+                    <div class="preset-slot" data-deck="a" data-slot="4">4</div>
+                    <div class="preset-slot" data-deck="a" data-slot="5">5</div>
+                </div>
+            </div>
+            
+            <!-- Deck B: Signal Processor -->
+            <div class="deck deck-b">
+                <div class="deck-title">DECK B: PROCESSOR</div>
+                <div class="status-indicator" id="status-b">OSC: 220Hz</div>
+                
+                <canvas class="smith-chart" id="smith-b" width="400" height="250"></canvas>
+                <div class="impedance-marker" id="marker-b"></div>
+                
+                <div class="oscilloscope">
+                    <canvas class="analyser-canvas" id="scope-b" width="400" height="80"></canvas>
+                </div>
+                
+                <div class="controls-panel">
+                    <div class="control-group">
+                        <div class="control-label">Oscillator</div>
+                        <div class="slider" id="osc-freq-slider-b">
+                            <div class="slider-track"></div>
+                            <div class="slider-thumb"></div>
+                        </div>
+                        <div class="value-display" id="osc-freq-display-b">220 Hz</div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Wave Shape</div>
+                        <div class="waveform-selector">
+                            <button class="mode-btn" data-wave="sine">SIN</button>
+                            <button class="mode-btn active" data-wave="sawtooth">SAW</button>
+                            <button class="mode-btn" data-wave="square">SQR</button>
+                            <button class="mode-btn" data-wave="triangle">TRI</button>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Filter Freq</div>
+                        <div class="slider" id="filter-freq-slider-b">
+                            <div class="slider-track"></div>
+                            <div class="slider-thumb"></div>
+                        </div>
+                        <div class="value-display" id="filter-freq-display-b">1000 Hz</div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Resonance</div>
+                        <div class="slider" id="resonance-slider-b">
+                            <div class="slider-track"></div>
+                            <div class="slider-thumb"></div>
+                        </div>
+                        <div class="value-display" id="resonance-display-b">0.5</div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Delay</div>
+                        <div class="slider" id="delay-slider-b">
+                            <div class="slider-track"></div>
+                            <div class="slider-thumb"></div>
+                        </div>
+                        <div class="value-display" id="delay-display-b">0.2s</div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <div class="control-label">Feedback</div>
+                        <div class="slider" id="feedback-slider-b">
+                            <div class="slider-track"></div>
+                            <div class="slider-thumb"></div>
+                        </div>
+                        <div class="value-display" id="feedback-display-b">0.3</div>
+                    </div>
+                </div>
+                
+                <div class="preset-slots">
+                    <div class="preset-slot" data-deck="b" data-slot="1">1</div>
+                    <div class="preset-slot" data-deck="b" data-slot="2">2</div>
+                    <div class="preset-slot" data-deck="b" data-slot="3">3</div>
+                    <div class="preset-slot" data-deck="b" data-slot="4">4</div>
+                    <div class="preset-slot" data-deck="b" data-slot="5">5</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Bottom Dock -->
+    <div class="bottom-dock" id="bottom-dock">
+        <button class="dock-btn" id="dock-power" title="Play/Pause">▶︎</button>
+        <div class="dock-status">
+            <span class="label">Now</span>
+            <span class="value" id="dock-now">Idle</span>
+        </div>
+        <div class="dock-volume">
+            <div class="slider" id="dock-volume">
+                <div class="slider-track"></div>
+                <div class="slider-thumb"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Audio Context and Nodes
+        let audioContext = null;
+        let masterGain = null;
+        let isPlaying = false;
+
+        // Deck A - Noise Generator
+        let noiseBuffer = null;
+        let noiseSource = null;
+        let noiseFilter = null;
+        let noiseGain = null;
+        let noiseAnalyser = null;
+
+        // Deck B - Oscillator + Effects
+        let oscillator = null;
+        let oscGain = null;
+        let filter = null;
+        let delay = null;
+        let delayFeedback = null;
+        let delayGain = null;
+        let scopeAnalyser = null;
+
+        // App State
+        const state = {
+            deckA: {
+                frequency: 440,
+                noiseType: 'white',
+                q: 1.0,
+                gain: 0.5
+            },
+            deckB: {
+                oscFreq: 220,
+                waveType: 'sawtooth',
+                filterFreq: 1000,
+                resonance: 0.5,
+                delayTime: 0.2,
+                feedback: 0.3
+            },
+            masterVolume: 0.7,
+            linked: false
+        };
+
+        // Initialize Audio Context
+        function initAudio() {
+            if (audioContext) return;
+            
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            masterGain = audioContext.createGain();
+            masterGain.connect(audioContext.destination);
+            masterGain.gain.value = state.masterVolume;
+
+            setupDeckA();
+            setupDeckB();
+            setupAnalysers();
+        }
+
+        // Setup Deck A - Noise Generator
+        function setupDeckA() {
+            // Create noise buffer
+            const bufferSize = audioContext.sampleRate * 2;
+            noiseBuffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+            generateNoise('white');
+
+            // Create filter for noise
+            noiseFilter = audioContext.createBiquadFilter();
+            noiseFilter.type = 'bandpass';
+            noiseFilter.frequency.value = state.deckA.frequency;
+            noiseFilter.Q.value = state.deckA.q;
+
+            noiseGain = audioContext.createGain();
+            noiseGain.gain.value = state.deckA.gain;
+
+            noiseAnalyser = audioContext.createAnalyser();
+            noiseAnalyser.fftSize = 256;
+
+            // Connect nodes
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(noiseAnalyser);
+            noiseAnalyser.connect(masterGain);
+        }
+
+        // Setup Deck B - Oscillator + Effects
+        function setupDeckB() {
+            // Create filter
+            filter = audioContext.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = state.deckB.filterFreq;
+            filter.Q.value = state.deckB.resonance * 20;
+
+            // Create delay
+            delay = audioContext.createDelay(1.0);
+            delay.delayTime.value = state.deckB.delayTime;
+
+            delayFeedback = audioContext.createGain();
+            delayFeedback.gain.value = state.deckB.feedback;
+
+            delayGain = audioContext.createGain();
+            delayGain.gain.value = 0.3;
+
+            oscGain = audioContext.createGain();
+            oscGain.gain.value = 0.3;
+
+            scopeAnalyser = audioContext.createAnalyser();
+            scopeAnalyser.fftSize = 512;
+
+            // Connect delay feedback loop
+            delay.connect(delayFeedback);
+            delayFeedback.connect(delay);
+            delay.connect(delayGain);
+
+            // Main signal path
+            filter.connect(oscGain);
+            filter.connect(delay);
+            oscGain.connect(scopeAnalyser);
+            delayGain.connect(scopeAnalyser);
+            scopeAnalyser.connect(masterGain);
+        }
+
+        // Generate Noise
+        function generateNoise(type) {
+            const output = noiseBuffer.getChannelData(0);
+            
+            switch (type) {
+                case 'white':
+                    for (let i = 0; i < output.length; i++) {
+                        output[i] = Math.random() * 2 - 1;
+                    }
+                    break;
+                case 'pink':
+                    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+                    for (let i = 0; i < output.length; i++) {
+                        const white = Math.random() * 2 - 1;
+                        b0 = 0.99886 * b0 + white * 0.0555179;
+                        b1 = 0.99332 * b1 + white * 0.0750759;
+                        b2 = 0.96900 * b2 + white * 0.1538520;
+                        b3 = 0.86650 * b3 + white * 0.3104856;
+                        b4 = 0.55000 * b4 + white * 0.5329522;
+                        b5 = -0.7616 * b5 - white * 0.0168980;
+                        output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+                        b6 = white * 0.115926;
+                    }
+                    break;
+                case 'brown':
+                    let lastOut = 0;
+                    for (let i = 0; i < output.length; i++) {
+                        const white = Math.random() * 2 - 1;
+                        output[i] = (lastOut + (0.02 * white)) / 1.02;
+                        lastOut = output[i];
+                        output[i] *= 3.5;
+                    }
+                    break;
+            }
+        }
+
+        // Start/Stop Audio
+        function toggleAudio() {
+            if (!audioContext) {
+                initAudio();
+            }
+
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+
+            if (isPlaying) {
+                stopAudio();
+            } else {
+                startAudio();
+            }
+        }
+
+        function startAudio() {
+            // Start noise source
+            noiseSource = audioContext.createBufferSource();
+            noiseSource.buffer = noiseBuffer;
+            noiseSource.loop = true;
+            noiseSource.connect(noiseFilter);
+            noiseSource.start();
+
+            // Start oscillator
+            oscillator = audioContext.createOscillator();
+            oscillator.type = state.deckB.waveType;
+            oscillator.frequency.value = state.deckB.oscFreq;
+            oscillator.connect(filter);
+            oscillator.start();
+
+            isPlaying = true;
+            document.getElementById('master-power').classList.add('active');
+            document.getElementById('dock-power').classList.add('active');
+            document.getElementById('dock-power').textContent = '⏸';
+            updateDockStatus();
+            
+            // Start visual updates
+            updateVisuals();
+        }
+
+        function stopAudio() {
+            if (noiseSource) {
+                noiseSource.stop();
+                noiseSource = null;
+            }
+            if (oscillator) {
+                oscillator.stop();
+                oscillator = null;
+            }
+            
+            isPlaying = false;
+            document.getElementById('master-power').classList.remove('active');
+            const dp = document.getElementById('dock-power');
+            dp.classList.remove('active');
+            dp.textContent = '▶︎';
+            updateDockStatus();
+        }
+
+        // Setup Analysers for visualization
+        function setupAnalysers() {
+            // Already created in setupDeckA and setupDeckB
+        }
+
+        // Visual Updates
+        function updateVisuals() {
+            if (!isPlaying) return;
+
+            // Update spectrum display for Deck A
+            updateSpectrumDisplay();
+            
+            // Update oscilloscope for Deck B
+            updateOscilloscope();
+            
+            requestAnimationFrame(updateVisuals);
+        }
+
+        function updateSpectrumDisplay() {
+            const canvas = document.getElementById('analyser-a');
+            const ctx = canvas.getContext('2d');
+            const dataArray = new Uint8Array(noiseAnalyser.frequencyBinCount);
+            noiseAnalyser.getByteFrequencyData(dataArray);
+
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const barWidth = canvas.width / dataArray.length;
+            let x = 0;
+
+            for (let i = 0; i < dataArray.length; i++) {
+                const barHeight = (dataArray[i] / 255) * canvas.height;
+                
+                // Create gradient based on frequency
+                const gradient = ctx.createLinearGradient(0, canvas.height, 0, canvas.height - barHeight);
+                gradient.addColorStop(0, '#ff6b6b');
+                gradient.addColorStop(0.5, '#ffaa00');
+                gradient.addColorStop(1, '#00ff88');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                x += barWidth;
+            }
+        }
+
+        function updateOscilloscope() {
+            const canvas = document.getElementById('scope-b');
+            const ctx = canvas.getContext('2d');
+            const dataArray = new Uint8Array(scopeAnalyser.frequencyBinCount);
+            scopeAnalyser.getByteTimeDomainData(dataArray);
+
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#4ecdc4';
+            ctx.beginPath();
+
+            const sliceWidth = canvas.width / dataArray.length;
+            let x = 0;
+
+            for (let i = 0; i < dataArray.length; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * canvas.height / 2;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+
+                x += sliceWidth;
+            }
+
+            ctx.stroke();
+        }
+
+        // Slider Controls
+        function setupSlider(sliderId, min, max, initial, callback) {
+            const slider = document.getElementById(sliderId);
+            const track = slider.querySelector('.slider-track');
+            const thumb = slider.querySelector('.slider-thumb');
+            let isDragging = false;
+
+            function setValue(value) {
+                const percent = (value - min) / (max - min);
+                track.style.width = (percent * 100) + '%';
+                thumb.style.left = (percent * 100) + '%';
+                callback(value);
+            }
+
+            function handleMove(e) {
+                if (!isDragging) return;
+                
+                const rect = slider.getBoundingClientRect();
+                const x = (e.clientX || e.touches[0].clientX) - rect.left;
+                const percent = Math.max(0, Math.min(1, x / rect.width));
+                const value = min + percent * (max - min);
+                setValue(value);
+            }
+
+            slider.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                handleMove(e);
+            });
+
+            slider.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                isDragging = true;
+                handleMove(e);
+            });
+
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('touchmove', handleMove);
+
+            document.addEventListener('mouseup', () => isDragging = false);
+            document.addEventListener('touchend', () => isDragging = false);
+
+            setValue(initial);
+        }
+
+        // Smith Chart Drawing
+        function drawSmithChart(canvasId, color) {
+            const canvas = document.getElementById(canvasId);
+            const ctx = canvas.getContext('2d');
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(centerX, centerY) - 20;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Background
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Main circle
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Grid lines
+            ctx.strokeStyle = color + '40';
+            ctx.lineWidth = 1;
+            
+            // Resistance circles
+            for (let r = 0.5; r <= 2; r += 0.5) {
+                const rRadius = radius / (1 + r);
+                const rCenterX = centerX + radius * r / (1 + r);
+                ctx.beginPath();
+                ctx.arc(rCenterX, centerY, rRadius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            // Reactance arcs
+            for (let x = -2; x <= 2; x += 0.5) {
+                if (x === 0) continue;
+                const xRadius = radius / Math.abs(x);
+                const xCenterY = centerY - radius / x;
+                ctx.beginPath();
+                ctx.arc(centerX + radius, xCenterY, xRadius, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            // Center lines
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(centerX - radius, centerY);
+            ctx.lineTo(centerX + radius, centerY);
+            ctx.moveTo(centerX, centerY - radius);
+            ctx.lineTo(centerX, centerY + radius);
+            ctx.stroke();
+        }
+
+        // Setup Smith Chart Interaction
+        function setupSmithChart(markerId, deck) {
+            const marker = document.getElementById(markerId);
+            const canvas = document.getElementById(`smith-${deck}`);
+            let isDragging = false;
+
+            marker.style.left = '50%';
+            marker.style.top = '50%';
+
+            function handleMove(e) {
+                if (!isDragging) return;
+                
+                const rect = canvas.getBoundingClientRect();
+                const x = (e.clientX || e.touches[0].clientX) - rect.left;
+                const y = (e.clientY || e.touches[0].clientY) - rect.top;
+                
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const radius = Math.min(centerX, centerY) - 20;
+                
+                const dx = x - centerX;
+                const dy = y - centerY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance <= radius) {
+                    marker.style.left = (x / rect.width * 100) + '%';
+                    marker.style.top = (y / rect.height * 100) + '%';
+                    
+                    // Map position to audio parameters
+                    const normalizedX = dx / radius; // -1 to 1
+                    const normalizedY = dy / radius; // -1 to 1
+                    
+                    if (deck === 'a') {
+                        // Map to filter frequency and Q
+                        const freq = 200 + (normalizedX + 1) * 1900; // 200-4000 Hz
+                        const q = 0.5 + (1 - normalizedY) * 9.5; // 0.5-10
+                        updateDeckA({ frequency: freq, q: q });
+                    } else {
+                        // Map to filter frequency and resonance
+                        const filterFreq = 100 + (normalizedX + 1) * 2400; // 100-5000 Hz
+                        const resonance = (1 - normalizedY) * 0.9 + 0.1; // 0.1-1.0
+                        updateDeckB({ filterFreq: filterFreq, resonance: resonance });
+                    }
+                }
+            }
+
+            marker.addEventListener('mousedown', () => isDragging = true);
+            marker.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                isDragging = true;
+            });
+
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('touchmove', handleMove);
+
+            document.addEventListener('mouseup', () => isDragging = false);
+            document.addEventListener('touchend', () => isDragging = false);
+        }
+
+        // Update Deck A Parameters
+        function updateDeckA(params) {
+            Object.assign(state.deckA, params);
+            
+            if (noiseFilter && audioContext) {
+                if (params.frequency !== undefined) {
+                    noiseFilter.frequency.setValueAtTime(params.frequency, audioContext.currentTime);
+                    document.getElementById('freq-display-a').textContent = Math.round(params.frequency) + ' Hz';
+                    document.getElementById('status-a').textContent = `FREQ: ${Math.round(params.frequency)}Hz`;
+                }
+                if (params.q !== undefined) {
+                    noiseFilter.Q.setValueAtTime(params.q, audioContext.currentTime);
+                    document.getElementById('q-display-a').textContent = params.q.toFixed(1);
+                }
+                if (params.gain !== undefined) {
+                    noiseGain.gain.setValueAtTime(params.gain, audioContext.currentTime);
+                    document.getElementById('gain-display-a').textContent = params.gain.toFixed(2);
+                }
+            }
+        }
+
+        // Update Deck B Parameters
+        function updateDeckB(params) {
+            Object.assign(state.deckB, params);
+            
+            if (audioContext) {
+                if (params.oscFreq !== undefined && oscillator) {
+                    oscillator.frequency.setValueAtTime(params.oscFreq, audioContext.currentTime);
+                    document.getElementById('osc-freq-display-b').textContent = Math.round(params.oscFreq) + ' Hz';
+                    document.getElementById('status-b').textContent = `OSC: ${Math.round(params.oscFreq)}Hz`;
+                }
+                if (params.filterFreq !== undefined && filter) {
+                    filter.frequency.setValueAtTime(params.filterFreq, audioContext.currentTime);
+                    document.getElementById('filter-freq-display-b').textContent = Math.round(params.filterFreq) + ' Hz';
+                }
+                if (params.resonance !== undefined && filter) {
+                    filter.Q.setValueAtTime(params.resonance * 20, audioContext.currentTime);
+                    document.getElementById('resonance-display-b').textContent = params.resonance.toFixed(2);
+                }
+                if (params.delayTime !== undefined && delay) {
+                    delay.delayTime.setValueAtTime(params.delayTime, audioContext.currentTime);
+                    document.getElementById('delay-display-b').textContent = params.delayTime.toFixed(2) + 's';
+                }
+                if (params.feedback !== undefined && delayFeedback) {
+                    delayFeedback.gain.setValueAtTime(params.feedback, audioContext.currentTime);
+                    document.getElementById('feedback-display-b').textContent = params.feedback.toFixed(2);
+                }
+            }
+        }
+
+        // Noise Type Change
+        function changeNoiseType(type) {
+            state.deckA.noiseType = type;
+            generateNoise(type);
+            
+            if (noiseSource && isPlaying) {
+                // Restart noise source with new buffer
+                noiseSource.stop();
+                noiseSource = audioContext.createBufferSource();
+                noiseSource.buffer = noiseBuffer;
+                noiseSource.loop = true;
+                noiseSource.connect(noiseFilter);
+                noiseSource.start();
+            }
+        }
+
+        // Wave Type Change
+        function changeWaveType(type) {
+            state.deckB.waveType = type;
+            
+            if (oscillator && isPlaying) {
+                // Can't change type on running oscillator, need to restart
+                oscillator.stop();
+                oscillator = audioContext.createOscillator();
+                oscillator.type = type;
+                oscillator.frequency.value = state.deckB.oscFreq;
+                oscillator.connect(filter);
+                oscillator.start();
+            }
+        }
+
+        // Preset Management
+        const presets = {};
+
+        function savePreset(deck, slot) {
+            presets[`${deck}-${slot}`] = { ...state[`deck${deck.toUpperCase()}`] };
+            document.querySelector(`[data-deck="${deck}"][data-slot="${slot}"]`).classList.add('filled');
+            
+            // Visual feedback
+            const slotEl = document.querySelector(`[data-deck="${deck}"][data-slot="${slot}"]`);
+            slotEl.style.transform = 'scale(1.2)';
+            setTimeout(() => slotEl.style.transform = 'scale(1)', 200);
+        }
+
+        function loadPreset(deck, slot) {
+            const preset = presets[`${deck}-${slot}`];
+            if (preset) {
+                if (deck === 'a') {
+                    updateDeckA(preset);
+                } else {
+                    updateDeckB(preset);
+                }
+            }
+        }
+
+        // Event Listeners
+        function setupEventListeners() {
+            // Master power button
+            document.getElementById('master-power').addEventListener('click', toggleAudio);
+            // Dock power button
+            document.getElementById('dock-power').addEventListener('click', toggleAudio);
+
+            // Master volume
+            setupSlider('master-volume', 0, 1, state.masterVolume, (value) => {
+                state.masterVolume = value;
+                if (masterGain) {
+                    masterGain.gain.setValueAtTime(value, audioContext.currentTime);
+                }
+            });
+            // Dock volume mirrors master volume
+            setupSlider('dock-volume', 0, 1, state.masterVolume, (value) => {
+                state.masterVolume = value;
+                const track = document.querySelector('#master-volume .slider-track');
+                const thumb = document.querySelector('#master-volume .slider-thumb');
+                // Reflect value on the header slider too
+                if (track && thumb) {
+                    const percent = (value - 0) / (1 - 0) * 100;
+                    track.style.width = percent + '%';
+                    thumb.style.left = percent + '%';
+                }
+                if (masterGain && audioContext) {
+                    masterGain.gain.setValueAtTime(value, audioContext.currentTime);
+                }
+            });
+
+            // Deck A controls
+            setupSlider('freq-slider-a', 200, 4000, state.deckA.frequency, (value) => {
+                updateDeckA({ frequency: value });
+                document.getElementById('status-a').textContent = `FREQ: ${Math.round(value)}Hz`;
+                updateDockStatus();
+            });
+
+            setupSlider('q-slider-a', 0.5, 10, state.deckA.q, (value) => {
+                updateDeckA({ q: value });
+            });
+
+            setupSlider('gain-slider-a', 0, 1, state.deckA.gain, (value) => {
+                updateDeckA({ gain: value });
+            });
+
+            // Deck B controls
+            setupSlider('osc-freq-slider-b', 50, 2000, state.deckB.oscFreq, (value) => {
+                updateDeckB({ oscFreq: value });
+                updateDockStatus();
+            });
+
+            setupSlider('filter-freq-slider-b', 100, 5000, state.deckB.filterFreq, (value) => {
+                updateDeckB({ filterFreq: value });
+            });
+
+            setupSlider('resonance-slider-b', 0.1, 1, state.deckB.resonance, (value) => {
+                updateDeckB({ resonance: value });
+            });
+
+            setupSlider('delay-slider-b', 0, 1, state.deckB.delayTime, (value) => {
+                updateDeckB({ delayTime: value });
+            });
+
+            setupSlider('feedback-slider-b', 0, 0.9, state.deckB.feedback, (value) => {
+                updateDeckB({ feedback: value });
+            });
+
+            // Noise type buttons
+            document.querySelectorAll('[data-noise]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-noise]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    changeNoiseType(btn.dataset.noise);
+                });
+            });
+
+            // Wave type buttons
+            document.querySelectorAll('[data-wave]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-wave]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    changeWaveType(btn.dataset.wave);
+                });
+            });
+
+            // Preset slots
+            document.querySelectorAll('.preset-slot').forEach(slot => {
+                slot.addEventListener('click', () => {
+                    const deck = slot.dataset.deck;
+                    const slotNum = slot.dataset.slot;
+                    
+                    if (slot.classList.contains('filled')) {
+                        loadPreset(deck, slotNum);
+                    } else {
+                        savePreset(deck, slotNum);
+                    }
+                });
+            });
+
+            // Link decks button
+            document.getElementById('link-decks').addEventListener('click', function() {
+                state.linked = !state.linked;
+                this.classList.toggle('active', state.linked);
+                this.style.background = state.linked ? '#00ff88' : '#333';
+                this.style.color = state.linked ? '#000' : '#888';
+            });
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.key === ' ') {
+                    e.preventDefault();
+                    toggleAudio();
+                }
+                if (e.key >= '1' && e.key <= '5') {
+                    // Quick load presets for deck A
+                    loadPreset('a', e.key);
+                }
+                if (e.shiftKey && e.key >= '1' && e.key <= '5') {
+                    // Quick save presets for deck A
+                    savePreset('a', e.key.replace('!', '1'));
+                }
+            });
+        }
+
+        // Initialization
+        function init() {
+            // Draw Smith charts
+            drawSmithChart('smith-a', '#ff6b6b');
+            drawSmithChart('smith-b', '#4ecdc4');
+            
+            // Setup Smith chart interactions
+            setupSmithChart('marker-a', 'a');
+            setupSmithChart('marker-b', 'b');
+            
+            // Setup all event listeners
+            setupEventListeners();
+            
+            // Initial parameter display updates
+            document.getElementById('freq-display-a').textContent = state.deckA.frequency + ' Hz';
+            document.getElementById('q-display-a').textContent = state.deckA.q.toFixed(1);
+            document.getElementById('gain-display-a').textContent = state.deckA.gain.toFixed(2);
+            document.getElementById('osc-freq-display-b').textContent = state.deckB.oscFreq + ' Hz';
+            document.getElementById('filter-freq-display-b').textContent = state.deckB.filterFreq + ' Hz';
+            document.getElementById('resonance-display-b').textContent = state.deckB.resonance.toFixed(2);
+            document.getElementById('delay-display-b').textContent = state.deckB.delayTime.toFixed(2) + 's';
+            document.getElementById('feedback-display-b').textContent = state.deckB.feedback.toFixed(2);
+            
+            // Status indicators
+            document.getElementById('status-a').textContent = `FREQ: ${state.deckA.frequency}Hz`;
+            document.getElementById('status-b').textContent = `OSC: ${state.deckB.oscFreq}Hz`;
+            updateDockStatus();
+            
+            console.log('RF Audio Explorer initialized - Click power button to start!');
+        }
+
+        // Start the app
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
