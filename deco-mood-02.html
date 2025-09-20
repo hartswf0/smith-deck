@@ -1269,30 +1269,42 @@ function drawSmithChart(){
   });
   ctx.beginPath(); ctx.moveTo(center.x-smithChartRadius,center.y); ctx.lineTo(center.x+smithChartRadius,center.y); ctx.strokeStyle=varToRgba('--neon-blue',0.5); ctx.lineWidth=1; ctx.stroke();
   ctx.beginPath(); ctx.moveTo(center.x-5,center.y); ctx.lineTo(center.x+5,center.y); ctx.moveTo(center.x,center.y-5); ctx.lineTo(center.x,center.y+5); ctx.strokeStyle=varToRgba('--neon-blue',0.8); ctx.lineWidth=1; ctx.stroke();
-  const r1=smithChartRadius*1.08, r2=smithChartRadius*1.16, ringW=14, r1m=r1+ringW/2-2, r2m=r2-ringW/2+2;
-  ctx.beginPath(); ctx.arc(center.x,center.y,r1m,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-purple',0.2); ctx.lineWidth=ringW; ctx.stroke();
-  ctx.beginPath(); ctx.arc(center.x,center.y,r1m,0,ringSynthAngle); ctx.strokeStyle=varToRgba('--neon-purple',0.85); ctx.lineWidth=ringW; ctx.stroke();
-  ctx.beginPath(); ctx.arc(center.x,center.y,r1,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-purple',0.4); ctx.lineWidth=2; ctx.stroke();
-  ctx.beginPath(); ctx.arc(center.x,center.y,r2m,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-green',0.2); ctx.lineWidth=ringW; ctx.stroke();
-  ctx.beginPath(); ctx.arc(center.x,center.y,r2m,0,ringRadioAngle); ctx.strokeStyle=varToRgba('--neon-green',0.85); ctx.lineWidth=ringW; ctx.stroke();
-  ctx.beginPath(); ctx.arc(center.x,center.y,r2,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-green',0.4); ctx.lineWidth=2; ctx.stroke();
+  // Spaced ring model
+  const ringW = Math.max(12, Math.min(14, smithChartRadius*0.06));
+  const ringGap = Math.max(8, Math.min(14, smithChartRadius*0.05));
+  const rSynthMid = smithChartRadius + smithChartRadius*0.08 + ringW/2;
+  const rRadioMid = rSynthMid + ringW + ringGap + ringW/2;
+  // Synth band
+  ctx.beginPath(); ctx.arc(center.x,center.y,rSynthMid,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-purple',0.2); ctx.lineWidth=ringW; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,rSynthMid,0,ringSynthAngle); ctx.strokeStyle=varToRgba('--neon-purple',0.85); ctx.lineWidth=ringW; ctx.stroke();
+  const rSynthInner = rSynthMid - ringW/2, rSynthOuter = rSynthMid + ringW/2;
+  ctx.beginPath(); ctx.arc(center.x,center.y,rSynthInner,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-purple',0.4); ctx.lineWidth=2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,rSynthOuter,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-purple',0.4); ctx.lineWidth=2; ctx.stroke();
+  // Radio band
+  ctx.beginPath(); ctx.arc(center.x,center.y,rRadioMid,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-green',0.2); ctx.lineWidth=ringW; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,rRadioMid,0,ringRadioAngle); ctx.strokeStyle=varToRgba('--neon-green',0.85); ctx.lineWidth=ringW; ctx.stroke();
+  const rRadioInner = rRadioMid - ringW/2, rRadioOuter = rRadioMid + ringW/2;
+  ctx.beginPath(); ctx.arc(center.x,center.y,rRadioInner,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-green',0.4); ctx.lineWidth=2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(center.x,center.y,rRadioOuter,0,Math.PI*2); ctx.strokeStyle=varToRgba('--neon-green',0.4); ctx.lineWidth=2; ctx.stroke();
   const tickCount=100, tickLen=6; ctx.lineWidth=2;
   for(let i=0;i<tickCount;i++){
     const a=i*(2*Math.PI/tickCount), maj=i%10===0;
-    let x1=center.x+(r1-(maj?14:tickLen))*Math.cos(a), y1=center.y+(r1-(maj?14:tickLen))*Math.sin(a);
-    let x2=center.x+r1*Math.cos(a), y2=center.y+r1*Math.sin(a);
+    // synth ticks (from outer edge inward)
+    let x1=center.x+(rSynthOuter-(maj?14:tickLen))*Math.cos(a), y1=center.y+(rSynthOuter-(maj?14:tickLen))*Math.sin(a);
+    let x2=center.x+rSynthOuter*Math.cos(a), y2=center.y+rSynthOuter*Math.sin(a);
     ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.strokeStyle=varToRgba('--neon-purple', maj?0.5:0.25); ctx.stroke();
-    let X1=center.x+(r2+(maj?14:tickLen))*Math.cos(a), Y1=center.y+(r2+(maj?14:tickLen))*Math.sin(a);
-    let X2=center.x+r2*Math.cos(a), Y2=center.y+r2*Math.sin(a);
+    // radio ticks (from inner edge outward)
+    let X1=center.x+(rRadioInner+(maj?14:tickLen))*Math.cos(a), Y1=center.y+(rRadioInner+(maj?14:tickLen))*Math.sin(a);
+    let X2=center.x+rRadioInner*Math.cos(a), Y2=center.y+rRadioInner*Math.sin(a);
     ctx.beginPath(); ctx.moveTo(X1,Y1); ctx.lineTo(X2,Y2); ctx.strokeStyle=varToRgba('--neon-green', maj?0.5:0.25); ctx.stroke();
     if(maj){
       const label=`${i}%`; ctx.font='11px Space Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
-      const lx1=center.x+(r1-24)*Math.cos(a), ly1=center.y+(r1-24)*Math.sin(a); ctx.fillStyle=varToRgba('--neon-purple',0.9); ctx.fillText(label,lx1,ly1);
-      const lx2=center.x+(r2+24)*Math.cos(a), ly2=center.y+(r2+24)*Math.sin(a); ctx.fillStyle=varToRgba('--neon-green',0.9); ctx.fillText(label,lx2,ly2);
+      const lx1=center.x+(rSynthOuter-24)*Math.cos(a), ly1=center.y+(rSynthOuter-24)*Math.sin(a); ctx.fillStyle=varToRgba('--neon-purple',0.9); ctx.fillText(label,lx1,ly1);
+      const lx2=center.x+(rRadioInner+24)*Math.cos(a), ly2=center.y+(rRadioInner+24)*Math.sin(a); ctx.fillStyle=varToRgba('--neon-green',0.9); ctx.fillText(label,lx2,ly2);
     }
   }
-  const hsx=center.x+r1m*Math.cos(ringSynthAngle), hsy=center.y+r1m*Math.sin(ringSynthAngle);
-  const hrx=center.x+r2m*Math.cos(ringRadioAngle), hry=center.y+r2m*Math.sin(ringRadioAngle);
+  const hsx=center.x+rSynthMid*Math.cos(ringSynthAngle), hsy=center.y+rSynthMid*Math.sin(ringSynthAngle);
+  const hrx=center.x+rRadioMid*Math.cos(ringRadioAngle), hry=center.y+rRadioMid*Math.sin(ringRadioAngle);
   dot(hsx,hsy,varToRgba('--neon-purple',0.95)); dot(hrx,hry,varToRgba('--neon-green',0.95));
   labelPct(hsx,hsy,ringSynthTrim, '--neon-purple', ringSynthAngle);
   labelPct(hrx,hry,ringRadioTrim, '--neon-green', ringRadioAngle);
@@ -1368,9 +1380,12 @@ function handlePointerDown(e){
 
   // 1. Check for ring interaction (always prioritize)
   const dx_raw=x-center.x, dy_raw=y-center.y, dist_raw=Math.hypot(dx_raw,dy_raw); 
-  const r1=smithChartRadius*1.08, r2=smithChartRadius*1.16, ringW=14, r1m=r1+ringW/2-2, r2m=r2-ringW/2+2; 
-  if(Math.abs(dist_raw-r2m)<=ringW/2+5){ activeRing='radio'; updateRingFromPoint('radio',dx_raw,dy_raw); drawSmithChart(); return; } 
-  if(Math.abs(dist_raw-r1m)<=ringW/2+5){ activeRing='synth'; updateRingFromPoint('synth',dx_raw,dy_raw); drawSmithChart(); return; }
+  const ringW2 = Math.max(12, Math.min(14, smithChartRadius*0.06));
+  const ringGap2 = Math.max(8, Math.min(14, smithChartRadius*0.05));
+  const rSynthMid2 = smithChartRadius + smithChartRadius*0.08 + ringW2/2;
+  const rRadioMid2 = rSynthMid2 + ringW2 + ringGap2 + ringW2/2;
+  if(Math.abs(dist_raw-rRadioMid2)<=ringW2/2+6){ activeRing='radio'; updateRingFromPoint('radio',dx_raw,dy_raw); drawSmithChart(); return; } 
+  if(Math.abs(dist_raw-rSynthMid2)<=ringW2/2+6){ activeRing='synth'; updateRingFromPoint('synth',dx_raw,dy_raw); drawSmithChart(); return; }
 
   // 2. Handle interactions within decompose mode (or for user points in normal mode)
   if(decomposeModeActive){

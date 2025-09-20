@@ -976,28 +976,34 @@
             ctx.lineWidth = 1;
             ctx.stroke();
 
-            // Rotary rings (outside edge)
-            const r1 = smithChartRadius * 1.08; // synth ring inner radius
-            const r2 = smithChartRadius * 1.16; // radio ring outer radius
-            const ringBandWidth = 14; // Approximate visual width of the active ring area
-            const r1_mid = r1 + ringBandWidth/2 - 2; // Adjusted midpoint for synth ring
-            const r2_mid = r2 - ringBandWidth/2 + 2; // Adjusted midpoint for radio ring arc
+            // Rotary rings (outside edge) with explicit spacing (mobile-friendly)
+            const ringInnerOffset = smithChartRadius * 0.08; // gap from chart edge
+            const ringBandWidth = Math.max(12, Math.min(14, smithChartRadius * 0.06));
+            const ringSpacing = Math.max(8, Math.min(14, smithChartRadius * 0.05));
+            const rSynthMid = smithChartRadius + ringInnerOffset + ringBandWidth/2;
+            const rRadioMid = rSynthMid + ringBandWidth + ringSpacing + ringBandWidth/2;
 
 
             // Synth ring background stroke
-            ctx.beginPath(); ctx.arc(center.x, center.y, r1_mid, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-purple', 0.2); ctx.lineWidth = ringBandWidth; ctx.stroke();
+            ctx.beginPath(); ctx.arc(center.x, center.y, rSynthMid, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-purple', 0.2); ctx.lineWidth = ringBandWidth; ctx.stroke();
             // Synth ring filled arc (value indicator)
-            ctx.beginPath(); ctx.arc(center.x, center.y, r1_mid, 0, ringSynthAngle); ctx.strokeStyle = varToRgba('--neon-purple', 0.8); ctx.lineWidth = ringBandWidth; ctx.stroke();
+            ctx.beginPath(); ctx.arc(center.x, center.y, rSynthMid, 0, ringSynthAngle); ctx.strokeStyle = varToRgba('--neon-purple', 0.8); ctx.lineWidth = ringBandWidth; ctx.stroke();
             // Synth ring outline
-            ctx.beginPath(); ctx.arc(center.x, center.y, r1, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-purple', 0.4); ctx.lineWidth = 2; ctx.stroke();
+            const rSynthInner = rSynthMid - ringBandWidth/2;
+            const rSynthOuter = rSynthMid + ringBandWidth/2;
+            ctx.beginPath(); ctx.arc(center.x, center.y, rSynthInner, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-purple', 0.4); ctx.lineWidth = 2; ctx.stroke();
+            ctx.beginPath(); ctx.arc(center.x, center.y, rSynthOuter, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-purple', 0.4); ctx.lineWidth = 2; ctx.stroke();
 
 
             // Radio ring background stroke
-            ctx.beginPath(); ctx.arc(center.x, center.y, r2_mid, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-green', 0.2); ctx.lineWidth = ringBandWidth; ctx.stroke();
+            ctx.beginPath(); ctx.arc(center.x, center.y, rRadioMid, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-green', 0.2); ctx.lineWidth = ringBandWidth; ctx.stroke();
             // Radio ring filled arc (value indicator)
-            ctx.beginPath(); ctx.arc(center.x, center.y, r2_mid, 0, ringRadioAngle); ctx.strokeStyle = varToRgba('--neon-green', 0.8); ctx.lineWidth = ringBandWidth; ctx.stroke();
+            ctx.beginPath(); ctx.arc(center.x, center.y, rRadioMid, 0, ringRadioAngle); ctx.strokeStyle = varToRgba('--neon-green', 0.8); ctx.lineWidth = ringBandWidth; ctx.stroke();
             // Radio ring outline
-            ctx.beginPath(); ctx.arc(center.x, center.y, r2, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-green', 0.4); ctx.lineWidth = 2; ctx.stroke();
+            const rRadioInner = rRadioMid - ringBandWidth/2;
+            const rRadioOuter = rRadioMid + ringBandWidth/2;
+            ctx.beginPath(); ctx.arc(center.x, center.y, rRadioInner, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-green', 0.4); ctx.lineWidth = 2; ctx.stroke();
+            ctx.beginPath(); ctx.arc(center.x, center.y, rRadioOuter, 0, 2*Math.PI); ctx.strokeStyle = varToRgba('--neon-green', 0.4); ctx.lineWidth = 2; ctx.stroke();
 
 
             // detent ticks (still drawn on outer edge of each band)
@@ -1009,31 +1015,31 @@
                 const major10 = (i % 10 === 0); // every 10%
                 
                 // synth ring ticks (purple)
-                let x1_s = center.x + (r1 - (major10?14:tickLen)) * Math.cos(a), y1_s = center.y + (r1 - (major10?14:tickLen)) * Math.sin(a);
-                let x2_s = center.x + r1 * Math.cos(a), y2_s = center.y + r1 * Math.sin(a);
+                let x1_s = center.x + (rSynthOuter - (major10?14:tickLen)) * Math.cos(a), y1_s = center.y + (rSynthOuter - (major10?14:tickLen)) * Math.sin(a);
+                let x2_s = center.x + rSynthOuter * Math.cos(a), y2_s = center.y + rSynthOuter * Math.sin(a);
                 ctx.beginPath(); ctx.moveTo(x1_s,y1_s); ctx.lineTo(x2_s,y2_s); ctx.strokeStyle = varToRgba('--neon-purple', major10?0.5:0.25); ctx.stroke();
                 
                 // radio ring ticks (green)
-                let x1_r = center.x + (r2 + (major10?14:tickLen)) * Math.cos(a); y1_r = center.y + (r2 + (major10?14:tickLen)) * Math.sin(a);
-                let x2_r = center.x + r2 * Math.cos(a); y2_r = center.y + r2 * Math.sin(a);
+                let x1_r = center.x + (rRadioInner + (major10?14:tickLen)) * Math.cos(a); y1_r = center.y + (rRadioInner + (major10?14:tickLen)) * Math.sin(a);
+                let x2_r = center.x + rRadioInner * Math.cos(a); y2_r = center.y + rRadioInner * Math.sin(a);
                 ctx.beginPath(); ctx.moveTo(x1_r,y1_r); ctx.lineTo(x2_r,y2_r); ctx.strokeStyle = varToRgba('--neon-green', major10?0.5:0.25); ctx.stroke();
 
                 if (major10){
                     const label = `${i}%`;
                     ctx.font = '11px Space Mono'; ctx.textAlign='center'; ctx.textBaseline='middle';
                     // synth label slightly inward
-                    const lx1 = center.x + (r1 - 24) * Math.cos(a), ly1 = center.y + (r1 - 24) * Math.sin(a);
+                    const lx1 = center.x + (rSynthOuter - 24) * Math.cos(a), ly1 = center.y + (rSynthOuter - 24) * Math.sin(a);
                     ctx.fillStyle = varToRgba('--neon-purple', 0.8); ctx.fillText(label, lx1, ly1);
                     // radio label slightly outward
-                    const lx2 = center.x + (r2 + 24) * Math.cos(a), ly2 = center.y + (r2 + 24) * Math.sin(a);
+                    const lx2 = center.x + (rRadioInner + 24) * Math.cos(a), ly2 = center.y + (rRadioInner + 24) * Math.sin(a);
                     ctx.fillStyle = varToRgba('--neon-green', 0.8); ctx.fillText(label, lx2, ly2);
                 }
             }
             // handles
-            const hsx = center.x + r1_mid * Math.cos(ringSynthAngle);
-            const hsy = center.y + r1_mid * Math.sin(ringSynthAngle);
-            const hrx = center.x + r2_mid * Math.cos(ringRadioAngle);
-            const hry = center.y + r2_mid * Math.sin(ringRadioAngle);
+            const hsx = center.x + rSynthMid * Math.cos(ringSynthAngle);
+            const hsy = center.y + rSynthMid * Math.sin(ringSynthAngle);
+            const hrx = center.x + rRadioMid * Math.cos(ringRadioAngle);
+            const hry = center.y + rRadioMid * Math.sin(ringRadioAngle);
 
             ctx.beginPath(); ctx.arc(hsx, hsy, 6, 0, 2*Math.PI); ctx.fillStyle = varToRgba('--neon-purple', 0.9); ctx.shadowColor = varToRgba('--neon-purple', 1); ctx.shadowBlur=12; ctx.fill(); ctx.shadowBlur=0;
             ctx.beginPath(); ctx.arc(hrx, hry, 6, 0, 2*Math.PI); ctx.fillStyle = varToRgba('--neon-green', 0.9); ctx.shadowColor = varToRgba('--neon-green', 1); ctx.shadowBlur=12; ctx.fill(); ctx.shadowBlur=0;
