@@ -34,6 +34,20 @@ crossfader, Start, Pause, Rec, Crate, URLs.
 - **Other pages as decks.** `../moto/mandalla.html?embed=1&album=ghost` and other same-origin pages can be
   loaded as deck A or B from the pickers or `?a=&b=`.
 
+## Square modules (index.html)
+
+Every table is shown as a clean square: chart only, same frame, same label chip, same ☰ button.
+The square is the largest that fits two-up (side by side, or stacked on a tall screen).
+
+- The host hides the table's own chrome (title stamp, corner buttons, help box, HUD pills, control panel)
+  and makes the chart fill the square. ☰ on the pad opens that table's controls as a sheet under a
+  smaller chart; tap again to close.
+- No table needs editing. A page is recognised if it has one of: `#controls-container`
+  (968 / puppet / deco family), `#dashboard` (255 / puppet-complex) or `#app > .panel` (137 / radio).
+- **To make a new table plug in:** put the playing surface in one canvas that resizes on the window
+  `resize` event, and put every control inside an element with `id="controls-container"`. That is the whole contract.
+  Pages that lay themselves out (smith-morph, mandalla with `?embed=1`) are left as they are.
+
 ## Quick Start
 
 1) Serve the folder with a local HTTP server.

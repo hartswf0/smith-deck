@@ -68,9 +68,16 @@
 
     /* ===== Deck bar: the mixer is always on screen ===== */
     :root{ --barh: calc(64px + env(safe-area-inset-bottom, 0px)); }
-    #wrap{ inset:0 0 var(--barh) 0; height:auto !important; min-height:0 !important; grid-auto-rows: 1fr; }
-    .pad{ aspect-ratio:auto !important; min-height:0; }
-    @media (orientation: portrait){ #wrap{ grid-template-rows: 1fr 1fr; } }
+    /* Square modules: every table gets the same clean square, whatever page it is */
+    #wrap{ inset:0 0 var(--barh) 0; height:auto !important; min-height:0 !important; display:flex !important; align-items:center; justify-content:center; gap:0; background:#05070a; }
+    #wrap.col{ flex-direction:column; }
+    .pad{ flex:none; width:var(--sq, 50vw); height:var(--sq, 50vw); aspect-ratio:auto !important; overflow:hidden; background:#000; outline:1px solid #16212c; outline-offset:-1px; }
+    .pad .chip{ position:absolute; top:8px; left:8px; z-index:3; height:26px; padding:0 9px; border-radius:8px; display:flex; align-items:center; gap:6px; pointer-events:none;
+      font:700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing:.12em; text-transform:uppercase; background:rgba(5,8,12,.72); border:1px solid #263241; color:#cfd8e3; max-width:calc(100% - 70px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+    .pad .chip b{ font-size:13px } #padA .chip b{ color:#6ee7ff } #padB .chip b{ color:#ffb454 }
+    .pad .gear{ position:absolute; top:6px; right:6px; z-index:3; width:44px; height:44px; border-radius:10px; background:rgba(5,8,12,.72); border:1px solid #263241; color:#cfd8e3; font-size:18px; cursor:pointer }
+    .pad .gear.on{ background:#12303a; border-color:#6ee7ff; color:#6ee7ff }
+    .sd-dot, .corner-btn{ display:none !important; }
     #deckbar{ position:fixed; left:0; right:0; bottom:0; height:var(--barh); padding:8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); z-index:40;
       display:flex; align-items:center; gap:8px; background:linear-gradient(180deg,#0f1115,#090b0f); border-top:1px solid #1c2a38; }
     #deckbar select, #deckbar button{ height:48px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid #263241; font-size:13px; font-weight:600; cursor:pointer; padding:0 10px; white-space:nowrap }
@@ -101,8 +108,7 @@
       #deckbar > *{ order:1 }
       #deckAStatus{ order:-3 } #cutA{ order:-2 } #xfwrap{ order:-1; flex:1 1 40% } #cutB{ order:-1 } #deckBStatus{ order:-1 }
       #deckbar .brk{ flex-basis:100%; height:0; order:0 }
-      #deckbar select{ flex:1 1 0; height:44px; padding:0 6px } #deckbar button{ height:44px; padding:0 8px } #setupBtn{ display:none !important }
-      .corner-btn{ display:none !important }
+      #deckbar select{ flex:1 1 0; height:44px; padding:0 6px } #deckbar button{ height:44px; padding:0 8px } #setupBtn, #fsBtn{ display:none !important }
     }
     @media (min-width: 761px){ #deckbar .brk{ display:none } }
   </style>
@@ -168,6 +174,7 @@
     <button id="btnRecordBoth" title="Record the mix">● Rec</button>
     <button id="crateBtn" title="Load a moto album track into a deck">Crate</button>
     <button id="setupBtn" title="Set deck URLs">URLs</button>
+    <button id="fsBtn" title="Fullscreen">⛶</button>
   </div>
   <div id="crate" role="dialog" aria-label="Moto crate">
     <div class="tiny" id="crateInfo" style="margin-bottom:8px">Moto crate · pick an album and a track, then send it to a deck</div>
@@ -177,8 +184,10 @@
   </div>
 
   <div id="wrap">
-    <div class="pad"><iframe id="deckA" src="smith-968.html" allow="autoplay; microphone" allowfullscreen></iframe></div>
-    <div class="pad"><iframe id="deckB" src="smith-137.html" allow="autoplay; microphone" allowfullscreen></iframe></div>
+    <div class="pad" id="padA"><iframe id="deckA" src="smith-968.html" allow="autoplay; microphone" allowfullscreen></iframe>
+      <div class="chip"><b>A</b><span id="chipA">968</span></div><button class="gear" id="gearA" title="Show / hide deck A controls" aria-label="Deck A controls">☰</button></div>
+    <div class="pad" id="padB"><iframe id="deckB" src="smith-137.html" allow="autoplay; microphone" allowfullscreen></iframe>
+      <div class="chip"><b>B</b><span id="chipB">137</span></div><button class="gear" id="gearB" title="Show / hide deck B controls" aria-label="Deck B controls">☰</button></div>
   </div>
 
 <script>
@@ -568,6 +577,65 @@
   function eachCtx(fn){ for (const which of ['deckA','deckB']) for (const t of taps[which]){ try{ fn(t.ctx); }catch{} } }
   btnStartBoth?.addEventListener('click', ()=>{ eachCtx(c => c.resume()); syncMonitors(); });
   btnPauseBoth?.addEventListener('click', ()=>{ eachCtx(c => paused ? c.suspend() : c.resume()); });
+
+  // ===== Square module mode =====
+  // The host styles each same-origin deck so only its playing surface shows in the square.
+  // The deck's own controls open as a sheet from the ☰ on its pad. Decks need no changes.
+  const MODULE_CSS = `
+    html.sd-module, html.sd-module body{ overflow:hidden !important; }
+    html.sd-module #sgStamp, html.sd-module #quickButtons, html.sd-module .help, html.sd-module #helpBox{ display:none !important; }
+    html.sd-module:not(.sd-open) #controls-container, html.sd-module:not(.sd-open) #dashboard,
+    html.sd-module:not(.sd-open) #topHud, html.sd-module:not(.sd-open) #dock, html.sd-module:not(.sd-open) .bottom-dock,
+    html.sd-module:not(.sd-open) #app > .panel, html.sd-module:not(.sd-open) #app > .hud{ display:none !important; }
+    html.sd-module.sd-open #controls-container, html.sd-module.sd-open #dashboard, html.sd-module.sd-open #app > .panel{ max-height:58vh !important; overflow:auto !important; -webkit-overflow-scrolling:touch; }
+    html.sd-module.sd-open #controls-container, html.sd-module.sd-open #main-menu-content{ display:flex !important; }
+    html.sd-module.sd-open .bottom-dock{ display:none !important; }
+    html.sd-module.sd-flex #app{ display:flex !important; flex-direction:column; }
+    html.sd-module.sd-flex #app > canvas{ flex:1 1 0; min-height:0; height:auto !important; }
+    html.sd-module.sd-flex #app > .panel{ flex:0 0 auto; }
+  `;
+  const wrapEl = document.getElementById('wrap');
+  function layoutSquares(){
+    const r = wrapEl.getBoundingClientRect();
+    const row = Math.min(r.width / 2, r.height), col = Math.min(r.width, r.height / 2);
+    wrapEl.classList.toggle('col', col > row);
+    wrapEl.style.setProperty('--sq', Math.floor(Math.max(row, col)) + 'px');
+  }
+  window.addEventListener('resize', layoutSquares); layoutSquares();
+  function kick(frame){ try{ const w = frame.contentWindow; const f = ()=> w.dispatchEvent(new w.Event('resize')); f(); setTimeout(f, 60); setTimeout(f, 250); }catch{} }
+  function moduleFrame(frame){
+    const side = frame.id === 'deckA' ? 'A' : 'B';
+    const gear = document.getElementById('gear' + side), chip = document.getElementById('chip' + side);
+    try{ chip.textContent = optLabel(curName(frame, '')); }catch{}
+    let doc; try{ doc = frame.contentWindow.document; if (!doc || !doc.documentElement) return; }catch(e){ gear.style.display = 'none'; return; }
+    if (doc.getElementById('sd-module-css')) return;
+    const st = doc.createElement('style'); st.id = 'sd-module-css'; st.textContent = MODULE_CSS;
+    (doc.head || doc.documentElement).appendChild(st);
+    doc.documentElement.classList.add('sd-module'); doc.documentElement.classList.remove('sd-open');
+    gear.classList.remove('on');
+    const known = !!doc.querySelector('#controls-container, #dashboard, #app > .panel');
+    doc.documentElement.classList.toggle('sd-flex', !!doc.querySelector('#app > .panel'));
+    gear.style.display = known ? '' : 'none';   // pages that manage their own layout keep their own controls
+    kick(frame);
+  }
+  function toggleSheet(frame){
+    const side = frame.id === 'deckA' ? 'A' : 'B';
+    try{
+      const doc = frame.contentWindow.document; const open = doc.documentElement.classList.toggle('sd-open');
+      document.getElementById('gear' + side).classList.toggle('on', open);
+      kick(frame);
+    }catch{}
+  }
+  document.getElementById('gearA')?.addEventListener('click', ()=> toggleSheet(deckA));
+  document.getElementById('gearB')?.addEventListener('click', ()=> toggleSheet(deckB));
+  for (const f of [deckA, deckB]){
+    f.addEventListener('load', ()=> moduleFrame(f));
+    let n = 0; const t = setInterval(()=>{ moduleFrame(f); if (++n > 40) clearInterval(t); }, 100);
+  }
+  document.getElementById('fsBtn')?.addEventListener('click', ()=>{
+    const d = document; if (d.fullscreenElement || d.webkitFullscreenElement){ (d.exitFullscreen || d.webkitExitFullscreen)?.call(d); }
+    else { const e = d.documentElement; (e.requestFullscreen || e.webkitRequestFullscreen)?.call(e); }
+  });
 
   // ===== Moto crate: album tracks straight into either deck =====
   const crate = document.getElementById('crate'), crateBtn = document.getElementById('crateBtn');
