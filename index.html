@@ -65,6 +65,46 @@
     .mini-menu .btn{ padding:8px 10px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid #263241; cursor:pointer; font-size:14px; width:100% }
     .mini-scrim{ position:fixed; inset:0; background:transparent; z-index:5000; display:none }
     .mini-scrim.show{ display:block }
+
+    /* ===== Deck bar: the mixer is always on screen ===== */
+    :root{ --barh: calc(64px + env(safe-area-inset-bottom, 0px)); }
+    #wrap{ inset:0 0 var(--barh) 0; height:auto !important; min-height:0 !important; grid-auto-rows: 1fr; }
+    .pad{ aspect-ratio:auto !important; min-height:0; }
+    @media (orientation: portrait){ #wrap{ grid-template-rows: 1fr 1fr; } }
+    #deckbar{ position:fixed; left:0; right:0; bottom:0; height:var(--barh); padding:8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); z-index:40;
+      display:flex; align-items:center; gap:8px; background:linear-gradient(180deg,#0f1115,#090b0f); border-top:1px solid #1c2a38; }
+    #deckbar select, #deckbar button{ height:48px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid #263241; font-size:13px; font-weight:600; cursor:pointer; padding:0 10px; white-space:nowrap }
+    #deckbar select{ min-width:0; flex:0 1 150px; }
+    #deckbar #btnPauseBoth{ min-width:44px } #deckbar .cut{ min-width:48px; font-size:15px; font-weight:800 }
+    #deckbar #cutA{ color:#6ee7ff; border-color:#1f5566 } #deckbar #cutB{ color:#ffb454; border-color:#66481f }
+    #deckbar button.on{ background:#3a0f14; border-color:#ff5c6c; color:#ffd5d9 }
+    #deckbar .led{ flex:0 0 10px; width:10px; height:10px; border-radius:50%; background:#0a2830; border:1px solid #243244 }
+    #deckbar .led.on{ background:#3dffa8; box-shadow:0 0 8px #3dffa8 }
+    #deckbar .led.direct{ background:#ffb454; box-shadow:0 0 8px #ffb454 }
+    #xfwrap{ flex:1 1 220px; min-width:120px; display:flex; flex-direction:column; justify-content:center; gap:2px }
+    #xfwrap .lab{ display:flex; justify-content:space-between; font-size:10px; letter-spacing:.14em; color:#9aa4ad; text-transform:uppercase; padding:0 4px }
+    #crossfader{ -webkit-appearance:none; appearance:none; width:100%; height:34px; margin:0; background:transparent; touch-action:none }
+    #crossfader::-webkit-slider-runnable-track{ height:10px; border-radius:6px; background:linear-gradient(90deg,#6ee7ff,#1b2633 45%,#1b2633 55%,#ffb454) }
+    #crossfader::-moz-range-track{ height:10px; border-radius:6px; background:linear-gradient(90deg,#6ee7ff,#1b2633 45%,#1b2633 55%,#ffb454) }
+    #crossfader::-webkit-slider-thumb{ -webkit-appearance:none; width:38px; height:34px; margin-top:-12px; border-radius:8px; background:#e6e6e6; border:2px solid #0b0d12; box-shadow:0 2px 8px rgba(0,0,0,.6) }
+    #crossfader::-moz-range-thumb{ width:34px; height:30px; border-radius:8px; background:#e6e6e6; border:2px solid #0b0d12 }
+    #setupBtn{ position:static !important; transform:none !important; box-shadow:none !important; }
+    #crate{ position:fixed; left:10px; right:10px; bottom:calc(var(--barh) + 8px); margin:0 auto; max-width:560px; z-index:45; display:none;
+      background:linear-gradient(180deg,#0f1115,#0c0e13); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:12px; box-shadow:0 16px 40px rgba(0,0,0,.6) }
+    #crate.show{ display:block }
+    #crate select{ width:100%; height:44px; margin-bottom:8px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid #263241; padding:0 10px; font-size:14px }
+    #crate .go{ display:flex; gap:8px } #crate .go button{ flex:1; height:48px; border-radius:10px; background:#0b0d12; border:1px solid #263241; color:var(--ink); font-weight:700; cursor:pointer }
+    #crate #crateA{ color:#6ee7ff } #crate #crateB{ color:#ffb454 }
+    @media (max-width: 760px){
+      :root{ --barh: calc(120px + env(safe-area-inset-bottom, 0px)); }
+      #deckbar{ flex-wrap:wrap; align-content:center; row-gap:6px }
+      #deckbar > *{ order:1 }
+      #deckAStatus{ order:-3 } #cutA{ order:-2 } #xfwrap{ order:-1; flex:1 1 40% } #cutB{ order:-1 } #deckBStatus{ order:-1 }
+      #deckbar .brk{ flex-basis:100%; height:0; order:0 }
+      #deckbar select{ flex:1 1 0; height:44px; padding:0 6px } #deckbar button{ height:44px; padding:0 8px } #setupBtn{ display:none !important }
+      .corner-btn{ display:none !important }
+    }
+    @media (min-width: 761px){ #deckbar .brk{ display:none } }
   </style>
 </head>
 <body>
@@ -75,21 +115,6 @@
   <div class="mini-menu" id="miniMenu" role="menu" aria-label="Deck Controls">
     <div class="row" style="justify-content:space-between">
       <div class="tiny">Decks</div>
-      <div>
-        <span id="deckAStatus" title="Deck A stream" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#0a2830;border:1px solid #243244;margin-right:6px"></span>
-        <span id="deckBStatus" title="Deck B stream" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#0a2830;border:1px solid #243244"></span>
-      </div>
-    </div>
-    <div class="row"><label class="tiny" for="srcA_m" style="min-width:42px">A</label><select id="srcA_m"></select></div>
-    <div class="row"><label class="tiny" for="srcB_m" style="min-width:42px">B</label><select id="srcB_m"></select></div>
-    <div class="row" style="justify-content:space-between">
-      <button id="btnStartBoth" class="btn" title="Start both" style="flex:1">▶︎ Start</button>
-      <button id="btnPauseBoth" class="btn" title="Pause/Resume both" style="flex:1">⏯</button>
-    </div>
-    <div class="row" style="align-items:center">
-      <button id="cutA" class="btn" style="min-width:44px">A</button>
-      <input id="crossfader" type="range" min="0" max="1" step="0.01" value="0.5" style="flex:1" />
-      <button id="cutB" class="btn" style="min-width:44px">B</button>
     </div>
     <div class="row" style="justify-content:space-between">
       <button id="openA" class="btn" title="Open Deck A" style="flex:1">↗︎ Open A</button>
@@ -99,10 +124,8 @@
       <button id="fullA" class="btn" title="Fullscreen Deck A" style="flex:1">⛶ Deck A</button>
       <button id="fullB" class="btn" title="Fullscreen Deck B" style="flex:1">⛶ Deck B</button>
     </div>
-    <button id="btnRecordBoth" class="btn" title="Record mix">● Record</button>
     <button id="miniFullscreen" class="btn" title="Fullscreen" style="margin-top:6px">⛶ Fullscreen</button>
   </div>
-  <button id="setupBtn" title="Set deck URLs">URLs</button>
   <div id="backdrop"></div>
   <div id="panel" role="dialog" aria-modal="false">
     <h3>Deck URLs</h3>
@@ -122,8 +145,35 @@
       <button class="preset" data-a="smith-968.html" data-b="smith-137.html">A:968 • B:137</button>
       <button class="preset" data-a="smith-255.html" data-b="smith-968.html">A:255 • B:968</button>
       <button class="preset" data-a="smith-968.html" data-b="smith-968.html">A:968 • B:968</button>
+      <button class="preset" data-a="smith-puppet.html" data-b="smith-968.html">A:Puppet • B:968</button>
+      <button class="preset" data-a="smith-puppet-complex.html" data-b="smith-puppet-02.html">A:Puppet complex • B:Puppet 02</button>
+      <button class="preset" data-a="smith-deco-puppet-00.html" data-b="deco-mood-03.html">A:Deco puppet • B:Deco mood</button>
+      <button class="preset" data-a="smith-puppet.html" data-b="../moto/mandalla.html?embed=1&album=ghost">A:Puppet • B:Mandalla</button>
     </div>
     <div class="tiny" style="margin-top:8px">Tip: you can enter any webpage URL (same-origin loads best). Query params also work: <code>?a=smith-968.html&b=smith-255.html</code></div>
+  </div>
+
+  <div id="deckbar" role="toolbar" aria-label="Deck mixer">
+    <span id="deckAStatus" class="led" title="Deck A: green = in the mix, amber = playing direct"></span>
+    <select id="srcA_m" title="Deck A instrument" aria-label="Deck A instrument"></select>
+    <button id="cutA" class="cut" title="Cut to deck A">A</button>
+    <div id="xfwrap"><div class="lab"><span>Deck A</span><span>Crossfade</span><span>Deck B</span></div>
+      <input id="crossfader" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="Crossfader" /></div>
+    <button id="cutB" class="cut" title="Cut to deck B">B</button>
+    <span class="brk"></span>
+    <select id="srcB_m" title="Deck B instrument" aria-label="Deck B instrument"></select>
+    <span id="deckBStatus" class="led" title="Deck B: green = in the mix, amber = playing direct"></span>
+    <button id="btnStartBoth" title="Start both decks">▶︎ Start</button>
+    <button id="btnPauseBoth" title="Pause/Resume both">⏯</button>
+    <button id="btnRecordBoth" title="Record the mix">● Rec</button>
+    <button id="crateBtn" title="Load a moto album track into a deck">Crate</button>
+    <button id="setupBtn" title="Set deck URLs">URLs</button>
+  </div>
+  <div id="crate" role="dialog" aria-label="Moto crate">
+    <div class="tiny" id="crateInfo" style="margin-bottom:8px">Moto crate · pick an album and a track, then send it to a deck</div>
+    <select id="crateAlbum" aria-label="Album"></select>
+    <select id="crateTrack" aria-label="Track"></select>
+    <div class="go"><button id="crateA">→ Deck A</button><button id="crateB">→ Deck B</button><button id="crateClose" style="flex:0 0 64px">Close</button></div>
   </div>
 
   <div id="wrap">
@@ -153,7 +203,7 @@
 
   function setSrc(which, url){
     try{
-      if (!/^https?:\/\//i.test(url) && !url.startsWith('smith-') && !url.endsWith('.html')){
+      if (!/^https?:\/\//i.test(url) && !/\.html?([?#]|$)/i.test(url)){
         // help relative URLs: if user typed just a word, append .html
         url = url + '.html';
       }
@@ -258,23 +308,28 @@
 
   // Populate mobile selects with known options + current URLs
   const OPTIONS = [
-    'smith-968.html','smith-137.html','smith-255.html','smith-radio.html',
+    'smith-968.html','smith-137.html','smith-255.html',
     'smith-puppet.html','smith-puppet-01.html','smith-puppet-02.html','smith-puppet-complex.html','smith-deco-puppet-00.html',
     'deco-mood-00.html','deco-mood-02.html','deco-mood-03.html',
-    'double-smith.html','dub-base.html','sg-00.html','sg-01.html'
+    'smith-radio.html','double-smith.html','dub-base.html','sg-00.html','sg-01.html',
+    '../moto/mandalla.html?embed=1&album=ghost','../moto/mandalla.html?embed=1&album=maquina'
   ];
+  const optLabel = v => v.replace(/^\.\.\/moto\/mandalla\.html\?embed=1&album=/, 'mandalla · ').replace(/\.html.*$/,'').replace(/^smith-(?=.)/,'');
+  function curName(frame, dflt){
+    try{ const raw = frame.getAttribute('src') || dflt; return OPTIONS.includes(raw) ? raw : new URL(frame.src).pathname.split('/').pop(); }catch{ return dflt; }
+  }
   function buildOptions(sel, current){
     if (!sel) return;
     const set = new Set([current, ...OPTIONS].filter(Boolean));
-    sel.innerHTML = Array.from(set).map(v=>`<option value="${v}">${v.replace('.html','')}</option>`).join('');
+    sel.innerHTML = Array.from(set).map(v=>`<option value="${v}">${optLabel(v)}</option>`).join('');
     if (current) sel.value = current;
   }
-  buildOptions(srcA_m, deckA?.src ? new URL(deckA.src).pathname.split('/').pop() : 'smith-968.html');
-  buildOptions(srcB_m, deckB?.src ? new URL(deckB.src).pathname.split('/').pop() : 'smith-137.html');
+  buildOptions(srcA_m, curName(deckA, 'smith-968.html'));
+  buildOptions(srcB_m, curName(deckB, 'smith-137.html'));
 
   function setSrc2(which, url){
     try{
-      if (!/^https?:\/\//i.test(url) && !url.startsWith('smith-') && !url.endsWith('.html')){ url = url + '.html'; }
+      if (!/^https?:\/\//i.test(url) && !/\.html?([?#]|$)/i.test(url)){ url = url + '.html'; }
       if (which==='A'){ deckA.src = url; if (srcA_m) srcA_m.value = url; }
       else { deckB.src = url; if (srcB_m) srcB_m.value = url; }
     }catch(e){}
@@ -284,7 +339,7 @@
 
   // Populate setup panel selects with OPTIONS and sync inputs
   function populateSetupSelects(){
-    const opts = OPTIONS.map(v=>`<option value="${v}">${v.replace('.html','')}</option>`).join('');
+    const opts = OPTIONS.map(v=>`<option value="${v}">${optLabel(v)}</option>`).join('');
     if (urlASelect){ urlASelect.innerHTML = `<option value="">Presets…</option>` + opts; }
     if (urlBSelect){ urlBSelect.innerHTML = `<option value="">Presets…</option>` + opts; }
     try{
@@ -304,7 +359,7 @@
   function normalizeUrlInput(v){
     let url = (v||'').trim();
     if (!url) return '';
-    if (!/^https?:\/\//i.test(url) && !url.endsWith('.html')) url = url + '.html';
+    if (!/^https?:\/\//i.test(url) && !/\.html?([?#]|$)/i.test(url)) url = url + '.html';
     return url;
   }
   function apply(which){
@@ -333,8 +388,10 @@
       mixGain.connect(dest);
     }
   }
-  function requestStreamForFrame(frame){ try{ frame?.contentWindow?.postMessage({ type:'request-audio-stream', id: frame.id }, '*'); }catch(e){} }
-  function setMonitor(frame, on){ try{ frame?.contentWindow?.postMessage({ type:'set-monitor', on: !!on }, '*'); }catch(e){} }
+  function requestStreamForFrame(){ /* retired: streams cannot be posted; see the same-origin tap */ }
+  // MediaStream cannot be posted between windows, so the old handshake never delivered audio.
+  // Decks are captured through the same-origin tap below; never ask a deck to mute itself.
+  function setMonitor(frame, on){ if (!on) return; try{ frame?.contentWindow?.postMessage({ type:'set-monitor', on:true }, '*'); }catch(e){} }
 
   window.addEventListener('load', ()=>{ setTimeout(()=>{ requestStreamForFrame(deckA); requestStreamForFrame(deckB); }, 600); });
 
@@ -425,10 +482,141 @@
       if (sources.size===0){ setTimeout(()=>{ requestStreamForFrame(deckA); requestStreamForFrame(deckB); }, 500); }
     } else {
       try{ mediaRecorder?.stop(); }catch{}
-      recOn = false; btnRecordBoth?.classList.remove('on'); btnRecordBoth.textContent = '● Record';
+      recOn = false; btnRecordBoth?.classList.remove('on'); btnRecordBoth.textContent = '● Rec';
     }
   }
   btnRecordBoth?.addEventListener('click', toggleRecord);
+
+  // ===== Same-origin tap: mix ANY deck page without the deck knowing =====
+  // Whatever a deck sends to its speakers is rerouted through a bus that feeds
+  // (a) a monitor gain to the deck's own output and (b) a stream the host mixes.
+  const taps = { deckA: [], deckB: [] };
+  function led(which){
+    const el = document.getElementById(which + 'Status'); if (!el) return;
+    const live = taps[which].length > 0;
+    const mixed = live && audioCtx && audioCtx.state === 'running';
+    el.classList.toggle('on', !!mixed); el.classList.toggle('direct', live && !mixed);
+  }
+  function syncMonitors(){
+    const hostLive = !!audioCtx && audioCtx.state === 'running';
+    for (const which of ['deckA','deckB']){
+      for (const t of taps[which]){ try{ t.mon.gain.value = hostLive ? 0 : 1; }catch{} }
+      led(which);
+    }
+  }
+  function onTap(which, t){
+    ensureAudio();
+    try{
+      t.node = audioCtx.createMediaStreamSource(t.msd.stream);
+      t.node.connect(which === 'deckA' ? deckAGain : deckBGain);
+    }catch(e){ console.warn('[deck tap] could not join mix', e); }
+    taps[which].push(t);
+    audioCtx.resume?.().catch(()=>{}).then(syncMonitors);
+    syncMonitors();
+  }
+  function tapFrame(frame){
+    let w; try{ w = frame.contentWindow; if (!w || !w.AudioNode || !w.document) return; }catch(e){ return; }
+    if (w.__sdTap) return;
+    const which = frame.id; const byCtx = new Map();
+    const P = w.AudioNode.prototype; const connect = P.connect; const disconnect = P.disconnect;
+    w.__sdTap = byCtx;
+    function busFor(dest){
+      const ctx = dest.context; let t = byCtx.get(ctx);
+      if (!t && typeof ctx.createMediaStreamDestination === 'function'){
+        t = { ctx, bus: ctx.createGain(), mon: ctx.createGain(), msd: ctx.createMediaStreamDestination() };
+        connect.call(t.bus, t.mon); connect.call(t.mon, dest); connect.call(t.bus, t.msd);
+        byCtx.set(ctx, t); onTap(which, t);
+      }
+      return t;
+    }
+    P.connect = function(dest){
+      if (dest instanceof w.AudioDestinationNode){
+        let t = null; try{ t = busFor(dest); }catch(e){}
+        if (t){ const a = Array.prototype.slice.call(arguments); a[0] = t.bus; connect.apply(this, a); return dest; }
+      }
+      return connect.apply(this, arguments);
+    };
+    P.disconnect = function(dest){
+      if (dest instanceof w.AudioDestinationNode){
+        const t = byCtx.get(dest.context);
+        if (t){ const a = Array.prototype.slice.call(arguments); a[0] = t.bus; return disconnect.apply(this, a); }
+      }
+      return disconnect.apply(this, arguments);
+    };
+  }
+  function watchFrame(frame){
+    const which = frame.id; let timer = null;
+    const hook = ()=> tapFrame(frame);
+    const reset = ()=>{
+      for (const t of taps[which]){ try{ t.node?.disconnect(); }catch{} }
+      taps[which] = []; led(which);
+      // catch the new window as early as possible, before its scripts build an audio graph
+      clearInterval(timer); let n = 0;
+      timer = setInterval(()=>{ hook(); if (++n > 400) clearInterval(timer); }, 8);
+    };
+    frame.addEventListener('load', ()=>{ clearInterval(timer); hook(); });
+    const setter = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
+    Object.defineProperty(frame, 'src', { configurable:true, get(){ return setter.get.call(this); }, set(v){ reset(); setter.set.call(this, v); } });
+    let n0 = 0; timer = setInterval(()=>{ hook(); if (++n0 > 400) clearInterval(timer); }, 8);
+  }
+  watchFrame(deckA); watchFrame(deckB);
+  window.smithHost = { taps, get ctx(){ return audioCtx; }, get mix(){ ensureAudio(); return dest.stream; } };
+  ['pointerdown','keydown'].forEach(ev => window.addEventListener(ev, ()=>{ if (audioCtx){ audioCtx.resume?.().catch(()=>{}).then(syncMonitors); } }, true));
+  setInterval(syncMonitors, 1000);
+
+  // Pause/Start also reach decks that ignore postMessage
+  function eachCtx(fn){ for (const which of ['deckA','deckB']) for (const t of taps[which]){ try{ fn(t.ctx); }catch{} } }
+  btnStartBoth?.addEventListener('click', ()=>{ eachCtx(c => c.resume()); syncMonitors(); });
+  btnPauseBoth?.addEventListener('click', ()=>{ eachCtx(c => paused ? c.suspend() : c.resume()); });
+
+  // ===== Moto crate: album tracks straight into either deck =====
+  const crate = document.getElementById('crate'), crateBtn = document.getElementById('crateBtn');
+  const crateAlbum = document.getElementById('crateAlbum'), crateTrack = document.getElementById('crateTrack'), crateInfo = document.getElementById('crateInfo');
+  const MOTO = new URL('../moto/', location.href);
+  let albums = null;
+  async function loadAlbums(){
+    if (albums) return albums;
+    crateInfo.textContent = 'Loading moto crates…';
+    try{
+      const txt = await (await fetch(new URL('mandalla.html', MOTO))).text();
+      const i = txt.indexOf('const ALBUM_CRATE_DEFS'); if (i < 0) throw new Error('crate list not found');
+      let j = txt.indexOf('{', i), d = 0, k = j;
+      for (; k < txt.length; k++){ const c = txt[k]; if (c === '{') d++; else if (c === '}'){ if (--d === 0) break; } }
+      const defs = (new Function('return (' + txt.slice(j, k + 1) + ')'))();
+      albums = Object.values(defs).filter(a => a && a.files && a.files.length);
+      crateAlbum.innerHTML = albums.map((a, n) => `<option value="${n}">${a.label} (${a.files.length})</option>`).join('');
+      const g = albums.findIndex(a => a.key === 'ghost'); if (g >= 0) crateAlbum.value = String(g);
+      fillTracks();
+      crateInfo.textContent = `Moto crate · ${albums.length} albums · pick a track, then send it to a deck`;
+    }catch(e){ albums = null; crateInfo.textContent = 'Moto crates unavailable here (they load when smith-deck and moto are served side by side).'; }
+    return albums;
+  }
+  function fillTracks(){
+    const a = albums?.[+crateAlbum.value]; if (!a) return;
+    crateTrack.innerHTML = a.files.map((f, n) => `<option value="${n}">${f.replace(/\.(mp3|ogg|wav|m4a)$/i,'').replace(/ - Sonauto$/,'').replace(/^(coolradio|[^-]+?) - /,'')}</option>`).join('');
+  }
+  crateAlbum?.addEventListener('change', fillTracks);
+  function trackUrl(){
+    const a = albums?.[+crateAlbum.value]; const f = a?.files[+crateTrack.value]; if (!f) return null;
+    const path = (a.basePath + f).split('/').map(encodeURIComponent).join('/');
+    return { url: new URL(path, MOTO).href, label: crateTrack.options[crateTrack.selectedIndex].textContent };
+  }
+  function sendToDeck(frame){
+    const t = trackUrl(); if (!t) return;
+    let doc; try{ doc = frame.contentWindow.document; }catch(e){ crateInfo.textContent = 'That deck is on another site; it cannot take crate tracks.'; return; }
+    const sel = doc.getElementById('radioSource');
+    if (!sel){ crateInfo.textContent = 'This deck has no radio/sample input. Try a 968, 137, 255, puppet or deco deck.'; return; }
+    let opt = Array.from(sel.options).find(o => o.value === t.url);
+    if (!opt){ opt = doc.createElement('option'); opt.value = t.url; opt.textContent = 'MOTO · ' + t.label; sel.appendChild(opt); }
+    sel.value = t.url;
+    sel.dispatchEvent(new frame.contentWindow.Event('change', { bubbles:true }));
+    crateInfo.textContent = `Sent “${t.label}” to deck ${frame.id === 'deckA' ? 'A' : 'B'}. Set that deck to Mix or Radio to hear it.`;
+    ensureAudio(); audioCtx.resume?.().catch(()=>{}).then(syncMonitors);
+  }
+  crateBtn?.addEventListener('click', ()=>{ const s = crate.classList.toggle('show'); if (s) loadAlbums(); });
+  document.getElementById('crateClose')?.addEventListener('click', ()=> crate.classList.remove('show'));
+  document.getElementById('crateA')?.addEventListener('click', ()=> sendToDeck(deckA));
+  document.getElementById('crateB')?.addEventListener('click', ()=> sendToDeck(deckB));
 
   // Per-deck open/fullscreen
   const fullA = document.getElementById('fullA');

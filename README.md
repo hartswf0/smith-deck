@@ -19,6 +19,21 @@ This repo is pure HTML/CSS/JS. No build step required.
   - `.vscode/settings.json` — Local IDE settings (useful for Live Server workflow).
   - `smith_decks_*.webm` — Example recorded output(s).
 
+## Deck bar (index.html)
+
+The mixer now sits in a bar under the decks instead of a long-press menu: deck pickers, cut A / B,
+crossfader, Start, Pause, Rec, Crate, URLs.
+
+- **Audio capture.** A `MediaStream` cannot be sent with `postMessage`, so the old
+  `request-audio-stream` handshake never delivered audio and the crossfader had nothing to fade.
+  The host now reroutes whatever a same-origin deck sends to its speakers through a bus it can mix.
+  No deck needs to cooperate, so the puppet, deco, 137 and 255 decks all crossfade, cut and record.
+  LED green = deck is in the mix; amber = deck is playing direct (host audio not started yet).
+- **Crate.** Lists the album crates defined in `../moto/mandalla.html` and plays a track through
+  either deck's radio/sample input. Needs `smith-deck` and `moto` served side by side (GitHub Pages does this).
+- **Other pages as decks.** `../moto/mandalla.html?embed=1&album=ghost` and other same-origin pages can be
+  loaded as deck A or B from the pickers or `?a=&b=`.
+
 ## Quick Start
 
 1) Serve the folder with a local HTTP server.
