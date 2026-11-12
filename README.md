@@ -19,34 +19,33 @@ This repo is pure HTML/CSS/JS. No build step required.
   - `.vscode/settings.json` — Local IDE settings (useful for Live Server workflow).
   - `smith_decks_*.webm` — Example recorded output(s).
 
-## Deck bar (index.html)
+## The deck (index.html)
 
-The mixer now sits in a bar under the decks instead of a long-press menu: deck pickers, cut A / B,
-crossfader, Start, Pause, Rec, Crate, URLs.
+Two equal square slots, A and B. Any table goes in either slot; the mixer and routing sit around them.
 
-- **Audio capture.** A `MediaStream` cannot be sent with `postMessage`, so the old
-  `request-audio-stream` handshake never delivered audio and the crossfader had nothing to fade.
-  The host now reroutes whatever a same-origin deck sends to its speakers through a bus it can mix.
-  No deck needs to cooperate, so the puppet, deco, 137 and 255 decks all crossfade, cut and record.
-  LED green = deck is in the mix; amber = deck is playing direct (host audio not started yet).
-- **Crate.** Lists the album crates defined in `../moto/mandalla.html` and plays a track through
-  either deck's radio/sample input. Needs `smith-deck` and `moto` served side by side (GitHub Pages does this).
-- **Other pages as decks.** `../moto/mandalla.html?embed=1&album=ghost` and other same-origin pages can be
-  loaded as deck A or B from the pickers or `?a=&b=`.
+- **Tables.** Pickers list Rings (every moto album as a mandalla table, plus ring·smith), Puppet, Smith,
+  Deco and Morph (FIELD, SEQUENCER, DEEP FIELD), or any URL. `?a=…&b=…` makes a setup a link.
+- **Clean squares.** The host hides each table's own chrome and scales it to the square. ☰ on a pad
+  opens that table's own controls. No table file is edited.
+- **Mixer.** Level fader + meter per deck, crossfade, cut A / B, SWAP A/B (no reload), PLAY, BPM ± / TAP
+  (sent to tables that follow tempo), REC of the mix.
+- **Audio capture.** The host reroutes whatever a same-origin table sends to its speakers into its own mix.
+  (The old `request-audio-stream` handshake could never work: a `MediaStream` cannot be posted between windows.)
+- **Routing, A → B and B → A, each with an amount:**
+  - `SEND → MIC IN`: the source table's sound replaces the target's microphone, so a puppet / vocoder /
+    sampler table processes the other table. Needs a target with a mic input (Smith, Puppet, Deco, Morph sampler).
+  - `RING MOD`: target × source at audio rate.
+  - `GATE`: target is heard only while the source is sounding.
+  - `DUCK`: source pushes the target down.
+  - `FILTER`: source loudness opens a low-pass on the target.
+  The last four work on any pair of tables, because they act on the captured audio in the host.
+- **Crate.** A moto album track into a Smith / Puppet / Deco table's radio input; from there it can be
+  sent to or modulate the other deck like any other source.
+- **To make a new table plug in:** one canvas that follows the window `resize` event, and all controls inside
+  `id="controls-container"`. Optional: a `#micInputToggle` button that calls `getUserMedia` (to receive SEND),
+  a `#radioSource` select (to receive crate tracks), `window.scionDeck.setBpm` (to follow tempo).
 
-## Square modules (index.html)
-
-Every table is shown as a clean square: chart only, same frame, same label chip, same ☰ button.
-The square is the largest that fits two-up (side by side, or stacked on a tall screen).
-
-- The host hides the table's own chrome (title stamp, corner buttons, help box, HUD pills, control panel)
-  and makes the chart fill the square. ☰ on the pad opens that table's controls as a sheet under a
-  smaller chart; tap again to close.
-- No table needs editing. A page is recognised if it has one of: `#controls-container`
-  (968 / puppet / deco family), `#dashboard` (255 / puppet-complex) or `#app > .panel` (137 / radio).
-- **To make a new table plug in:** put the playing surface in one canvas that resizes on the window
-  `resize` event, and put every control inside an element with `id="controls-container"`. That is the whole contract.
-  Pages that lay themselves out (smith-morph, mandalla with `?embed=1`) are left as they are.
+The earlier host is kept as `index-min-alt.html`.
 
 ## Quick Start
 

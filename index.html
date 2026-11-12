@@ -1,704 +1,486 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>SMITH • Minimal Decks (Alt)</title>
-  <style>
-    :root{
-      --bg:#0b0c0f; --panel:#0f1115; --ink:#e6e6e6; --muted:#9aa4ad; --ring:#1f2937;
-      --btn:#0c0e13;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; overscroll-behavior: none;}
-    body{ touch-action: manipulation; }
-    #wrap{position:fixed; inset:0; display:grid; grid-template-columns: 1fr 1fr; grid-auto-rows: auto; gap:0; height:100svh; min-height:100dvh;}
-    .pad{position:relative; aspect-ratio: 1 / 1; border:0;}
-    iframe{position:absolute; inset:0; width:100%; height:100%; border:0; background:#000}
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SMITH • DECK</title>
+<style>
+  :root{ --bg:#070a0e; --panel:#0c1016; --line:#22303d; --ink:#e6edf3; --muted:#8b98a5; --a:#22e3ff; --b:#ffb347; --rec:#ff5c6c; --play:#3dffa8; --tap:#b58cff;
+         --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; --sq:300px; --fw:56px; --gap:10px; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent }
+  html,body{ height:100%; margin:0; background:var(--bg); color:var(--ink); font-family:var(--mono); overflow:hidden; overscroll-behavior:none }
+  button, select{ font-family:var(--mono); color:var(--ink) }
+  #deck{ position:fixed; inset:0; padding:calc(env(safe-area-inset-top,0px) + 8px) 8px calc(env(safe-area-inset-bottom,0px) + 8px);
+    display:grid; gap:var(--gap); justify-content:center; align-content:center;
+    grid-template-columns: var(--fw) var(--sq) var(--sq) var(--fw);
+    grid-template-areas: ". pickA pickB ." "fadA padA padB fadB" "route route route route" "bar bar bar bar"; }
+  #deck.col{ grid-template-columns: var(--fw) var(--sq);
+    grid-template-areas: "pickA pickA" "fadA padA" "pickB pickB" "fadB padB" "bar bar"; }
 
-    /* Floating setup button: bottom-center, safe-area aware */
-    #setupBtn{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(env(safe-area-inset-bottom, 0px) + 12px); z-index:30; background:#0e1117; color:#e6e6e6; border:1px solid #263241; border-radius:999px; padding:10px 14px; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.45); font-weight:600}
-    #backdrop{position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:19; display:none}
-    #backdrop.show{display:block}
-    #panel{position:fixed; right:10px; top:60px; z-index:20; background:linear-gradient(180deg, #0f1115, #0c0e13); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:12px; width:min(520px, calc(100vw - 20px)); display:none; box-shadow:0 16px 40px rgba(0,0,0,.6)}
-    #panel.show{display:block}
-    #panel h3{margin:0 0 10px 0; font-size:13px; color:#9aa4ad; letter-spacing:.18em; text-transform:uppercase}
-    .row{display:flex; gap:8px; align-items:center; margin-bottom:8px}
-    .row input{flex:1; min-width:0; padding:8px 10px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid var(--ring)}
-    .row button{padding:8px 10px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid var(--ring); cursor:pointer}
-    .presets{display:flex; flex-wrap:wrap; gap:6px; margin-top:6px}
-    .preset{padding:6px 10px; border-radius:999px; background:#0b0d12; color:var(--ink); border:1px solid var(--ring); cursor:pointer}
-    .tiny{font-size:12px; color:#9aa4ad}
+  .picker{ height:46px; display:flex; align-items:center; gap:10px; padding:0 12px; border-radius:10px; background:var(--panel); border:2px solid var(--c); min-width:0 }
+  .picker b{ font-size:22px; color:var(--c) }
+  .picker select{ flex:1; min-width:0; height:100%; background:transparent; border:0; outline:0; font-size:15px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; cursor:pointer }
+  .picker select option, .picker select optgroup{ background:#0c1016; color:var(--ink); letter-spacing:0; text-transform:none }
+  .picker .led{ flex:none; width:10px; height:10px; border-radius:50%; background:#12202a; border:1px solid var(--line) }
+  .picker .led.on{ background:var(--play); box-shadow:0 0 8px var(--play) } .picker .led.direct{ background:var(--b); box-shadow:0 0 8px var(--b) }
+  #pickA{ grid-area:pickA; --c:var(--a) } #pickB{ grid-area:pickB; --c:var(--b) }
 
-    /* Minimal mobile: two squares, no chrome */
-    @media(max-width: 879px){
-      #panel, #backdrop{ display:none !important; }
-      .sd-dot{ display:none !important; }
-      .corner-btn{ display:flex !important; }
-      #wrap{ grid-template-columns: 1fr 1fr; height:100svh; min-height:100dvh; padding-top:0; }
-      .pad{ aspect-ratio: 1 / 1; }
-    }
+  .pad{ position:relative; width:var(--sq); height:var(--sq); border-radius:10px; overflow:hidden; background:#000; border:1px solid var(--line) }
+  .pad.inA{ grid-area:padA } .pad.inB{ grid-area:padB }
+  .pad iframe{ position:absolute; left:0; top:0; width:100%; height:100%; border:0; background:#000; transform-origin:0 0 }
+  .pad .gear{ position:absolute; top:6px; right:6px; z-index:3; width:40px; height:40px; border-radius:10px; background:rgba(5,8,12,.72); border:1px solid var(--line); font-size:17px; cursor:pointer }
+  .pad .gear.on{ border-color:var(--a); color:var(--a); background:#0e2a33 }
 
-    /* Orientation-aware layout: stack in portrait for larger squares */
-    @media (orientation: portrait){
-      #wrap{ grid-template-columns: 1fr; grid-auto-rows: auto; }
-    }
-    @media (orientation: landscape){
-      #wrap{ grid-template-columns: 1fr 1fr; grid-auto-rows: auto; }
-    }
+  .vfader{ --c:var(--a); width:var(--fw); height:var(--sq); border-radius:10px; background:var(--panel); border:1px solid var(--line);
+    display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 0; touch-action:none; cursor:ns-resize; user-select:none; -webkit-user-select:none }
+  .vfader b{ font-size:20px; color:var(--c) }
+  .vfader .track{ position:relative; flex:1; width:26px; border-radius:13px; background:#070a0e; border:1px solid var(--line); overflow:hidden }
+  .vfader .fill{ position:absolute; left:0; right:0; bottom:0; height:80%; background:linear-gradient(180deg, var(--c), color-mix(in srgb, var(--c) 55%, #000)); }
+  .vfader .meter{ position:absolute; right:0; bottom:0; width:6px; height:0; background:#fff; opacity:.85 }
+  .vfader .val{ font-size:12px; color:var(--c) }
+  #fadA{ grid-area:fadA } #fadB{ grid-area:fadB; --c:var(--b) }
 
-    /* SD dot: larger, tappable, acts as fullscreen button */
-    .sd-dot{ position:fixed; top:12px; left:12px; width:44px; height:44px; border-radius:50%; background:#6ee7ff; box-shadow:0 0 12px rgba(110,231,255,.9); z-index:9999; cursor:pointer; border:1px solid #233443; }
-    .sd-dot:active{ transform: scale(0.98); }
+  .row{ display:flex; align-items:center; gap:var(--gap); min-width:0 }
+  #deck.col .row:last-child{ flex-wrap:wrap } #deck.col .row:last-child .btn{ flex:1 1 auto }
+  #bar{ grid-area:bar; display:flex; flex-direction:column; gap:var(--gap); min-width:0 }
+  .btn{ height:48px; padding:0 14px; border-radius:10px; background:var(--panel); border:2px solid var(--line); font-size:14px; font-weight:700; letter-spacing:.12em; cursor:pointer; white-space:nowrap; flex:none }
+  .btn:active{ transform:translateY(1px) }
+  #cutA{ border-color:var(--a); color:var(--a); min-width:56px; font-size:18px } #cutB{ border-color:var(--b); color:var(--b); min-width:56px; font-size:18px }
+  #play{ border-color:var(--play); flex:1 1 120px } #play.on{ background:#0c2a1e }
+  #tap{ border-color:var(--tap) } #rec{ border-color:var(--rec); color:#ffb9c0 } #rec.on{ background:#3a0f14 }
+  #routeBtn.on{ border-color:var(--tap); color:var(--tap) }
+  #bpmBox{ display:flex; align-items:center; height:48px; border-radius:10px; background:var(--panel); border:2px solid var(--line); flex:none }
+  #bpmBox button{ width:40px; height:100%; background:transparent; border:0; font-size:18px; cursor:pointer } #bpmVal{ min-width:84px; text-align:center; font-size:14px; font-weight:700; letter-spacing:.1em }
+  #xfwrap{ flex:1 1 160px; min-width:90px; height:48px; position:relative; display:flex; align-items:center }
+  #xfwrap .lab{ position:absolute; top:-5px; left:0; right:0; text-align:center; font-size:10px; letter-spacing:.3em; color:var(--muted); pointer-events:none }
+  #xf{ -webkit-appearance:none; appearance:none; width:100%; height:44px; margin:0; background:transparent; touch-action:none }
+  #xf::-webkit-slider-runnable-track{ height:12px; border-radius:6px; background:linear-gradient(90deg,var(--a),#1b2633 48%,#1b2633 52%,var(--b)) }
+  #xf::-moz-range-track{ height:12px; border-radius:6px; background:linear-gradient(90deg,var(--a),#1b2633 48%,#1b2633 52%,var(--b)) }
+  #xf::-webkit-slider-thumb{ -webkit-appearance:none; width:32px; height:36px; margin-top:-12px; border-radius:8px; background:#dfe5ea; border:2px solid #0b0d12; box-shadow:0 2px 8px rgba(0,0,0,.6) }
+  #xf::-moz-range-thumb{ width:28px; height:32px; border-radius:8px; background:#dfe5ea; border:2px solid #0b0d12 }
 
-    /* Corner icon buttons */
-    .corner-btn{ position:fixed; top:10px; width:40px; height:40px; border-radius:12px; background:#0b0d12; border:1px solid #243444; display:none; align-items:center; justify-content:center; color:#9ee7ff; font-weight:800; letter-spacing:.06em; cursor:pointer; user-select:none; z-index:5001; box-shadow:0 4px 14px rgba(0,0,0,.35) inset, 0 0 10px rgba(110,231,255,.12) }
-    .corner-btn.left{ left:10px; }
-    .corner-btn.right{ right:10px; }
-    .corner-btn:active{ transform:scale(0.98); }
+  /* routing: either table can feed or modulate the other */
+  #route{ grid-area:route; display:flex; gap:var(--gap); min-width:0 }
+  .rt{ flex:1 1 0; min-width:0; display:flex; align-items:center; gap:8px; height:48px; padding:0 10px; border-radius:10px; background:var(--panel); border:1px solid var(--line) }
+  .rt .dir{ font-size:13px; font-weight:700; letter-spacing:.08em; white-space:nowrap } .rt .dir i{ font-style:normal; color:var(--muted) }
+  .rt select{ height:34px; border-radius:8px; background:#070a0e; border:1px solid var(--line); font-size:12px; font-weight:700; letter-spacing:.08em; padding:0 6px; cursor:pointer }
+  .rt input[type=range]{ flex:1; min-width:40px; height:34px; accent-color:var(--tap); touch-action:none }
+  .rt .amt{ width:38px; text-align:right; font-size:12px; color:var(--muted) }
+  .rt.live{ border-color:var(--tap) }
+  #routeNote{ display:none }
+  #deck.col #route{ position:fixed; left:8px; right:8px; bottom:calc(var(--barh,130px) + 16px); z-index:20; flex-direction:column; padding:10px; border-radius:12px;
+    background:#0b0f15; border:1px solid var(--tap); box-shadow:0 16px 40px rgba(0,0,0,.7); display:none }
+  #deck.col #route.show{ display:flex } #deck.col #routeNote{ display:block; font-size:11px; color:var(--muted); line-height:1.4 }
+  #deck:not(.col) #routeBtn{ display:none }
 
-    /* Popup menu for mobile controls */
-    .mini-menu{ position:fixed; top:56px; right:10px; width:min(90vw, 320px); background:linear-gradient(180deg, #0f1115, #0c0e13); color:var(--ink); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:10px; z-index:5002; display:none; box-shadow:0 16px 40px rgba(0,0,0,.6) }
-    .mini-menu.show{ display:block; }
-    .mini-menu .row{ display:flex; gap:8px; align-items:center; margin-bottom:8px }
-    .mini-menu select{ flex:1; min-width:0; padding:8px 10px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid #263241; font-size:13px }
-    .mini-menu .btn{ padding:8px 10px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid #263241; cursor:pointer; font-size:14px; width:100% }
-    .mini-scrim{ position:fixed; inset:0; background:transparent; z-index:5000; display:none }
-    .mini-scrim.show{ display:block }
-
-    /* ===== Deck bar: the mixer is always on screen ===== */
-    :root{ --barh: calc(64px + env(safe-area-inset-bottom, 0px)); }
-    /* Square modules: every table gets the same clean square, whatever page it is */
-    #wrap{ inset:0 0 var(--barh) 0; height:auto !important; min-height:0 !important; display:flex !important; align-items:center; justify-content:center; gap:0; background:#05070a; }
-    #wrap.col{ flex-direction:column; }
-    .pad{ flex:none; width:var(--sq, 50vw); height:var(--sq, 50vw); aspect-ratio:auto !important; overflow:hidden; background:#000; outline:1px solid #16212c; outline-offset:-1px; }
-    .pad .chip{ position:absolute; top:8px; left:8px; z-index:3; height:26px; padding:0 9px; border-radius:8px; display:flex; align-items:center; gap:6px; pointer-events:none;
-      font:700 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing:.12em; text-transform:uppercase; background:rgba(5,8,12,.72); border:1px solid #263241; color:#cfd8e3; max-width:calc(100% - 70px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-    .pad .chip b{ font-size:13px } #padA .chip b{ color:#6ee7ff } #padB .chip b{ color:#ffb454 }
-    .pad .gear{ position:absolute; top:6px; right:6px; z-index:3; width:44px; height:44px; border-radius:10px; background:rgba(5,8,12,.72); border:1px solid #263241; color:#cfd8e3; font-size:18px; cursor:pointer }
-    .pad .gear.on{ background:#12303a; border-color:#6ee7ff; color:#6ee7ff }
-    .sd-dot, .corner-btn{ display:none !important; }
-    #deckbar{ position:fixed; left:0; right:0; bottom:0; height:var(--barh); padding:8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); z-index:40;
-      display:flex; align-items:center; gap:8px; background:linear-gradient(180deg,#0f1115,#090b0f); border-top:1px solid #1c2a38; }
-    #deckbar select, #deckbar button{ height:48px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid #263241; font-size:13px; font-weight:600; cursor:pointer; padding:0 10px; white-space:nowrap }
-    #deckbar select{ min-width:0; flex:0 1 150px; }
-    #deckbar #btnPauseBoth{ min-width:44px } #deckbar .cut{ min-width:48px; font-size:15px; font-weight:800 }
-    #deckbar #cutA{ color:#6ee7ff; border-color:#1f5566 } #deckbar #cutB{ color:#ffb454; border-color:#66481f }
-    #deckbar button.on{ background:#3a0f14; border-color:#ff5c6c; color:#ffd5d9 }
-    #deckbar .led{ flex:0 0 10px; width:10px; height:10px; border-radius:50%; background:#0a2830; border:1px solid #243244 }
-    #deckbar .led.on{ background:#3dffa8; box-shadow:0 0 8px #3dffa8 }
-    #deckbar .led.direct{ background:#ffb454; box-shadow:0 0 8px #ffb454 }
-    #xfwrap{ flex:1 1 220px; min-width:120px; display:flex; flex-direction:column; justify-content:center; gap:2px }
-    #xfwrap .lab{ display:flex; justify-content:space-between; font-size:10px; letter-spacing:.14em; color:#9aa4ad; text-transform:uppercase; padding:0 4px }
-    #crossfader{ -webkit-appearance:none; appearance:none; width:100%; height:34px; margin:0; background:transparent; touch-action:none }
-    #crossfader::-webkit-slider-runnable-track{ height:10px; border-radius:6px; background:linear-gradient(90deg,#6ee7ff,#1b2633 45%,#1b2633 55%,#ffb454) }
-    #crossfader::-moz-range-track{ height:10px; border-radius:6px; background:linear-gradient(90deg,#6ee7ff,#1b2633 45%,#1b2633 55%,#ffb454) }
-    #crossfader::-webkit-slider-thumb{ -webkit-appearance:none; width:38px; height:34px; margin-top:-12px; border-radius:8px; background:#e6e6e6; border:2px solid #0b0d12; box-shadow:0 2px 8px rgba(0,0,0,.6) }
-    #crossfader::-moz-range-thumb{ width:34px; height:30px; border-radius:8px; background:#e6e6e6; border:2px solid #0b0d12 }
-    #setupBtn{ position:static !important; transform:none !important; box-shadow:none !important; }
-    #crate{ position:fixed; left:10px; right:10px; bottom:calc(var(--barh) + 8px); margin:0 auto; max-width:560px; z-index:45; display:none;
-      background:linear-gradient(180deg,#0f1115,#0c0e13); border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:12px; box-shadow:0 16px 40px rgba(0,0,0,.6) }
-    #crate.show{ display:block }
-    #crate select{ width:100%; height:44px; margin-bottom:8px; border-radius:10px; background:#0b0d12; color:var(--ink); border:1px solid #263241; padding:0 10px; font-size:14px }
-    #crate .go{ display:flex; gap:8px } #crate .go button{ flex:1; height:48px; border-radius:10px; background:#0b0d12; border:1px solid #263241; color:var(--ink); font-weight:700; cursor:pointer }
-    #crate #crateA{ color:#6ee7ff } #crate #crateB{ color:#ffb454 }
-    @media (max-width: 760px){
-      :root{ --barh: calc(120px + env(safe-area-inset-bottom, 0px)); }
-      #deckbar{ flex-wrap:wrap; align-content:center; row-gap:6px }
-      #deckbar > *{ order:1 }
-      #deckAStatus{ order:-3 } #cutA{ order:-2 } #xfwrap{ order:-1; flex:1 1 40% } #cutB{ order:-1 } #deckBStatus{ order:-1 }
-      #deckbar .brk{ flex-basis:100%; height:0; order:0 }
-      #deckbar select{ flex:1 1 0; height:44px; padding:0 6px } #deckbar button{ height:44px; padding:0 8px } #setupBtn, #fsBtn{ display:none !important }
-    }
-    @media (min-width: 761px){ #deckbar .brk{ display:none } }
-  </style>
+  #crate{ position:fixed; left:10px; right:10px; bottom:calc(var(--barh,130px) + 16px); margin:0 auto; max-width:560px; z-index:25; display:none;
+    background:#0b0f15; border:1px solid var(--line); border-radius:12px; padding:12px; box-shadow:0 16px 40px rgba(0,0,0,.7) }
+  #crate.show{ display:block }
+  #crate select{ width:100%; height:44px; margin-bottom:8px; border-radius:10px; background:#070a0e; border:1px solid var(--line); padding:0 10px; font-size:14px }
+  #crate .go{ display:flex; gap:8px } #crate .go button{ flex:1 }
+  #crateInfo, #hint{ font-size:11px; color:var(--muted); line-height:1.4 }
+  #crateA{ color:var(--a) } #crateB{ color:var(--b) }
+  @media (max-width:520px){ .btn{ padding:0 10px; font-size:12px; height:44px } #bpmBox{ height:44px } #bpmVal{ min-width:66px; font-size:12px } #bpmBox button{ width:32px }
+    .picker{ height:40px } .picker select{ font-size:13px } }
+</style>
 </head>
 <body>
-  <div class="sd-dot" role="button" aria-label="Fullscreen" title="Fullscreen" tabindex="0"></div>
-  <div class="corner-btn left" id="btnLogo" title="SMITH">SD</div>
-  <div class="corner-btn right" id="btnMenu" title="Fullscreen / Menu" aria-label="Fullscreen / Menu">⛶</div>
-  <div class="mini-scrim" id="miniScrim"></div>
-  <div class="mini-menu" id="miniMenu" role="menu" aria-label="Deck Controls">
-    <div class="row" style="justify-content:space-between">
-      <div class="tiny">Decks</div>
-    </div>
-    <div class="row" style="justify-content:space-between">
-      <button id="openA" class="btn" title="Open Deck A" style="flex:1">↗︎ Open A</button>
-      <button id="openB" class="btn" title="Open Deck B" style="flex:1">↗︎ Open B</button>
-    </div>
-    <div class="row" style="justify-content:space-between">
-      <button id="fullA" class="btn" title="Fullscreen Deck A" style="flex:1">⛶ Deck A</button>
-      <button id="fullB" class="btn" title="Fullscreen Deck B" style="flex:1">⛶ Deck B</button>
-    </div>
-    <button id="miniFullscreen" class="btn" title="Fullscreen" style="margin-top:6px">⛶ Fullscreen</button>
-  </div>
-  <div id="backdrop"></div>
-  <div id="panel" role="dialog" aria-modal="false">
-    <h3>Deck URLs</h3>
-    <div class="row">
-      <label class="tiny" for="urlA" style="min-width:42px">Deck A</label>
-      <input id="urlA" placeholder="https://… or local.html" />
-      <select id="urlASelect" title="Choose preset for Deck A" style="max-width:44%"></select>
-      <button id="applyA">Load A</button>
-    </div>
-    <div class="row">
-      <label class="tiny" for="urlB" style="min-width:42px">Deck B</label>
-      <input id="urlB" placeholder="https://… or local.html" />
-      <select id="urlBSelect" title="Choose preset for Deck B" style="max-width:44%"></select>
-      <button id="applyB">Load B</button>
-    </div>
-    <div class="presets">
-      <button class="preset" data-a="smith-968.html" data-b="smith-137.html">A:968 • B:137</button>
-      <button class="preset" data-a="smith-255.html" data-b="smith-968.html">A:255 • B:968</button>
-      <button class="preset" data-a="smith-968.html" data-b="smith-968.html">A:968 • B:968</button>
-      <button class="preset" data-a="smith-puppet.html" data-b="smith-968.html">A:Puppet • B:968</button>
-      <button class="preset" data-a="smith-puppet-complex.html" data-b="smith-puppet-02.html">A:Puppet complex • B:Puppet 02</button>
-      <button class="preset" data-a="smith-deco-puppet-00.html" data-b="deco-mood-03.html">A:Deco puppet • B:Deco mood</button>
-      <button class="preset" data-a="smith-puppet.html" data-b="../moto/mandalla.html?embed=1&album=ghost">A:Puppet • B:Mandalla</button>
-    </div>
-    <div class="tiny" style="margin-top:8px">Tip: you can enter any webpage URL (same-origin loads best). Query params also work: <code>?a=smith-968.html&b=smith-255.html</code></div>
+<div id="deck">
+  <div class="picker" id="pickA"><b>A</b><select id="selA" aria-label="Table in deck A"></select><span class="led" id="ledA"></span></div>
+  <div class="picker" id="pickB"><b>B</b><select id="selB" aria-label="Table in deck B"></select><span class="led" id="ledB"></span></div>
+
+  <div class="vfader" id="fadA" role="slider" aria-label="Deck A level" tabindex="0"><b>A</b><div class="track"><div class="fill"></div><div class="meter"></div></div><span class="val">80%</span></div>
+  <div class="pad inA" id="pad1"><iframe id="f1" allow="autoplay; microphone" allowfullscreen></iframe><button class="gear" title="Show / hide this table's own controls">☰</button></div>
+  <div class="pad inB" id="pad2"><iframe id="f2" allow="autoplay; microphone" allowfullscreen></iframe><button class="gear" title="Show / hide this table's own controls">☰</button></div>
+  <div class="vfader" id="fadB" role="slider" aria-label="Deck B level" tabindex="0"><b>B</b><div class="track"><div class="fill"></div><div class="meter"></div></div><span class="val">80%</span></div>
+
+  <div id="route">
+    <div class="rt" id="rtAB"><span class="dir"><span style="color:var(--a)">A</span> <i>→</i> <span style="color:var(--b)">B</span></span>
+      <select id="modeAB" aria-label="How A acts on B"></select><input id="amtAB" type="range" min="0" max="1" step="0.01" value="0.7" aria-label="A to B amount"><span class="amt" id="amtABv">70%</span></div>
+    <div class="rt" id="rtBA"><span class="dir"><span style="color:var(--b)">B</span> <i>→</i> <span style="color:var(--a)">A</span></span>
+      <select id="modeBA" aria-label="How B acts on A"></select><input id="amtBA" type="range" min="0" max="1" step="0.01" value="0.7" aria-label="B to A amount"><span class="amt" id="amtBAv">70%</span></div>
+    <div id="routeNote">SEND feeds one table's sound into the other's mic input. RING, GATE, DUCK and FILTER let one table's sound shape the other.</div>
   </div>
 
-  <div id="deckbar" role="toolbar" aria-label="Deck mixer">
-    <span id="deckAStatus" class="led" title="Deck A: green = in the mix, amber = playing direct"></span>
-    <select id="srcA_m" title="Deck A instrument" aria-label="Deck A instrument"></select>
-    <button id="cutA" class="cut" title="Cut to deck A">A</button>
-    <div id="xfwrap"><div class="lab"><span>Deck A</span><span>Crossfade</span><span>Deck B</span></div>
-      <input id="crossfader" type="range" min="0" max="1" step="0.01" value="0.5" aria-label="Crossfader" /></div>
-    <button id="cutB" class="cut" title="Cut to deck B">B</button>
-    <span class="brk"></span>
-    <select id="srcB_m" title="Deck B instrument" aria-label="Deck B instrument"></select>
-    <span id="deckBStatus" class="led" title="Deck B: green = in the mix, amber = playing direct"></span>
-    <button id="btnStartBoth" title="Start both decks">▶︎ Start</button>
-    <button id="btnPauseBoth" title="Pause/Resume both">⏯</button>
-    <button id="btnRecordBoth" title="Record the mix">● Rec</button>
-    <button id="crateBtn" title="Load a moto album track into a deck">Crate</button>
-    <button id="setupBtn" title="Set deck URLs">URLs</button>
-    <button id="fsBtn" title="Fullscreen">⛶</button>
+  <div id="bar">
+    <div class="row">
+      <button class="btn" id="cutA" title="Cut to A">A</button>
+      <div id="xfwrap"><span class="lab">CROSSFADE</span><input id="xf" type="range" min="0" max="1" step="0.005" value="0.5" aria-label="Crossfade"></div>
+      <button class="btn" id="cutB" title="Cut to B">B</button>
+    </div>
+    <div class="row">
+      <button class="btn" id="play">▶ PLAY</button>
+      <div id="bpmBox"><button id="bpmDn" aria-label="Slower">−</button><span id="bpmVal">120 BPM</span><button id="bpmUp" aria-label="Faster">+</button></div>
+      <button class="btn" id="tap">TAP</button>
+      <button class="btn" id="swap" title="Swap the two tables without reloading them">SWAP A/B</button>
+      <button class="btn" id="routeBtn">ROUTE</button>
+      <button class="btn" id="crateBtn" title="Send a moto album track to a table's radio input">CRATE</button>
+      <button class="btn" id="rec">● REC</button>
+    </div>
   </div>
-  <div id="crate" role="dialog" aria-label="Moto crate">
-    <div class="tiny" id="crateInfo" style="margin-bottom:8px">Moto crate · pick an album and a track, then send it to a deck</div>
-    <select id="crateAlbum" aria-label="Album"></select>
-    <select id="crateTrack" aria-label="Track"></select>
-    <div class="go"><button id="crateA">→ Deck A</button><button id="crateB">→ Deck B</button><button id="crateClose" style="flex:0 0 64px">Close</button></div>
-  </div>
+</div>
 
-  <div id="wrap">
-    <div class="pad" id="padA"><iframe id="deckA" src="smith-968.html" allow="autoplay; microphone" allowfullscreen></iframe>
-      <div class="chip"><b>A</b><span id="chipA">968</span></div><button class="gear" id="gearA" title="Show / hide deck A controls" aria-label="Deck A controls">☰</button></div>
-    <div class="pad" id="padB"><iframe id="deckB" src="smith-137.html" allow="autoplay; microphone" allowfullscreen></iframe>
-      <div class="chip"><b>B</b><span id="chipB">137</span></div><button class="gear" id="gearB" title="Show / hide deck B controls" aria-label="Deck B controls">☰</button></div>
-  </div>
+<div id="crate" role="dialog" aria-label="Moto crate">
+  <div id="crateInfo" style="margin-bottom:8px">Moto crate</div>
+  <select id="crateAlbum" aria-label="Album"></select>
+  <select id="crateTrack" aria-label="Track"></select>
+  <div class="go"><button class="btn" id="crateA">→ A</button><button class="btn" id="crateB">→ B</button><button class="btn" id="crateClose" style="flex:0 0 auto">CLOSE</button></div>
+</div>
 
 <script>
 (function(){
-  const $ = sel => document.querySelector(sel);
-  const deckA = $('#deckA');
-  const deckB = $('#deckB');
-  const srcA_m = document.getElementById('srcA_m');
-  const srcB_m = document.getElementById('srcB_m');
-  const btnMenu = document.getElementById('btnMenu');
-  const miniMenu = document.getElementById('miniMenu');
-  const miniScrim = document.getElementById('miniScrim');
-  const setupBtn = $('#setupBtn');
-  const panel = $('#panel');
-  const urlA = $('#urlA');
-  const urlB = $('#urlB');
-  const urlASelect = document.getElementById('urlASelect');
-  const urlBSelect = document.getElementById('urlBSelect');
-  const applyA = $('#applyA');
-  const applyB = $('#applyB');
-  const backdrop = $('#backdrop');
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const deckEl = $('deck');
+  const MOTO = new URL('../moto/', location.href), RES = '../resonome-genetic-archive/';
 
-  function setSrc(which, url){
-    try{
-      if (!/^https?:\/\//i.test(url) && !/\.html?([?#]|$)/i.test(url)){
-        // help relative URLs: if user typed just a word, append .html
-        url = url + '.html';
-      }
-      if (which==='A'){ deckA.src = url; urlA.value = url; }
-      else { deckB.src = url; urlB.value = url; }
-    }catch(e){ console.warn('setSrc failed', e); }
-  }
-
-  function parseParams(){
-    const u = new URL(location.href);
-    const a = u.searchParams.get('a');
-    const b = u.searchParams.get('b');
-    if (a) setSrc('A', a);
-    if (b) setSrc('B', b);
-  }
-
-  function togglePanel(force){
-    const show = (typeof force==='boolean') ? force : !panel.classList.contains('show');
-    panel.classList.toggle('show', show);
-    backdrop.classList.toggle('show', show);
-  }
-  setupBtn.addEventListener('click', ()=> togglePanel());
-  backdrop.addEventListener('click', ()=> togglePanel(false));
-  applyA.addEventListener('click', ()=> setSrc('A', urlA.value.trim()));
-  applyB.addEventListener('click', ()=> setSrc('B', urlB.value.trim()));
-
-  panel.addEventListener('click', (e)=>{
-    const p = e.target.closest('.preset'); if (!p) return;
-    const a = p.getAttribute('data-a'); const b = p.getAttribute('data-b');
-    setSrc('A', a); setSrc('B', b);
-  });
-
-  // Keyboard shortcut: "e" to toggle panel
-  document.addEventListener('keydown', (e)=>{ if(e.key.toLowerCase()==='e'){ panel.classList.toggle('show'); }});
-
-  // Initialize form values
-  urlA.value = deckA.src; urlB.value = deckB.src;
-  parseParams();
-
-  // Fullscreen helper for mobile: request fullscreen on first tap
-  function requestFullscreen(el){
-    try{
-      if (document.fullscreenElement || document.webkitFullscreenElement) return;
-      const t = el || document.documentElement;
-      if (t.requestFullscreen) t.requestFullscreen();
-      else if (t.webkitRequestFullscreen) t.webkitRequestFullscreen();
-    }catch(e){}
-  }
-  function tryLockOrientation(){
-    try{
-      if (screen.orientation && screen.orientation.lock){
-        const mode = (window.matchMedia('(orientation: landscape)').matches) ? 'landscape' : 'portrait';
-        screen.orientation.lock(mode).catch(()=>{});
-      }
-    }catch(e){}
-  }
-  function firstTap(){
-    requestFullscreen(document.documentElement);
-    tryLockOrientation();
-    document.removeEventListener('touchend', firstTap);
-    document.removeEventListener('click', firstTap);
-  }
-  if (window.matchMedia('(max-width: 879px)').matches){
-    document.addEventListener('touchend', firstTap, { once:false, passive:true });
-    document.addEventListener('click', firstTap, { once:false });
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
-  }
-
-  // SD dot toggles fullscreen on demand
-  const sdDot = document.querySelector('.sd-dot');
-  if (sdDot){
-    const toggleFS = ()=> requestFullscreen(document.documentElement);
-    sdDot.addEventListener('click', toggleFS);
-    sdDot.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); toggleFS(); }});
-  }
-
-  // Right icon: tap = fullscreen, long-press = menu
-  function closeMenu(){
-    miniMenu?.classList.remove('show');
-    miniScrim?.classList.remove('show');
-    if (setupBtn) setupBtn.style.display = '';
-  }
-  function toggleMenu(){
-    const s = miniMenu?.classList.toggle('show');
-    if(s){ miniScrim?.classList.add('show'); if (setupBtn) setupBtn.style.display = 'none'; }
-    else { miniScrim?.classList.remove('show'); if (setupBtn) setupBtn.style.display = ''; }
-  }
-  miniScrim?.addEventListener('click', closeMenu);
-  if (btnMenu){
-    let pressTimer;
-    const FS = ()=> requestFullscreen(document.documentElement);
-    const start = ()=>{ pressTimer = setTimeout(()=>{ toggleMenu(); }, 550); };
-    const clear = (doTap)=>{ if (pressTimer){ clearTimeout(pressTimer); pressTimer = null; if (doTap){ FS(); } } };
-    btnMenu.addEventListener('touchstart', start, {passive:true});
-    btnMenu.addEventListener('touchend', ()=> clear(true));
-    btnMenu.addEventListener('mousedown', start);
-    btnMenu.addEventListener('mouseup', ()=> clear(true));
-    btnMenu.addEventListener('mouseleave', ()=> clear(false));
-    btnMenu.addEventListener('dblclick', (e)=>{ e.preventDefault(); toggleMenu(); });
-  }
-
-  // Populate mobile selects with known options + current URLs
-  const OPTIONS = [
-    'smith-968.html','smith-137.html','smith-255.html',
-    'smith-puppet.html','smith-puppet-01.html','smith-puppet-02.html','smith-puppet-complex.html','smith-deco-puppet-00.html',
-    'deco-mood-00.html','deco-mood-02.html','deco-mood-03.html',
-    'smith-radio.html','double-smith.html','dub-base.html','sg-00.html','sg-01.html',
-    '../moto/mandalla.html?embed=1&album=ghost','../moto/mandalla.html?embed=1&album=maquina'
+  // ---------- tables: anything here can go in either deck ----------
+  const TABLES = [
+    ['Rings', [['GHOST', '../moto/mandalla.html?embed=1&album=ghost'], ['MAQUINA', '../moto/mandalla.html?embed=1&album=maquina'], ['RING · SMITH', '../moto/mandalla-smith.html?embed=1']]],
+    ['Puppet', [['PUPPET', 'smith-puppet.html'], ['PUPPET 01', 'smith-puppet-01.html'], ['PUPPET 02', 'smith-puppet-02.html'], ['PUPPET COMPLEX', 'smith-puppet-complex.html'], ['DECO PUPPET', 'smith-deco-puppet-00.html']]],
+    ['Smith', [['SMITH 968', 'smith-968.html'], ['SMITH 137', 'smith-137.html'], ['SMITH 255', 'smith-255.html'], ['SMITH RADIO', 'smith-radio.html'], ['SMITH MORPH', 'smith-morph.html?embed=1']]],
+    ['Deco', [['DECO MOOD 00', 'deco-mood-00.html'], ['DECO MOOD 02', 'deco-mood-02.html'], ['DECO MOOD 03', 'deco-mood-03.html']]],
+    ['Morph', [['FIELD', RES + 'mighty-morph-08g.html?embed=1&view=field'], ['SEQUENCER', RES + 'mighty-morph-08g.html?embed=1&view=seq'], ['DEEP FIELD', RES + 'deep-field.html?embed=1']]],
   ];
-  const optLabel = v => v.replace(/^\.\.\/moto\/mandalla\.html\?embed=1&album=/, 'mandalla · ').replace(/\.html.*$/,'').replace(/^smith-(?=.)/,'');
-  function curName(frame, dflt){
-    try{ const raw = frame.getAttribute('src') || dflt; return OPTIONS.includes(raw) ? raw : new URL(frame.src).pathname.split('/').pop(); }catch{ return dflt; }
+  function buildPicker(sel, current){
+    sel.innerHTML = TABLES.map(([g, items]) => `<optgroup label="${g}">` + items.map(([n, u]) => `<option value="${u}">${n}</option>`).join('') + '</optgroup>').join('')
+      + '<optgroup label="Other"><option value="__url">Custom URL…</option></optgroup>';
+    if (current){
+      if (![...sel.options].some(o => o.value === current)){ const o = new Option(current.split('/').pop().replace(/\.html.*$/, '').toUpperCase(), current); sel.querySelector('optgroup:last-child').prepend(o); }
+      sel.value = current;
+    }
   }
-  function buildOptions(sel, current){
-    if (!sel) return;
-    const set = new Set([current, ...OPTIONS].filter(Boolean));
-    sel.innerHTML = Array.from(set).map(v=>`<option value="${v}">${optLabel(v)}</option>`).join('');
-    if (current) sel.value = current;
+
+  // ---------- slots and frames ----------
+  const frames = { f1: $('f1'), f2: $('f2') };
+  const slot = { A: 'f1', B: 'f2' };                    // which frame sits in which deck
+  const sideOf = fid => slot.A === fid ? 'A' : 'B';
+  const other = s => s === 'A' ? 'B' : 'A';
+  const st = { level: { A: 0.8, B: 0.8 }, xf: 0.5, bpm: 120, playing: false, mode: { AB: 'off', BA: 'off' }, amt: { AB: 0.7, BA: 0.7 } };
+  const q = new URL(location.href).searchParams;
+  const url = { f1: q.get('a') || 'smith-puppet.html', f2: q.get('b') || 'smith-968.html' };
+
+  // ---------- host audio ----------
+  let ctx, mix, limiter, recDest; const chain = {};
+  function curve(fn){ const n = 1024, c = new Float32Array(n); for (let i = 0; i < n; i++) c[i] = fn(i / (n - 1) * 2 - 1); return c; }
+  function mkChain(){
+    const c = {};
+    c.in = ctx.createGain();                             // everything the table sends to its speakers
+    c.mod = ctx.createGain(); c.filt = ctx.createBiquadFilter(); c.filt.type = 'lowpass'; c.filt.frequency.value = 20000; c.filt.Q.value = 0.9;
+    c.level = ctx.createGain(); c.an = ctx.createAnalyser(); c.an.fftSize = 1024; c.xf = ctx.createGain();
+    c.in.connect(c.mod); c.mod.connect(c.filt); c.filt.connect(c.level); c.level.connect(c.an); c.an.connect(c.xf); c.xf.connect(mix);
+    // envelope follower: 0..1 signal that tracks how loud this table is
+    const abs = ctx.createWaveShaper(); abs.curve = curve(x => Math.abs(x));
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 14;
+    const boost = ctx.createGain(); boost.gain.value = 22;
+    const sat = ctx.createWaveShaper(); sat.curve = curve(x => Math.max(0, Math.min(1, x)));
+    c.in.connect(abs); abs.connect(lp); lp.connect(boost); boost.connect(sat); c.env = sat;
+    // send: this table's sound, offered to the other table as a "microphone"
+    c.sendGain = ctx.createGain(); c.send = ctx.createMediaStreamDestination(); c.in.connect(c.sendGain); c.sendGain.connect(c.send);
+    c.modAmt = ctx.createGain(); c.modAmt.gain.value = 0;  // carries the other table's signal into this one's params
+    c.buf = new Float32Array(1024);
+    return c;
   }
-  buildOptions(srcA_m, curName(deckA, 'smith-968.html'));
-  buildOptions(srcB_m, curName(deckB, 'smith-137.html'));
-
-  function setSrc2(which, url){
-    try{
-      if (!/^https?:\/\//i.test(url) && !/\.html?([?#]|$)/i.test(url)){ url = url + '.html'; }
-      if (which==='A'){ deckA.src = url; if (srcA_m) srcA_m.value = url; }
-      else { deckB.src = url; if (srcB_m) srcB_m.value = url; }
-    }catch(e){}
-  }
-  if (srcA_m){ srcA_m.addEventListener('change', ()=> setSrc2('A', srcA_m.value)); }
-  if (srcB_m){ srcB_m.addEventListener('change', ()=> setSrc2('B', srcB_m.value)); }
-
-  // Populate setup panel selects with OPTIONS and sync inputs
-  function populateSetupSelects(){
-    const opts = OPTIONS.map(v=>`<option value="${v}">${optLabel(v)}</option>`).join('');
-    if (urlASelect){ urlASelect.innerHTML = `<option value="">Presets…</option>` + opts; }
-    if (urlBSelect){ urlBSelect.innerHTML = `<option value="">Presets…</option>` + opts; }
-    try{
-      const curA = deckA?.src ? new URL(deckA.src).pathname.split('/').pop() : '';
-      const curB = deckB?.src ? new URL(deckB.src).pathname.split('/').pop() : '';
-      if (urlA){ urlA.value = curA; }
-      if (urlB){ urlB.value = curB; }
-      if (urlASelect && curA) urlASelect.value = curA;
-      if (urlBSelect && curB) urlBSelect.value = curB;
-    }catch{}
-  }
-  populateSetupSelects();
-
-  urlASelect?.addEventListener('change', ()=>{ if (urlASelect.value){ urlA.value = urlASelect.value; } });
-  urlBSelect?.addEventListener('change', ()=>{ if (urlBSelect.value){ urlB.value = urlBSelect.value; } });
-
-  function normalizeUrlInput(v){
-    let url = (v||'').trim();
-    if (!url) return '';
-    if (!/^https?:\/\//i.test(url) && !/\.html?([?#]|$)/i.test(url)) url = url + '.html';
-    return url;
-  }
-  function apply(which){
-    const v = which==='A' ? normalizeUrlInput(urlA.value) : normalizeUrlInput(urlB.value);
-    if (!v) return;
-    setSrc(which, v);
-  }
-  applyA?.addEventListener('click', ()=> apply('A'));
-  applyB?.addEventListener('click', ()=> apply('B'));
-  urlA?.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); apply('A'); }});
-  urlB?.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); apply('B'); }});
-
-  // ===== Parent audio mixer & recorder =====
-  let audioCtx; let deckAGain; let deckBGain; let mixGain; let dest; let mediaRecorder; let chunks=[]; let recOn=false;
-  const sources = new Map();
-
   function ensureAudio(){
-    if (!audioCtx){
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      deckAGain = audioCtx.createGain(); deckAGain.gain.value = 0.5;
-      deckBGain = audioCtx.createGain(); deckBGain.gain.value = 0.5;
-      mixGain = audioCtx.createGain(); mixGain.gain.value = 1;
-      deckAGain.connect(mixGain); deckBGain.connect(mixGain);
-      dest = audioCtx.createMediaStreamDestination();
-      mixGain.connect(audioCtx.destination);
-      mixGain.connect(dest);
-    }
+    if (ctx) return;
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    mix = ctx.createGain(); limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -4; limiter.knee.value = 2; limiter.ratio.value = 20; limiter.attack.value = 0.002; limiter.release.value = 0.12;
+    recDest = ctx.createMediaStreamDestination();
+    mix.connect(limiter); limiter.connect(ctx.destination); limiter.connect(recDest);
+    chain.f1 = mkChain(); chain.f2 = mkChain();
+    for (const fid of ['f1', 'f2']) for (const t of taps[fid]) joinTap(fid, t);
+    ctx.onstatechange = syncMonitors;
+    applyAll();
   }
-  function requestStreamForFrame(){ /* retired: streams cannot be posted; see the same-origin tap */ }
-  // MediaStream cannot be posted between windows, so the old handshake never delivered audio.
-  // Decks are captured through the same-origin tap below; never ask a deck to mute itself.
-  function setMonitor(frame, on){ if (!on) return; try{ frame?.contentWindow?.postMessage({ type:'set-monitor', on:true }, '*'); }catch(e){} }
 
-  window.addEventListener('load', ()=>{ setTimeout(()=>{ requestStreamForFrame(deckA); requestStreamForFrame(deckB); }, 600); });
-
-  window.addEventListener('message', (e)=>{
-    const msg = e.data || {};
-    if (msg && msg.type==='audio-stream'){
-      ensureAudio();
-      let which = msg.id;
-      if (!which){ if (e.source === deckA.contentWindow) which = 'deckA'; else if (e.source === deckB.contentWindow) which = 'deckB'; }
-      if (!which) return;
-      const prev = sources.get(which); try{ if(prev?.node) prev.node.disconnect(); }catch{}
-      const node = audioCtx.createMediaStreamSource(msg.stream);
-      if (which === 'deckA' || which === 'frameA'){ node.connect(deckAGain); document.getElementById('deckAStatus')?.classList.add('on'); setMonitor(deckA, false); }
-      else { node.connect(deckBGain); document.getElementById('deckBStatus')?.classList.add('on'); setMonitor(deckB, false); }
-      sources.set(which, { stream: msg.stream, node });
-      audioCtx.resume?.().catch(()=>{});
-    }
-  });
-
-  const btnStartBoth = document.getElementById('btnStartBoth');
-  const btnPauseBoth = document.getElementById('btnPauseBoth');
-  const btnRecordBoth = document.getElementById('btnRecordBoth');
-  const crossfader = document.getElementById('crossfader');
-  const cutA = document.getElementById('cutA');
-  const cutB = document.getElementById('cutB');
-
-  function startBoth(){
-    ensureAudio();
-    deckA.contentWindow?.postMessage({ type:'resume-audio' }, '*');
-    deckB.contentWindow?.postMessage({ type:'resume-audio' }, '*');
-    setMonitor(deckA, false); setMonitor(deckB, false);
-    requestStreamForFrame(deckA); requestStreamForFrame(deckB);
-    audioCtx.resume?.();
-  }
-  btnStartBoth?.addEventListener('click', startBoth);
-
-  let paused=false;
-  function togglePauseBoth(){
-    paused = !paused;
-    if (paused){
-      deckA.contentWindow?.postMessage({ type:'suspend-audio' }, '*');
-      deckB.contentWindow?.postMessage({ type:'suspend-audio' }, '*');
-      btnPauseBoth.textContent = '▶︎'; btnPauseBoth.title = 'Resume both';
-    } else {
-      deckA.contentWindow?.postMessage({ type:'resume-audio' }, '*');
-      deckB.contentWindow?.postMessage({ type:'resume-audio' }, '*');
-      btnPauseBoth.textContent = '⏯'; btnPauseBoth.title = 'Pause both';
-    }
-  }
-  btnPauseBoth?.addEventListener('click', togglePauseBoth);
-
-  function setCrossfade(t){
-    ensureAudio();
-    t = Math.min(1, Math.max(0, parseFloat(t)||0));
-    if (deckAGain && deckBGain){
-      const a = Math.cos(t * Math.PI/2);
-      const b = Math.sin(t * Math.PI/2);
-      deckAGain.gain.setTargetAtTime(a, audioCtx.currentTime, 0.02);
-      deckBGain.gain.setTargetAtTime(b, audioCtx.currentTime, 0.02);
-    }
-  }
-  crossfader?.addEventListener('input', ()=>{ const v = parseFloat(crossfader.value)||0; ensureAudio(); audioCtx.resume?.(); setCrossfade(v); requestStreamForFrame(deckA); requestStreamForFrame(deckB); });
-  cutA?.addEventListener('click', ()=>{ if(crossfader){ crossfader.value = 0; } setCrossfade(0); });
-  cutB?.addEventListener('click', ()=>{ if(crossfader){ crossfader.value = 1; } setCrossfade(1); });
-  setCrossfade(0.5);
-
-  function toggleRecord(){
-    ensureAudio();
-    if (!recOn){
-      chunks = [];
-      const mtCandidates = ['audio/webm;codecs=opus','audio/webm; codecs=opus','audio/webm','audio/mp4','audio/aac'];
-      let opts=undefined; for(const mt of mtCandidates){ if(MediaRecorder.isTypeSupported?.(mt)){ opts={mimeType:mt}; break; } }
-      try{ mediaRecorder = new MediaRecorder(dest.stream, opts); }catch(e){ alert('Recording not supported in this browser'); return; }
-      mediaRecorder.ondataavailable = (ev)=>{ if (ev.data?.size>0) chunks.push(ev.data); };
-      mediaRecorder.onstop = ()=>{
-        const type = mediaRecorder.mimeType || 'audio/webm';
-        const blob = new Blob(chunks, { type });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.style.display='none'; a.href=url; a.download = `smith_decks_${new Date().toISOString()}.webm`;
-        document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
-      };
-      deckA.contentWindow?.postMessage({ type:'resume-audio' }, '*');
-      deckB.contentWindow?.postMessage({ type:'resume-audio' }, '*');
-      setMonitor(deckA, false); setMonitor(deckB, false);
-      requestStreamForFrame(deckA); requestStreamForFrame(deckB);
-      audioCtx.resume?.();
-      mediaRecorder.start(); recOn = true; btnRecordBoth?.classList.add('on'); btnRecordBoth.textContent = '■ Stop';
-      if (sources.size===0){ setTimeout(()=>{ requestStreamForFrame(deckA); requestStreamForFrame(deckB); }, 500); }
-    } else {
-      try{ mediaRecorder?.stop(); }catch{}
-      recOn = false; btnRecordBoth?.classList.remove('on'); btnRecordBoth.textContent = '● Rec';
-    }
-  }
-  btnRecordBoth?.addEventListener('click', toggleRecord);
-
-  // ===== Same-origin tap: mix ANY deck page without the deck knowing =====
-  // Whatever a deck sends to its speakers is rerouted through a bus that feeds
-  // (a) a monitor gain to the deck's own output and (b) a stream the host mixes.
-  const taps = { deckA: [], deckB: [] };
-  function led(which){
-    const el = document.getElementById(which + 'Status'); if (!el) return;
-    const live = taps[which].length > 0;
-    const mixed = live && audioCtx && audioCtx.state === 'running';
-    el.classList.toggle('on', !!mixed); el.classList.toggle('direct', live && !mixed);
-  }
+  // ---------- same-origin tap: capture any table without the table knowing ----------
+  const taps = { f1: [], f2: [] };
+  function joinTap(fid, t){ if (!ctx || t.node) return; try{ t.node = ctx.createMediaStreamSource(t.msd.stream); t.node.connect(chain[fid].in); }catch(e){ console.warn('[deck] tap', e); } }
   function syncMonitors(){
-    const hostLive = !!audioCtx && audioCtx.state === 'running';
-    for (const which of ['deckA','deckB']){
-      for (const t of taps[which]){ try{ t.mon.gain.value = hostLive ? 0 : 1; }catch{} }
-      led(which);
+    const live = !!ctx && ctx.state === 'running';
+    for (const fid of ['f1', 'f2']){
+      for (const t of taps[fid]){ try{ t.mon.gain.value = live ? 0 : 1; }catch{} }
+      const led = $('led' + sideOf(fid)), has = taps[fid].length > 0;
+      led.classList.toggle('on', has && live); led.classList.toggle('direct', has && !live);
     }
-  }
-  function onTap(which, t){
-    ensureAudio();
-    try{
-      t.node = audioCtx.createMediaStreamSource(t.msd.stream);
-      t.node.connect(which === 'deckA' ? deckAGain : deckBGain);
-    }catch(e){ console.warn('[deck tap] could not join mix', e); }
-    taps[which].push(t);
-    audioCtx.resume?.().catch(()=>{}).then(syncMonitors);
-    syncMonitors();
   }
   function tapFrame(frame){
     let w; try{ w = frame.contentWindow; if (!w || !w.AudioNode || !w.document) return; }catch(e){ return; }
     if (w.__sdTap) return;
-    const which = frame.id; const byCtx = new Map();
-    const P = w.AudioNode.prototype; const connect = P.connect; const disconnect = P.disconnect;
-    w.__sdTap = byCtx;
+    const fid = frame.id, byCtx = new Map(); w.__sdTap = byCtx;
+    const P = w.AudioNode.prototype, connect = P.connect, disconnect = P.disconnect;
     function busFor(dest){
-      const ctx = dest.context; let t = byCtx.get(ctx);
-      if (!t && typeof ctx.createMediaStreamDestination === 'function'){
-        t = { ctx, bus: ctx.createGain(), mon: ctx.createGain(), msd: ctx.createMediaStreamDestination() };
+      const c = dest.context; let t = byCtx.get(c);
+      if (!t && typeof c.createMediaStreamDestination === 'function'){
+        t = { ctx: c, bus: c.createGain(), mon: c.createGain(), msd: c.createMediaStreamDestination() };
         connect.call(t.bus, t.mon); connect.call(t.mon, dest); connect.call(t.bus, t.msd);
-        byCtx.set(ctx, t); onTap(which, t);
+        byCtx.set(c, t); taps[fid].push(t); ensureAudio(); joinTap(fid, t);
+        ctx.resume?.().catch(()=>{}).then(syncMonitors); syncMonitors();
       }
       return t;
     }
     P.connect = function(dest){
-      if (dest instanceof w.AudioDestinationNode){
-        let t = null; try{ t = busFor(dest); }catch(e){}
-        if (t){ const a = Array.prototype.slice.call(arguments); a[0] = t.bus; connect.apply(this, a); return dest; }
-      }
+      if (dest instanceof w.AudioDestinationNode){ let t = null; try{ t = busFor(dest); }catch(e){}
+        if (t){ const a = [].slice.call(arguments); a[0] = t.bus; connect.apply(this, a); return dest; } }
       return connect.apply(this, arguments);
     };
     P.disconnect = function(dest){
-      if (dest instanceof w.AudioDestinationNode){
-        const t = byCtx.get(dest.context);
-        if (t){ const a = Array.prototype.slice.call(arguments); a[0] = t.bus; return disconnect.apply(this, a); }
-      }
+      if (dest instanceof w.AudioDestinationNode){ const t = byCtx.get(dest.context); if (t){ const a = [].slice.call(arguments); a[0] = t.bus; return disconnect.apply(this, a); } }
       return disconnect.apply(this, arguments);
     };
+    // SEND: when the other deck is sending here, this table's microphone IS the other table
+    try{
+      const md = w.navigator.mediaDevices;
+      if (md && md.getUserMedia){
+        const real = md.getUserMedia.bind(md);
+        md.getUserMedia = function(cons){
+          const me = sideOf(fid), from = other(me);
+          if (cons && cons.audio && st.mode[from + me] === 'send'){ ensureAudio(); return Promise.resolve(chain[slot[from]].send.stream.clone()); }
+          return real(cons);
+        };
+      }
+    }catch(e){}
   }
-  function watchFrame(frame){
-    const which = frame.id; let timer = null;
-    const hook = ()=> tapFrame(frame);
-    const reset = ()=>{
-      for (const t of taps[which]){ try{ t.node?.disconnect(); }catch{} }
-      taps[which] = []; led(which);
-      // catch the new window as early as possible, before its scripts build an audio graph
-      clearInterval(timer); let n = 0;
-      timer = setInterval(()=>{ hook(); if (++n > 400) clearInterval(timer); }, 8);
-    };
-    frame.addEventListener('load', ()=>{ clearInterval(timer); hook(); });
-    const setter = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
-    Object.defineProperty(frame, 'src', { configurable:true, get(){ return setter.get.call(this); }, set(v){ reset(); setter.set.call(this, v); } });
-    let n0 = 0; timer = setInterval(()=>{ hook(); if (++n0 > 400) clearInterval(timer); }, 8);
-  }
-  watchFrame(deckA); watchFrame(deckB);
-  window.smithHost = { taps, get ctx(){ return audioCtx; }, get mix(){ ensureAudio(); return dest.stream; } };
-  ['pointerdown','keydown'].forEach(ev => window.addEventListener(ev, ()=>{ if (audioCtx){ audioCtx.resume?.().catch(()=>{}).then(syncMonitors); } }, true));
-  setInterval(syncMonitors, 1000);
 
-  // Pause/Start also reach decks that ignore postMessage
-  function eachCtx(fn){ for (const which of ['deckA','deckB']) for (const t of taps[which]){ try{ fn(t.ctx); }catch{} } }
-  btnStartBoth?.addEventListener('click', ()=>{ eachCtx(c => c.resume()); syncMonitors(); });
-  btnPauseBoth?.addEventListener('click', ()=>{ eachCtx(c => paused ? c.suspend() : c.resume()); });
-
-  // ===== Square module mode =====
-  // The host styles each same-origin deck so only its playing surface shows in the square.
-  // The deck's own controls open as a sheet from the ☰ on its pad. Decks need no changes.
+  // ---------- square module styling (tables need no changes) ----------
   const MODULE_CSS = `
     html.sd-module, html.sd-module body{ overflow:hidden !important; }
     html.sd-module #sgStamp, html.sd-module #quickButtons, html.sd-module .help, html.sd-module #helpBox{ display:none !important; }
     html.sd-module:not(.sd-open) #controls-container, html.sd-module:not(.sd-open) #dashboard,
     html.sd-module:not(.sd-open) #topHud, html.sd-module:not(.sd-open) #dock, html.sd-module:not(.sd-open) .bottom-dock,
-    html.sd-module:not(.sd-open) #app > .panel, html.sd-module:not(.sd-open) #app > .hud{ display:none !important; }
+    html.sd-module:not(.sd-open) #app > .panel, html.sd-module:not(.sd-open) #app > .hud,
+    html.sd-module:not(.sd-open) #top-strip, html.sd-module:not(.sd-open) #embed-strip-toggle{ display:none !important; }
     html.sd-module.sd-open #controls-container, html.sd-module.sd-open #dashboard, html.sd-module.sd-open #app > .panel{ max-height:58vh !important; overflow:auto !important; -webkit-overflow-scrolling:touch; }
     html.sd-module.sd-open #controls-container, html.sd-module.sd-open #main-menu-content{ display:flex !important; }
     html.sd-module.sd-open .bottom-dock{ display:none !important; }
     html.sd-module.sd-flex #app{ display:flex !important; flex-direction:column; }
     html.sd-module.sd-flex #app > canvas{ flex:1 1 0; min-height:0; height:auto !important; }
     html.sd-module.sd-flex #app > .panel{ flex:0 0 auto; }
+    html.sd-morph #topbar, html.sd-morph .rail, html.sd-morph .surface-head, html.sd-morph #start-hint{ display:none !important; }
+    html.sd-morph #app{ padding:0 !important; gap:0 !important; } html.sd-morph #stage, html.sd-morph #portal-container{ gap:0 !important; }
+    html.sd-morph .canvas-container{ border:0 !important; border-radius:0 !important; }
+    html.sd-view-field #deck-b-container, html.sd-view-seq #deck-a-container{ display:none !important; }
+    html.sd-morph.sd-open #dock{ max-height:58vh; overflow:auto; }
   `;
-  const wrapEl = document.getElementById('wrap');
-  function layoutSquares(){
-    const r = wrapEl.getBoundingClientRect();
-    const row = Math.min(r.width / 2, r.height), col = Math.min(r.width, r.height / 2);
-    wrapEl.classList.toggle('col', col > row);
-    wrapEl.style.setProperty('--sq', Math.floor(Math.max(row, col)) + 'px');
+  const minSize = u => /mandalla\.html/.test(u) ? 640 : /mighty-morph|deep-field|mandalla-smith/.test(u) ? 0 : 420;
+  function fitFrame(fid){
+    const f = frames[fid], sq = parseFloat(getComputedStyle(deckEl).getPropertyValue('--sq')) || 300, v = Math.max(sq, minSize(url[fid] || ''));
+    f.style.width = f.style.height = v + 'px'; f.style.transform = v > sq ? 'scale(' + (sq / v) + ')' : 'none';
   }
-  window.addEventListener('resize', layoutSquares); layoutSquares();
-  function kick(frame){ try{ const w = frame.contentWindow; const f = ()=> w.dispatchEvent(new w.Event('resize')); f(); setTimeout(f, 60); setTimeout(f, 250); }catch{} }
+  function kick(frame){ try{ const w = frame.contentWindow; const f = ()=> w.dispatchEvent(new w.Event('resize')); f(); setTimeout(f, 60); setTimeout(f, 300); }catch{} }
   function moduleFrame(frame){
-    const side = frame.id === 'deckA' ? 'A' : 'B';
-    const gear = document.getElementById('gear' + side), chip = document.getElementById('chip' + side);
-    try{ chip.textContent = optLabel(curName(frame, '')); }catch{}
-    let doc; try{ doc = frame.contentWindow.document; if (!doc || !doc.documentElement) return; }catch(e){ gear.style.display = 'none'; return; }
+    const gear = frame.parentElement.querySelector('.gear');
+    let w, doc; try{ w = frame.contentWindow; doc = w.document; if (!doc || !doc.documentElement || !doc.body) return; }catch(e){ gear.style.display = 'none'; return; }
     if (doc.getElementById('sd-module-css')) return;
-    const st = doc.createElement('style'); st.id = 'sd-module-css'; st.textContent = MODULE_CSS;
-    (doc.head || doc.documentElement).appendChild(st);
-    doc.documentElement.classList.add('sd-module'); doc.documentElement.classList.remove('sd-open');
-    gear.classList.remove('on');
-    const known = !!doc.querySelector('#controls-container, #dashboard, #app > .panel');
-    doc.documentElement.classList.toggle('sd-flex', !!doc.querySelector('#app > .panel'));
-    gear.style.display = known ? '' : 'none';   // pages that manage their own layout keep their own controls
+    const s = doc.createElement('style'); s.id = 'sd-module-css'; s.textContent = MODULE_CSS; (doc.head || doc.documentElement).appendChild(s);
+    const H = doc.documentElement; H.classList.add('sd-module'); H.classList.remove('sd-open'); gear.classList.remove('on');
+    H.classList.toggle('sd-flex', !!doc.querySelector('#app > .panel'));
+    const view = new URL(w.location.href).searchParams.get('view');
+    if (doc.getElementById('portal-container')){ H.classList.add('sd-morph'); if (view) H.classList.add('sd-view-' + view); }
+    gear.style.display = doc.querySelector('#controls-container, #dashboard, #app > .panel, #dock, #top-strip') ? '' : 'none';
     kick(frame);
+    if (view && w.scionDeck){ try{ const p = w.scionDeck.manifest().params.find(p => /fade/i.test(p.id + ' ' + p.label)); if (p) w.scionDeck.set(p.id, view === 'field' ? 0 : 1); }catch{} }
+    sendBpm(frame);
   }
   function toggleSheet(frame){
-    const side = frame.id === 'deckA' ? 'A' : 'B';
-    try{
-      const doc = frame.contentWindow.document; const open = doc.documentElement.classList.toggle('sd-open');
-      document.getElementById('gear' + side).classList.toggle('on', open);
-      kick(frame);
-    }catch{}
+    try{ const H = frame.contentWindow.document.documentElement; const open = H.classList.toggle('sd-open');
+      frame.parentElement.querySelector('.gear').classList.toggle('on', open); kick(frame); }catch{}
   }
-  document.getElementById('gearA')?.addEventListener('click', ()=> toggleSheet(deckA));
-  document.getElementById('gearB')?.addEventListener('click', ()=> toggleSheet(deckB));
-  for (const f of [deckA, deckB]){
-    f.addEventListener('load', ()=> moduleFrame(f));
-    let n = 0; const t = setInterval(()=>{ moduleFrame(f); if (++n > 40) clearInterval(t); }, 100);
+  function loadFrame(fid, u){
+    const frame = frames[fid]; url[fid] = u;
+    for (const t of taps[fid]){ try{ t.node?.disconnect(); }catch{} } taps[fid] = []; syncMonitors();
+    fitFrame(fid); frame.src = u;
+    let n = 0; clearInterval(frame._t); frame._t = setInterval(()=>{ tapFrame(frame); if (++n > 500) clearInterval(frame._t); }, 8);
+    writeUrl();
   }
-  document.getElementById('fsBtn')?.addEventListener('click', ()=>{
-    const d = document; if (d.fullscreenElement || d.webkitFullscreenElement){ (d.exitFullscreen || d.webkitExitFullscreen)?.call(d); }
-    else { const e = d.documentElement; (e.requestFullscreen || e.webkitRequestFullscreen)?.call(e); }
-  });
+  for (const fid of ['f1', 'f2']){
+    const f = frames[fid];
+    f.addEventListener('load', ()=>{ clearInterval(f._t); tapFrame(f); moduleFrame(f); setTimeout(()=> moduleFrame(f), 400); if (st.playing) startFrame(f); setTimeout(applyRoutes, 300); });
+    f.parentElement.querySelector('.gear').addEventListener('click', ()=> toggleSheet(f));
+  }
+  function writeUrl(){ const u = new URL(location.href); u.searchParams.set('a', url[slot.A]); u.searchParams.set('b', url[slot.B]); history.replaceState(null, '', u); }
 
-  // ===== Moto crate: album tracks straight into either deck =====
-  const crate = document.getElementById('crate'), crateBtn = document.getElementById('crateBtn');
-  const crateAlbum = document.getElementById('crateAlbum'), crateTrack = document.getElementById('crateTrack'), crateInfo = document.getElementById('crateInfo');
-  const MOTO = new URL('../moto/', location.href);
+  // ---------- layout: two equal squares, as large as fit ----------
+  function layout(){
+    const W = innerWidth - 16, H = innerHeight - 16, g = 10;
+    const barH = $('bar').offsetHeight || 106, pick = $('pickA').offsetHeight || 46;
+    const fw = W < 520 ? 44 : 56;
+    const row = Math.min((W - 2 * fw - 3 * g) / 2, H - pick - barH - 48 - 3 * g);
+    const col = Math.min(W - fw - g, (H - 2 * pick - barH - 4 * g) / 2);
+    const useCol = col > row;
+    deckEl.classList.toggle('col', useCol);
+    deckEl.style.setProperty('--fw', fw + 'px');
+    deckEl.style.setProperty('--sq', Math.max(120, Math.floor(useCol ? col : row)) + 'px');
+    document.documentElement.style.setProperty('--barh', barH + 'px');
+    fitFrame('f1'); fitFrame('f2');
+  }
+  addEventListener('resize', layout);
+
+  // ---------- mixer ----------
+  function applyLevels(){
+    for (const s of ['A', 'B']){
+      const el = $('fad' + s); el.querySelector('.fill').style.height = (st.level[s] * 100) + '%'; el.querySelector('.val').textContent = Math.round(st.level[s] * 100) + '%';
+      el.setAttribute('aria-valuenow', Math.round(st.level[s] * 100));
+      if (ctx) chain[slot[s]].level.gain.setTargetAtTime(st.level[s] * st.level[s] * 1.5625, ctx.currentTime, 0.02);   // 80% = unity
+    }
+  }
+  function applyXf(){
+    $('xf').value = st.xf;
+    if (!ctx) return;
+    chain[slot.A].xf.gain.setTargetAtTime(Math.cos(st.xf * Math.PI / 2), ctx.currentTime, 0.02);
+    chain[slot.B].xf.gain.setTargetAtTime(Math.sin(st.xf * Math.PI / 2), ctx.currentTime, 0.02);
+  }
+  for (const s of ['A', 'B']){
+    const el = $('fad' + s), track = el.querySelector('.track');
+    const setFromY = y => { const r = track.getBoundingClientRect(); st.level[s] = Math.max(0, Math.min(1, 1 - (y - r.top) / r.height)); applyLevels(); };
+    el.addEventListener('pointerdown', e => { el.setPointerCapture(e.pointerId); wake(); setFromY(e.clientY); });
+    el.addEventListener('pointermove', e => { if (el.hasPointerCapture(e.pointerId)) setFromY(e.clientY); });
+    el.addEventListener('keydown', e => { const d = e.key === 'ArrowUp' ? 0.05 : e.key === 'ArrowDown' ? -0.05 : 0; if (d){ st.level[s] = Math.max(0, Math.min(1, st.level[s] + d)); applyLevels(); e.preventDefault(); } });
+  }
+  $('xf').addEventListener('input', e => { st.xf = +e.target.value; wake(); applyXf(); });
+  $('cutA').onclick = ()=>{ st.xf = 0; wake(); applyXf(); };
+  $('cutB').onclick = ()=>{ st.xf = 1; wake(); applyXf(); };
+  $('swap').onclick = ()=>{
+    [slot.A, slot.B] = [slot.B, slot.A];
+    $('pad1').className = 'pad in' + sideOf('f1'); $('pad2').className = 'pad in' + sideOf('f2');
+    buildPicker($('selA'), url[slot.A]); buildPicker($('selB'), url[slot.B]);
+    applyAll(); writeUrl();
+  };
+  function wake(){ ensureAudio(); ctx.resume?.().catch(()=>{}).then(syncMonitors); }
+
+  // ---------- routing: send / modulate between the two tables ----------
+  const MODES = [['off', 'OFF'], ['send', 'SEND → MIC IN'], ['ring', 'RING MOD'], ['gate', 'GATE'], ['duck', 'DUCK'], ['filter', 'FILTER']];
+  for (const k of ['AB', 'BA']){
+    $('mode' + k).innerHTML = MODES.map(([v, n]) => `<option value="${v}">${n}</option>`).join('');
+    $('mode' + k).addEventListener('change', e => { st.mode[k] = e.target.value; wake(); applyRoutes(true); });
+    $('amt' + k).addEventListener('input', e => { st.amt[k] = +e.target.value; wake(); applyRoutes(); });
+  }
+  function micButton(frame){ try{ const d = frame.contentWindow.document; return d.getElementById('micInputToggle') || d.getElementById('btnMic'); }catch{ return null; } }
+  function micIsOn(btn){ return !!btn && (/\bON\b/i.test(btn.textContent) || btn.classList.contains('on') || btn.classList.contains('active') || btn.getAttribute('aria-pressed') === 'true'); }
+  function applyRoutes(userChange){
+    for (const k of ['AB', 'BA']){
+      $('amt' + k + 'v').textContent = Math.round(st.amt[k] * 100) + '%';
+      $('rt' + k).classList.toggle('live', st.mode[k] !== 'off'); $('mode' + k).value = st.mode[k];
+    }
+    $('routeBtn').classList.toggle('on', st.mode.AB !== 'off' || st.mode.BA !== 'off');
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    for (const k of ['AB', 'BA']){
+      const from = k[0], to = k[1], src = chain[slot[from]], dst = chain[slot[to]], mode = st.mode[k], amt = st.amt[k];
+      try{ src.in.disconnect(dst.modAmt); }catch{} try{ src.env.disconnect(dst.modAmt); }catch{} try{ dst.modAmt.disconnect(); }catch{}
+      dst.mod.gain.cancelScheduledValues(now); dst.filt.frequency.cancelScheduledValues(now);
+      let base = 1, cutoff = 20000;
+      if (mode === 'ring'){ base = 1 - amt; dst.modAmt.gain.value = amt * 14; src.in.connect(dst.modAmt); dst.modAmt.connect(dst.mod.gain); }          // audio-rate: to × from
+      else if (mode === 'gate'){ base = 1 - amt; dst.modAmt.gain.value = amt * 1.4; src.env.connect(dst.modAmt); dst.modAmt.connect(dst.mod.gain); }   // to only speaks when from does
+      else if (mode === 'duck'){ dst.modAmt.gain.value = -amt; src.env.connect(dst.modAmt); dst.modAmt.connect(dst.mod.gain); }                       // from pushes to down
+      else if (mode === 'filter'){ cutoff = 20000 - amt * 19840; dst.modAmt.gain.value = amt * 9000; src.env.connect(dst.modAmt); dst.modAmt.connect(dst.filt.frequency); } // from opens to's filter
+      dst.mod.gain.setTargetAtTime(base, now, 0.02); dst.filt.frequency.setTargetAtTime(cutoff, now, 0.02);
+      src.sendGain.gain.setTargetAtTime(mode === 'send' ? amt * 1.4 : 0, now, 0.02);
+      // SEND: flip the receiving table's mic input so it picks up the other table
+      const btn = micButton(frames[slot[to]]), sel = $('mode' + k), opt = sel.querySelector('option[value=send]');
+      opt.disabled = !btn; opt.textContent = btn ? 'SEND → MIC IN' : 'SEND (no input here)';
+      if (userChange && btn){
+        if (mode === 'send'){ if (micIsOn(btn)) btn.click(); setTimeout(()=>{ if (!micIsOn(btn)) btn.click(); }, 120); }
+        else if (dst._sent && micIsOn(btn)) btn.click();
+      }
+      dst._sent = mode === 'send';
+      if (mode === 'send' && !btn) { st.mode[k] = 'off'; sel.value = 'off'; }
+    }
+  }
+  function applyAll(){ applyLevels(); applyXf(); applyRoutes(); syncMonitors(); }
+
+  // ---------- transport ----------
+  function sendBpm(frame){ try{ const w = frame.contentWindow; w.postMessage({ type: 'set-bpm', bpm: st.bpm }, '*'); w.__mandallaSetBpm?.(st.bpm); w.scionDeck?.setBpm?.(st.bpm); }catch{} }
+  function setBpm(v){ st.bpm = Math.max(40, Math.min(240, Math.round(v))); $('bpmVal').textContent = st.bpm + ' BPM'; sendBpm(frames.f1); sendBpm(frames.f2); }
+  $('bpmDn').onclick = ()=> setBpm(st.bpm - 1); $('bpmUp').onclick = ()=> setBpm(st.bpm + 1);
+  let tapT = [];
+  $('tap').onclick = ()=>{ const t = performance.now(); tapT = tapT.filter(x => t - x < 2500); tapT.push(t);
+    if (tapT.length >= 2){ const d = (tapT[tapT.length - 1] - tapT[0]) / (tapT.length - 1); setBpm(60000 / d); } };
+  function startFrame(frame){ try{ const w = frame.contentWindow; w.postMessage({ type: 'resume-audio' }, '*'); w.__mandallaResumeAudio?.(); w.scionDeck?.start?.(); }catch{}
+    for (const t of taps[frame.id]){ try{ t.ctx.resume(); }catch{} } }
+  function stopFrame(frame){ try{ const w = frame.contentWindow; w.postMessage({ type: 'suspend-audio' }, '*'); w.__mandallaSuspendAudio?.(); w.scionDeck?.stop?.(); }catch{}
+    for (const t of taps[frame.id]){ try{ t.ctx.suspend(); }catch{} } }
+  $('play').onclick = ()=>{
+    st.playing = !st.playing; wake();
+    for (const f of [frames.f1, frames.f2]) (st.playing ? startFrame : stopFrame)(f);
+    $('play').textContent = st.playing ? '❚❚ PAUSE' : '▶ PLAY'; $('play').classList.toggle('on', st.playing);
+    setTimeout(syncMonitors, 200);
+  };
+  let rec, chunks = [];
+  $('rec').onclick = ()=>{
+    wake();
+    if (rec && rec.state === 'recording'){ rec.stop(); return; }
+    const mt = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
+    try{ rec = new MediaRecorder(recDest.stream, mt ? { mimeType: mt } : undefined); }catch(e){ alert('Recording is not supported in this browser'); return; }
+    chunks = []; rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    rec.onstop = ()=>{ const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = 'smith_deck_' + new Date().toISOString().replace(/[:.]/g, '-') + (/(mp4)/.test(blob.type) ? '.m4a' : '.webm'); document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+      $('rec').textContent = '● REC'; $('rec').classList.remove('on'); };
+    rec.start(); $('rec').textContent = '■ STOP'; $('rec').classList.add('on');
+  };
+  $('routeBtn').onclick = ()=> $('route').classList.toggle('show');
+
+  // ---------- pickers ----------
+  for (const s of ['A', 'B']){
+    $('sel' + s).addEventListener('change', e => {
+      let u = e.target.value;
+      if (u === '__url'){ u = (prompt('Page to load as a table (same site works best):', url[slot[s]]) || '').trim(); if (!u){ e.target.value = url[slot[s]]; return; } buildPicker(e.target, u); }
+      loadFrame(slot[s], u);
+    });
+  }
+
+  // ---------- moto crate + album rings ----------
   let albums = null;
   async function loadAlbums(){
     if (albums) return albums;
-    crateInfo.textContent = 'Loading moto crates…';
     try{
       const txt = await (await fetch(new URL('mandalla.html', MOTO))).text();
-      const i = txt.indexOf('const ALBUM_CRATE_DEFS'); if (i < 0) throw new Error('crate list not found');
+      const i = txt.indexOf('const ALBUM_CRATE_DEFS'); if (i < 0) throw 0;
       let j = txt.indexOf('{', i), d = 0, k = j;
-      for (; k < txt.length; k++){ const c = txt[k]; if (c === '{') d++; else if (c === '}'){ if (--d === 0) break; } }
-      const defs = (new Function('return (' + txt.slice(j, k + 1) + ')'))();
-      albums = Object.values(defs).filter(a => a && a.files && a.files.length);
-      crateAlbum.innerHTML = albums.map((a, n) => `<option value="${n}">${a.label} (${a.files.length})</option>`).join('');
-      const g = albums.findIndex(a => a.key === 'ghost'); if (g >= 0) crateAlbum.value = String(g);
-      fillTracks();
-      crateInfo.textContent = `Moto crate · ${albums.length} albums · pick a track, then send it to a deck`;
-    }catch(e){ albums = null; crateInfo.textContent = 'Moto crates unavailable here (they load when smith-deck and moto are served side by side).'; }
+      for (; k < txt.length; k++){ const ch = txt[k]; if (ch === '{') d++; else if (ch === '}' && --d === 0) break; }
+      albums = Object.values((new Function('return (' + txt.slice(j, k + 1) + ')'))()).filter(a => a && a.files && a.files.length);
+      const rings = TABLES[0][1]; const keep = rings.filter(r => !/album=/.test(r[1]));
+      TABLES[0][1] = albums.map(a => [a.label, '../moto/mandalla.html?embed=1&album=' + a.key]).concat(keep);
+      buildPicker($('selA'), url[slot.A]); buildPicker($('selB'), url[slot.B]);
+      $('crateAlbum').innerHTML = albums.map((a, n) => `<option value="${n}">${a.label} (${a.files.length})</option>`).join('');
+      const g = albums.findIndex(a => a.key === 'ghost'); if (g >= 0) $('crateAlbum').value = g;
+      fillTracks(); $('crateInfo').textContent = `Moto crate · ${albums.length} albums · send a track to a table's radio input`;
+    }catch(e){ albums = null; $('crateInfo').textContent = 'Moto crates load when smith-deck and moto are served side by side.'; }
     return albums;
   }
-  function fillTracks(){
-    const a = albums?.[+crateAlbum.value]; if (!a) return;
-    crateTrack.innerHTML = a.files.map((f, n) => `<option value="${n}">${f.replace(/\.(mp3|ogg|wav|m4a)$/i,'').replace(/ - Sonauto$/,'').replace(/^(coolradio|[^-]+?) - /,'')}</option>`).join('');
-  }
-  crateAlbum?.addEventListener('change', fillTracks);
-  function trackUrl(){
-    const a = albums?.[+crateAlbum.value]; const f = a?.files[+crateTrack.value]; if (!f) return null;
-    const path = (a.basePath + f).split('/').map(encodeURIComponent).join('/');
-    return { url: new URL(path, MOTO).href, label: crateTrack.options[crateTrack.selectedIndex].textContent };
-  }
-  function sendToDeck(frame){
-    const t = trackUrl(); if (!t) return;
-    let doc; try{ doc = frame.contentWindow.document; }catch(e){ crateInfo.textContent = 'That deck is on another site; it cannot take crate tracks.'; return; }
+  function fillTracks(){ const a = albums?.[+$('crateAlbum').value]; if (!a) return;
+    $('crateTrack').innerHTML = a.files.map((f, n) => `<option value="${n}">${f.replace(/\.(mp3|ogg|wav|m4a)$/i, '').replace(/ - Sonauto$/, '').replace(/^[^-]+? - /, '')}</option>`).join(''); }
+  $('crateAlbum').addEventListener('change', fillTracks);
+  function sendTrack(s){
+    const a = albums?.[+$('crateAlbum').value], f = a?.files[+$('crateTrack').value]; if (!f) return;
+    const u = new URL((a.basePath + f).split('/').map(encodeURIComponent).join('/'), MOTO).href, label = $('crateTrack').selectedOptions[0].textContent;
+    const frame = frames[slot[s]]; let doc; try{ doc = frame.contentWindow.document; }catch{ return; }
     const sel = doc.getElementById('radioSource');
-    if (!sel){ crateInfo.textContent = 'This deck has no radio/sample input. Try a 968, 137, 255, puppet or deco deck.'; return; }
-    let opt = Array.from(sel.options).find(o => o.value === t.url);
-    if (!opt){ opt = doc.createElement('option'); opt.value = t.url; opt.textContent = 'MOTO · ' + t.label; sel.appendChild(opt); }
-    sel.value = t.url;
-    sel.dispatchEvent(new frame.contentWindow.Event('change', { bubbles:true }));
-    crateInfo.textContent = `Sent “${t.label}” to deck ${frame.id === 'deckA' ? 'A' : 'B'}. Set that deck to Mix or Radio to hear it.`;
-    ensureAudio(); audioCtx.resume?.().catch(()=>{}).then(syncMonitors);
+    if (!sel){ $('crateInfo').textContent = 'That table has no radio input. Put the track on a Smith, Puppet or Deco table, then SEND or modulate from it.'; return; }
+    let o = [...sel.options].find(o => o.value === u); if (!o){ o = doc.createElement('option'); o.value = u; o.textContent = 'MOTO · ' + label; sel.appendChild(o); }
+    sel.value = u; sel.dispatchEvent(new frame.contentWindow.Event('change', { bubbles: true })); wake();
+    $('crateInfo').textContent = `“${label}” is playing on deck ${s}.`;
   }
-  crateBtn?.addEventListener('click', ()=>{ const s = crate.classList.toggle('show'); if (s) loadAlbums(); });
-  document.getElementById('crateClose')?.addEventListener('click', ()=> crate.classList.remove('show'));
-  document.getElementById('crateA')?.addEventListener('click', ()=> sendToDeck(deckA));
-  document.getElementById('crateB')?.addEventListener('click', ()=> sendToDeck(deckB));
+  $('crateBtn').onclick = ()=>{ if ($('crate').classList.toggle('show')) loadAlbums(); };
+  $('crateClose').onclick = ()=> $('crate').classList.remove('show');
+  $('crateA').onclick = ()=> sendTrack('A'); $('crateB').onclick = ()=> sendTrack('B');
 
-  // Per-deck open/fullscreen
-  const fullA = document.getElementById('fullA');
-  const fullB = document.getElementById('fullB');
-  const openA = document.getElementById('openA');
-  const openB = document.getElementById('openB');
-  function fullscreenElement(el){
-    if (!document.fullscreenElement && !document.webkitFullscreenElement){ if (el.requestFullscreen) el.requestFullscreen(); else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen(); }
-    else { if (document.exitFullscreen) document.exitFullscreen(); else if (document.webkitExitFullscreen) document.webkitExitFullscreen(); }
-  }
-  fullA?.addEventListener('click', ()=> fullscreenElement(deckA));
-  fullB?.addEventListener('click', ()=> fullscreenElement(deckB));
-  openA?.addEventListener('click', ()=>{ try{ const url = deckA?.src; if (url) window.open(url, '_blank', 'noopener'); }catch{} });
-  openB?.addEventListener('click', ()=>{ try{ const url = deckB?.src; if (url) window.open(url, '_blank', 'noopener'); }catch{} });
+  // ---------- meters ----------
+  (function meter(){
+    if (ctx) for (const s of ['A', 'B']){ const c = chain[slot[s]]; c.an.getFloatTimeDomainData(c.buf); let m = 0; for (let i = 0; i < c.buf.length; i += 4){ const v = Math.abs(c.buf[i]); if (v > m) m = v; }
+      $('fad' + s).querySelector('.meter').style.height = Math.min(100, m * 100) + '%'; }
+    requestAnimationFrame(meter);
+  })();
+  ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, ()=>{ if (ctx) ctx.resume?.().catch(()=>{}).then(syncMonitors); }, true));
+  setInterval(syncMonitors, 1000);
+
+  // ---------- boot ----------
+  buildPicker($('selA'), url.f1); buildPicker($('selB'), url.f2);
+  layout(); applyLevels(); applyRoutes(); setBpm(st.bpm);
+  loadFrame('f1', url.f1); loadFrame('f2', url.f2);
+  loadAlbums(); setTimeout(layout, 50);
+  window.smithHost = { taps, st, slot, chain, get ctx(){ return ctx; }, get mix(){ ensureAudio(); return recDest.stream; } };
 })();
 </script>
 </body>
