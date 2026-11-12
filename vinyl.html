@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>VINYL • disc table</title>
+<style>
+  html,body{ margin:0; height:100%; background:#000; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none }
+  canvas{ position:fixed; inset:0; width:100%; height:100%; display:block }
+  #tag{ position:fixed; left:10px; right:10px; bottom:8px; font:700 11px ui-monospace,Menlo,monospace; letter-spacing:.12em; color:#8b98a5; pointer-events:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas><div id="tag"></div>
+<script>
+(function(){
+  'use strict';
+  // A record. Drag the disc to scratch; let go and it spins back up. Tap the label to start / stop the motor.
+  const cv = document.getElementById('cv'), g = cv.getContext('2d'), tag = document.getElementById('tag');
+  const P = { pitch: 0.5, needle: 0 };
+  let ac, node, ready = false, motor = false, held = false, rate = 0, target = 0, pos = 0, len = 1, sr = 48000, name = 'BUILT-IN LOOP';
+  const RPS = 33.333 / 60;                                   // disc turns per second at pitch 0
+  const pitchRate = () => 1 + (P.pitch - 0.5) * 0.32;       // ±16 %
+
+  const WORKLET = `class V extends AudioWorkletProcessor{constructor(){super();this.ch=null;this.pos=0;this.rate=0;this.tgt=0;this.k=0;
+    this.port.onmessage=e=>{const d=e.data;if(d.ch){this.ch=d.ch;this.pos=0}if(d.rate!==undefined)this.tgt=d.rate;if(d.seek!==undefined&&this.ch)this.pos=d.seek*this.ch[0].length;if(d.slew!==undefined)this.slew=d.slew}}
+    process(_,out){const o=out[0],c=this.ch;if(!c)return true;const L=c[0],R=c[1]||c[0],n=L.length,s=this.slew||0.002;
+      for(let i=0;i<o[0].length;i++){this.rate+=(this.tgt-this.rate)*s;let p=this.pos;const a=Math.floor(p),f=p-a,b=(a+1)%n;
+        o[0][i]=L[a]+(L[b]-L[a])*f;if(o[1])o[1][i]=R[a]+(R[b]-R[a])*f;p+=this.rate;if(p>=n)p-=n;if(p<0)p+=n;this.pos=p}
+      if(++this.k%8===0)this.port.postMessage({pos:this.pos/n,rate:this.rate});return true}}
+    registerProcessor('vinyl',V);`;
+
+  function builtIn(rate){                                      // two bars of kick / hat / bass so the disc is never empty
+    const bpm = 120, beat = 60 / bpm, n = Math.round(rate * beat * 8), L = new Float32Array(n), R = new Float32Array(n);
+    for (let b = 0; b < 16; b++){ const t0 = Math.round(b * beat / 2 * rate);
+      if (b % 4 === 0) for (let i = 0; i < rate * 0.25; i++){ const t = i / rate, v = Math.sin(2 * Math.PI * (48 * t + 30 * (1 - Math.exp(-t * 30)))) * Math.exp(-t * 11) * 0.9; L[t0 + i] += v; R[t0 + i] += v; }
+      if (b % 2 === 1) for (let i = 0; i < rate * 0.05; i++){ const v = (Math.random() * 2 - 1) * Math.exp(-i / rate * 70) * 0.3; L[t0 + i] += v; R[t0 + i] += v * 0.7; }
+      const note = [55, 55, 82.4, 55, 65.4, 55, 98, 73.4][b % 8];
+      for (let i = 0; i < rate * 0.2 && t0 + i < n; i++){ const t = i / rate, v = ((t * note % 1) * 2 - 1) * Math.exp(-t * 9) * 0.28; L[t0 + i] += v * 0.8; R[t0 + i] += v; } }
+    return [L, R];
+  }
+  async function audio(){
+    if (ac) return; ac = new (window.AudioContext || window.webkitAudioContext)(); sr = ac.sampleRate;
+    await ac.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));
+    node = new AudioWorkletNode(ac, 'vinyl', { numberOfInputs: 0, outputChannelCount: [2] });
+    const out = ac.createGain(); out.gain.value = 0.9; node.connect(out); out.connect(ac.destination);
+    node.port.onmessage = e => { pos = e.data.pos; rate = e.data.rate; };
+    ready = true; if (pending) { put(...pending); pending = null; } else put(builtIn(sr), sr, name);
+    push();
+  }
+  let pending = null;
+  function put(ch, rate, nm){ name = nm || name; if (!ready){ pending = [ch, rate, nm]; audio(); return; }
+    len = ch[0].length / rate; node.port.postMessage({ ch: ch.map(c => new Float32Array(c)) }); label(); }
+  function push(){ if (!ready) return; target = held ? target : (motor ? pitchRate() : 0); node.port.postMessage({ rate: target, slew: held ? 0.02 : 0.0006 }); }
+  function label(){ tag.textContent = `${motor ? '▶' : '■'} ${name} · ${(len).toFixed(1)}s · ${((pitchRate() - 1) * 100).toFixed(1)}%`; }
+
+  // ---- drawing
+  let W = 1, H = 1, R = 1, cx = 0, cy = 0;
+  function resize(){ const d = Math.min(2, devicePixelRatio || 1); W = cv.width = innerWidth * d; H = cv.height = innerHeight * d; R = Math.min(W, H) * 0.47; cx = W / 2; cy = H / 2; }
+  addEventListener('resize', resize); resize();
+  function draw(){
+    const ang = pos * len * RPS * Math.PI * 2;
+    g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+    const gr = g.createRadialGradient(cx - R * 0.3, cy - R * 0.3, R * 0.1, cx, cy, R); gr.addColorStop(0, '#2a2d31'); gr.addColorStop(1, '#090a0c');
+    g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = Math.max(1, R / 300);
+    for (let r = R * 0.4; r < R * 0.97; r += R * 0.022){ g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke(); }
+    g.save(); g.translate(cx, cy); g.rotate(ang);                 // sheen and label turn with the disc
+    for (const a of [0, Math.PI]){ const s = g.createLinearGradient(0, 0, Math.cos(a) * R, Math.sin(a) * R); s.addColorStop(0.35, 'rgba(255,255,255,0)'); s.addColorStop(1, 'rgba(255,255,255,0.045)');
+      g.fillStyle = s; g.beginPath(); g.moveTo(0, 0); g.arc(0, 0, R * 0.97, a - 0.12, a + 0.12); g.closePath(); g.fill(); }
+    g.fillStyle = '#9ea4aa'; g.beginPath(); g.arc(0, 0, R * 0.34, 0, 7); g.fill();
+    g.fillStyle = '#5d6369'; g.fillRect(-R * 0.3, -R * 0.012, R * 0.6, R * 0.024);
+    g.strokeStyle = '#22e3ff'; g.lineWidth = Math.max(2, R / 110); g.beginPath(); g.moveTo(R * 0.36, 0); g.lineTo(R * 0.95, 0); g.stroke();
+    g.restore();
+    g.fillStyle = '#111'; g.beginPath(); g.arc(cx, cy, R * 0.03, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(34,227,255,0.6)'; g.lineWidth = Math.max(2, R / 90); g.beginPath(); g.arc(cx, cy, R * 0.985, -Math.PI / 2, -Math.PI / 2 + pos * Math.PI * 2); g.stroke();
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+
+  // ---- touch: drag = scratch (disc follows the finger), tap label = motor
+  let lastA = 0, lastT = 0, moved = 0, downOnLabel = false;
+  const angle = e => { const r = cv.getBoundingClientRect(), d = cv.width / r.width; return Math.atan2((e.clientY - r.top) * d - cy, (e.clientX - r.left) * d - cx); };
+  const radius = e => { const r = cv.getBoundingClientRect(), d = cv.width / r.width; return Math.hypot((e.clientX - r.left) * d - cx, (e.clientY - r.top) * d - cy); };
+  cv.addEventListener('pointerdown', async e => { cv.setPointerCapture(e.pointerId); await audio(); ac.resume(); downOnLabel = radius(e) < R * 0.34; moved = 0;
+    held = true; lastA = angle(e); lastT = performance.now(); target = 0; node.port.postMessage({ rate: 0, slew: 0.02 }); });
+  cv.addEventListener('pointermove', e => { if (!held) return; const a = angle(e), t = performance.now(); let d = a - lastA; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI;
+    const dt = Math.max(1, t - lastT) / 1000; moved += Math.abs(d); target = Math.max(-6, Math.min(6, d / (2 * Math.PI) / dt / RPS)); node.port.postMessage({ rate: target, slew: 0.02 }); lastA = a; lastT = t; });
+  const up = () => { if (!held) return; held = false; if (downOnLabel && moved < 0.05){ motor = !motor; } push(); label(); };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+
+  async function loadUrl(url, nm){ await audio(); tag.textContent = 'LOADING ' + (nm || url); try{ const buf = await ac.decodeAudioData(await (await fetch(url)).arrayBuffer());
+      const ch = []; for (let i = 0; i < Math.min(2, buf.numberOfChannels); i++) ch.push(buf.getChannelData(i)); put(ch, buf.sampleRate, nm || 'TRACK'); motor = true; push(); label(); return true; }
+    catch(e){ tag.textContent = 'COULD NOT LOAD ' + (nm || 'TRACK') + ' · previous record kept'; return false; } }
+  window.scionDeck = { version: 1,
+    manifest: () => ({ name: 'VINYL', kind: 'disc', params: [{ id: 'pitch', label: 'PITCH', value: P.pitch }, { id: 'needle', label: 'NEEDLE', value: pos }] }),
+    set(id, v){ v = Math.max(0, Math.min(1, v)); if (id === 'pitch'){ P.pitch = v; push(); label(); } else if (id === 'needle' && ready) node.port.postMessage({ seek: Math.min(0.999, v) }); },
+    get: id => id === 'needle' ? pos : P[id],
+    async start(){ await audio(); ac.resume(); motor = true; push(); label(); }, stop(){ motor = false; push(); label(); }, setBpm(){},
+    async loadAudio(ch, rate, nm){ await audio(); put(ch, rate, nm); motor = true; push(); label(); }, loadUrl };
+  label();
+})();
+</script>
+</body>
+</html>

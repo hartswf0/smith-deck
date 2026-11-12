@@ -21,29 +21,17 @@ This repo is pure HTML/CSS/JS. No build step required.
 
 ## The deck (index.html)
 
-Two equal square slots, A and B. Any table goes in either slot; the mixer and routing sit around them.
+Two square slots, A and B. Any table goes in either. Full manual, state map and the contract for adding
+tables: [DECK.md](DECK.md).
 
-- **Tables.** Pickers list Rings (every moto album as a mandalla table, plus ring·smith), Puppet, Smith,
-  Deco and Morph (FIELD, SEQUENCER, DEEP FIELD), or any URL. `?a=…&b=…` makes a setup a link.
-- **Clean squares.** The host hides each table's own chrome and scales it to the square. ☰ on a pad
-  opens that table's own controls. No table file is edited.
-- **Mixer.** Level fader + meter per deck, crossfade, cut A / B, SWAP A/B (no reload), PLAY, BPM ± / TAP
-  (sent to tables that follow tempo), REC of the mix.
-- **Audio capture.** The host reroutes whatever a same-origin table sends to its speakers into its own mix.
-  (The old `request-audio-stream` handshake could never work: a `MediaStream` cannot be posted between windows.)
-- **Routing, A → B and B → A, each with an amount:**
-  - `SEND → MIC IN`: the source table's sound replaces the target's microphone, so a puppet / vocoder /
-    sampler table processes the other table. Needs a target with a mic input (Smith, Puppet, Deco, Morph sampler).
-  - `RING MOD`: target × source at audio rate.
-  - `GATE`: target is heard only while the source is sounding.
-  - `DUCK`: source pushes the target down.
-  - `FILTER`: source loudness opens a low-pass on the target.
-  The last four work on any pair of tables, because they act on the captured audio in the host.
-- **Crate.** A moto album track into a Smith / Puppet / Deco table's radio input; from there it can be
-  sent to or modulate the other deck like any other source.
-- **To make a new table plug in:** one canvas that follows the window `resize` event, and all controls inside
-  `id="controls-container"`. Optional: a `#micInputToggle` button that calls `getUserMedia` (to receive SEND),
-  a `#radioSource` select (to receive crate tracks), `window.scionDeck.setBpm` (to follow tempo).
+- **DECK:** pickers with meters, two squares, two macro sliders per table, crossfade, PLAY, BPM (tap in time), REC, ⋯.
+- **SURFACES** (tap A or B): thumbnails of every table, DISCS / PLATES / FAVORITES, search, all moto albums as ring tables.
+- **MIXER** (⋯): trim, filter, delay send per deck; delay return; limiter; tempo; routing A→B and B→A
+  (SEND, RING MOD, GATE, DUCK, FILTER).
+- **SAVED PAIRS** (⋯): store and recall both tables with mixer, routing and tempo.
+- **TAKE** (REC, then STOP): master + deck A + deck B waveforms, trim handles, EXPORT WAV (master or master + stems), SHARE, SAVE SESSION.
+- **New tables:** `vinyl.html` (scratchable record; takes crate tracks), `sampler.html` (16 slices; GRAB records the other deck),
+  `chladni.html?v=00|01` (sand plate; touch position picks the mode).
 
 The earlier host is kept as `index-min-alt.html`.
 

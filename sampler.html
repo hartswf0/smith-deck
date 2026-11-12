@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>SAMPLER • plate table</title>
+<style>
+  html,body{ margin:0; height:100%; background:#000; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none; font:700 12px ui-monospace,Menlo,monospace; color:#e6edf3 }
+  #app{ position:fixed; inset:0; display:flex; flex-direction:column; gap:6px; padding:6px }
+  #grab{ flex:none; height:13%; min-height:40px; border-radius:10px; border:2px solid #ffb347; background:#1a1206; color:#ffb347; font:inherit; font-size:13px; letter-spacing:.14em; cursor:pointer }
+  #grab:active{ background:#3a2808 } #grab.wait{ opacity:.6 }
+  #wave{ flex:none; height:14%; width:100%; display:block; border-radius:8px; background:#070a0e }
+  #pads{ flex:1; min-height:0; display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:repeat(4,1fr); gap:6px }
+  .pad{ border-radius:8px; border:1px solid #22303d; background:#0c1016; display:flex; align-items:flex-end; padding:5px; color:#5d6b78; font-size:10px }
+  .pad.on{ background:#ffb347; color:#000; border-color:#ffb347 } .pad.cur{ border-color:#fff }
+  #tag{ flex:none; letter-spacing:.1em; color:#8b98a5; font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+</style>
+</head>
+<body>
+<div id="app">
+  <button id="grab">GRAB OTHER DECK · 4 BARS</button>
+  <canvas id="wave"></canvas>
+  <div id="pads"></div>
+  <div id="tag"></div>
+</div>
+<script>
+(function(){
+  'use strict';
+  // 16 slices of one sample. Tap a pad: play from that slice. PLAY loops the sample in time; GRAB replaces it with the other deck.
+  const padsEl = document.getElementById('pads'), wave = document.getElementById('wave'), tag = document.getElementById('tag'), grab = document.getElementById('grab');
+  const P = { pitch: 0.5, length: 1 };
+  let ac, out, buf = null, name = 'BUILT-IN BREAK', voice = null, looping = false, startAt = 0, startOff = 0, cur = -1;
+  const rate = () => Math.pow(2, (P.pitch - 0.5) * 2);       // ±1 octave
+  const pads = []; for (let i = 0; i < 16; i++){ const d = document.createElement('div'); d.className = 'pad'; d.textContent = i + 1; padsEl.appendChild(d); pads.push(d);
+    d.addEventListener('pointerdown', e => { e.preventDefault(); d.setPointerCapture(e.pointerId); play(i, false); d.classList.add('on'); });
+    const up = () => { d.classList.remove('on'); if (!looping) stopVoice(); }; d.addEventListener('pointerup', up); d.addEventListener('pointercancel', up); }
+
+  function builtIn(sr){ const beat = 0.5, n = Math.round(sr * beat * 8), L = new Float32Array(n);
+    for (let b = 0; b < 16; b++){ const t0 = Math.round(b * beat / 2 * sr);
+      if ([0, 3, 6, 10, 11].includes(b)) for (let i = 0; i < sr * 0.22; i++){ const t = i / sr; L[t0 + i] += Math.sin(2 * Math.PI * (50 * t + 28 * (1 - Math.exp(-t * 32)))) * Math.exp(-t * 12) * 0.9; }
+      if (b % 8 === 4) for (let i = 0; i < sr * 0.18; i++){ const t = i / sr; L[t0 + i] += ((Math.random() * 2 - 1) * 0.6 + Math.sin(2 * Math.PI * 190 * t) * 0.4) * Math.exp(-t * 20) * 0.7; }
+      for (let i = 0; i < sr * 0.04; i++) L[t0 + i] += (Math.random() * 2 - 1) * Math.exp(-i / sr * 90) * (b % 2 ? 0.28 : 0.14); }
+    return [L]; }
+  function audio(){ if (ac) return; ac = new (window.AudioContext || window.webkitAudioContext)(); out = ac.createGain(); out.gain.value = 0.9; out.connect(ac.destination); if (!buf) setBuf(builtIn(ac.sampleRate), ac.sampleRate, name); }
+  function setBuf(ch, sr, nm){ audio(); const b = ac.createBuffer(Math.min(2, ch.length), ch[0].length, sr); ch.slice(0, 2).forEach((c, i) => b.copyToChannel(c, i)); buf = b; name = nm || name; drawWave(); label(); if (looping) play(0, true); }
+  function stopVoice(){ if (voice){ try{ voice.stop(); }catch{} voice = null; } cur = -1; }
+  function play(slice, loop){ audio(); ac.resume(); stopVoice(); const s = ac.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate();
+    const sl = buf.duration / 16, off = slice * sl; s.loop = loop || looping; s.loopStart = 0; s.loopEnd = buf.duration * Math.max(1 / 16, P.length);
+    s.connect(out); s.start(0, Math.min(off, s.loop ? s.loopEnd - 0.001 : buf.duration)); voice = s; startAt = ac.currentTime; startOff = off; }
+  function label(){ tag.textContent = `${looping ? '▶' : '■'} ${name} · ${buf ? buf.duration.toFixed(2) : '0'}s · pitch ${rate().toFixed(2)}×`; }
+  function drawWave(){ const d = devicePixelRatio || 1, w = wave.width = wave.clientWidth * d, h = wave.height = wave.clientHeight * d, g = wave.getContext('2d'); g.clearRect(0, 0, w, h); if (!buf) return;
+    const c = buf.getChannelData(0), step = c.length / w; g.fillStyle = '#ffb347';
+    for (let x = 0; x < w; x++){ let m = 0; for (let i = Math.floor(x * step), e = Math.floor((x + 1) * step); i < e; i += 8){ const v = Math.abs(c[i]); if (v > m) m = v; } g.fillRect(x, h / 2 - m * h / 2, 1, Math.max(1, m * h)); }
+    g.fillStyle = 'rgba(255,255,255,0.25)'; for (let i = 1; i < 16; i++) g.fillRect(Math.round(i * w / 16), 0, 1, h); }
+  addEventListener('resize', drawWave);
+  (function tick(){ if (voice && buf){ const span = voice.loop ? voice.loopEnd : buf.duration; let p = startOff + (ac.currentTime - startAt) * rate(); if (voice.loop) p %= span; const k = Math.min(15, Math.floor(p / buf.duration * 16));
+      if (k !== cur){ pads[cur]?.classList.remove('cur'); cur = k; pads[cur]?.classList.add('cur'); } } else if (cur >= 0){ pads[cur]?.classList.remove('cur'); cur = -1; } requestAnimationFrame(tick); })();
+
+  // GRAB: ask the deck for the other table's last bars. The deck answers through scionDeck.loadAudio or a note.
+  grab.addEventListener('click', () => { audio(); ac.resume();
+    if (parent === window){ tag.textContent = 'GRAB works inside the deck: it records the other table.'; return; }
+    grab.classList.add('wait'); grab.textContent = 'GRABBING…'; parent.postMessage({ type: 'scion-grab', bars: 4 }, '*'); setTimeout(reset, 1500); });
+  function reset(){ grab.classList.remove('wait'); grab.textContent = 'GRAB OTHER DECK · 4 BARS'; }
+  addEventListener('message', e => { const d = e.data || {}; if (d.type === 'scion-grab-failed'){ reset(); tag.textContent = d.reason || 'Nothing to grab: the other deck is silent.'; } });
+
+  window.scionDeck = { version: 1,
+    manifest: () => ({ name: 'SAMPLER', kind: 'plate', params: [{ id: 'pitch', label: 'PITCH', value: P.pitch }, { id: 'length', label: 'LENGTH', value: P.length }] }),
+    set(id, v){ v = Math.max(0, Math.min(1, v)); P[id] = v; if (voice){ if (id === 'pitch') voice.playbackRate.value = rate(); else if (buf) voice.loopEnd = buf.duration * Math.max(1 / 16, v); } label(); },
+    get: id => P[id], start(){ looping = true; play(0, true); label(); }, stop(){ looping = false; stopVoice(); label(); }, setBpm(){},
+    loadAudio(ch, sr, nm){ setBuf(ch, sr, nm); reset(); },
+    async loadUrl(url, nm){ audio(); tag.textContent = 'LOADING ' + (nm || url); try{ const b = await ac.decodeAudioData(await (await fetch(url)).arrayBuffer()); const n = Math.min(b.length, Math.round(b.sampleRate * 16)); const ch = []; for (let i = 0; i < Math.min(2, b.numberOfChannels); i++) ch.push(b.getChannelData(i).slice(0, n)); setBuf(ch, b.sampleRate, nm || 'TRACK'); return true; }
+      catch(e){ tag.textContent = 'COULD NOT LOAD ' + (nm || 'TRACK') + ' · previous sample kept'; return false; } } };
+  label();
+})();
+</script>
+</body>
+</html>
