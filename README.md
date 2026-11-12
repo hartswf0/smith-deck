@@ -19,7 +19,7 @@ This repo is pure HTML/CSS/JS. No build step required.
   - `.vscode/settings.json` — Local IDE settings (useful for Live Server workflow).
   - `smith_decks_*.webm` — Example recorded output(s).
 
-## The deck (index.html)
+## The deck (deck.html)
 
 Two square slots, A and B. Any table goes in either. Full manual, state map and the contract for adding
 tables: [DECK.md](DECK.md).
@@ -33,7 +33,7 @@ tables: [DECK.md](DECK.md).
 - **New tables:** `vinyl.html` (scratchable record; takes crate tracks), `sampler.html` (16 slices; GRAB records the other deck),
   `chladni.html?v=00|01` (sand plate; touch position picks the mode).
 
-The earlier host is kept as `index-min-alt.html`.
+`index.html` is unchanged: it is still the original two-deck host.
 
 ## Quick Start
 

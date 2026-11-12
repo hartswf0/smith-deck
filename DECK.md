@@ -1,6 +1,6 @@
 # SMITH • DECK — operating manual and surface contract
 
-`index.html` is the deck. This file says what each screen is for, how you move between them,
+`deck.html` is the deck. This file says what each screen is for, how you move between them,
 and the rules any new screen or table has to obey.
 
 ## Operational diagnostic
@@ -142,7 +142,7 @@ ROUTING  [A→B mode amount][B→A …]      [MASTER ▾]  [EXPORT WAV][SAVE SES
 - **Tape.** One `AudioWorklet` reads master, post-fader A and B, and pre-fader A and B. Pre-fader audio fills a
   12-second ring per deck (what GRAB reads). While recording, master (stereo) and both stems (mono) are
   stored as 16-bit blocks; the TAKE screen trims and writes WAV from them.
-- **Tables.** Listed in the `T` array in `index.html`: key, name, disc/plate, URL, design size, preferred macros.
+- **Tables.** Listed in the `T` array in `deck.html`: key, name, disc/plate, URL, design size, preferred macros.
   Thumbnails are `thumbs/<key>.jpg` (240 px).
 
 ### Table contract (to add a table)
