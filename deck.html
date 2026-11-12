@@ -18,8 +18,8 @@
   /* ---------- DECK ---------- */
   #deck{ position:fixed; left:0; top:0; width:100%; height:var(--vh, 100dvh); padding:calc(env(safe-area-inset-top,0px) + 8px) 8px calc(env(safe-area-inset-bottom,0px) + 8px);
     display:grid; gap:var(--gap); justify-content:center; align-content:safe center; grid-template-columns: var(--sq) var(--sq);
-    grid-template-areas: "headA headB" "padA padB" "macA macB" "hint hint" "bar bar"; }
-  #deck.col{ grid-template-columns: minmax(0, 1fr); justify-items:center; grid-template-areas: "headA" "padA" "macA" "headB" "padB" "macB" "hint" "bar"; }
+    grid-template-areas: "headA headB" "padA padB" "hint hint" "bar bar"; }
+  #deck.col{ grid-template-columns: minmax(0, 1fr); justify-items:center; grid-template-areas: "headA" "padA" "headB" "padB" "hint" "bar"; }
   #deck.col .head, #deck.col .mac, #deck.col #hint, #deck.col #bar{ width:100%; max-width:560px }
   .head{ display:flex; gap:8px; min-width:0 } #headA{ grid-area:headA } #headB{ grid-area:headB }
   .pick{ flex:1; min-width:0; height:46px; display:flex; align-items:center; gap:10px; padding:0 12px; border-radius:10px; background:var(--panel); border:2px solid var(--c); font-size:15px; font-weight:700; letter-spacing:.14em; text-align:left }
@@ -34,15 +34,19 @@
   .pad.noglass .glass, .pad.controls .glass{ display:none }
   .pad .cbar{ display:none; position:absolute; left:0; right:0; top:0; z-index:4; height:calc(env(safe-area-inset-top,0px) + 56px); padding:calc(env(safe-area-inset-top,0px) + 4px) 10px 4px; align-items:center; gap:12px; background:var(--bg); border-bottom:1px solid var(--line) }
   .pad .cbar span{ font-size:14px; font-weight:700; letter-spacing:.14em; color:var(--muted) }
-  .pad.controls{ position:fixed; left:0; top:0; width:100%; height:var(--vh, 100dvh); z-index:50; border:0; border-radius:0 }
+  .pad.controls{ position:fixed; left:0; top:0; width:100%; height:calc(var(--vh, 100dvh) - var(--obar, 76px)); z-index:50; border:0; border-radius:0 }
+  .pad .cbar .sw{ margin-left:auto; border-color:var(--c) ; color:var(--c) } .pad .cbar .btn{ height:44px }
+  /* a deck is open: only the crossfade row stays, pinned under it */
+  #deck.opened::before{ content:''; position:fixed; inset:0; background:var(--bg); z-index:49 }
+  #deck.opened #bar{ position:fixed; left:8px; right:8px; bottom:calc(env(safe-area-inset-bottom,0px) + 8px); z-index:51 } #deck.opened #bar .row:last-child{ display:none }
   .pad.controls .cbar{ display:flex } .pad.controls .corner{ display:none }
-  .pad .corner button{ width:38px; height:38px; border-radius:9px; background:rgba(5,8,12,.78); border:1px solid var(--line); font-size:15px }
+  .pad .corner{ opacity:1 } .pad .corner button{ height:36px; padding:0 12px; border-radius:9px; background:rgba(5,8,12,.82); border:1px solid var(--line); font-size:12px; font-weight:700; letter-spacing:.14em }
   .pad .corner button.on{ border-color:var(--a); color:var(--a) }
   .mac{ display:flex; gap:12px; height:30px; align-items:center; min-width:0; padding:0 4px } #macA{ grid-area:macA } #macB{ grid-area:macB }
   .mac label{ flex:1; min-width:0; display:flex; align-items:center; gap:8px; font-size:11px; letter-spacing:.14em; color:var(--muted) }
   .mac label span{ flex:none; max-width:45%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
   .mac input{ flex:1; min-width:0; accent-color:var(--c); height:26px; touch-action:none }
-  .mac:empty{ display:none }
+  .mac{ display:none !important }
   #hint{ grid-area:hint; min-height:16px; font-size:11px; letter-spacing:.06em; color:var(--muted); text-align:center; line-height:1.4 }
   #hint:empty{ display:none }
   #bar{ grid-area:bar; display:flex; flex-direction:column; gap:var(--gap); min-width:0 }
@@ -133,8 +137,8 @@
 <div id="deck">
   <div class="head ca" id="headA"><button class="pick" id="pickA" title="Choose the table for deck A"><b>A</b><span id="nameA"></span><i>▾</i></button><div class="vu" id="vuA"></div></div>
   <div class="head cb" id="headB"><button class="pick" id="pickB" title="Choose the table for deck B"><b>B</b><span id="nameB"></span><i>▾</i></button><div class="vu" id="vuB"></div></div>
-  <div class="pad inA" id="pad1"><iframe id="f1" allow="autoplay; microphone" allowfullscreen></iframe><div class="glass"></div><div class="cbar"><button class="btn done">← DONE</button><span></span></div><div class="corner"><button class="ctl" title="Open this table's own controls full screen">☰</button><button class="foc" title="Fill the screen with this table">⛶</button></div></div>
-  <div class="pad inB" id="pad2"><iframe id="f2" allow="autoplay; microphone" allowfullscreen></iframe><div class="glass"></div><div class="cbar"><button class="btn done">← DONE</button><span></span></div><div class="corner"><button class="ctl" title="Open this table's own controls full screen">☰</button><button class="foc" title="Fill the screen with this table">⛶</button></div></div>
+  <div class="pad inA" id="pad1"><iframe id="f1" allow="autoplay; microphone" allowfullscreen></iframe><div class="glass"></div><div class="cbar"><button class="btn done">← BOTH</button><span></span><button class="btn sw"></button></div><div class="corner"><button class="ctl" title="Open this deck: the whole table with all of its own controls">OPEN</button></div></div>
+  <div class="pad inB" id="pad2"><iframe id="f2" allow="autoplay; microphone" allowfullscreen></iframe><div class="glass"></div><div class="cbar"><button class="btn done">← BOTH</button><span></span><button class="btn sw"></button></div><div class="corner"><button class="ctl" title="Open this deck: the whole table with all of its own controls">OPEN</button></div></div>
   <div class="mac ca" id="macA"></div><div class="mac cb" id="macB"></div>
   <div id="hint"></div>
   <div id="bar">
@@ -240,7 +244,7 @@
     <li>Slide <b>CROSSFADE</b>. Left is A, right is B.</li>
     <li>Press <b>● REC</b>. Press it again: trim the take, export WAV.</li>
     <li>Press <b>LINK</b>. One table chops, ducks, filters or feeds the other.</li>
-    <li>Press <b>☰</b> on a square for that table's own controls, full screen.</li>
+    <li>Press <b>OPEN</b> on a square. That table fills the screen with all of its own controls. <b>← BOTH</b> returns.</li>
     <li>Press <b>⋯</b> for mixer, saved pairs, full screen.</li>
   </ol>
   <button class="btn" id="coachGo">START</button>
@@ -378,26 +382,31 @@
     html.sd-module.sd-open #controls-container, html.sd-module.sd-open #dashboard, html.sd-module.sd-open #app > .panel{ max-height:62vh !important; overflow:auto !important; -webkit-overflow-scrolling:touch; }
     html.sd-module.sd-open #controls-container, html.sd-module.sd-open #main-menu-content{ display:flex !important; }
     html.sd-module.sd-open .bottom-dock{ display:none !important; }
-    html.sd-module.sd-flex #app{ display:flex !important; flex-direction:column; }
-    html.sd-module.sd-flex #app > canvas{ flex:1 1 0; min-height:0; height:auto !important; }
-    html.sd-module.sd-flex #app > .panel{ flex:0 0 auto; }
+    html.sd-flex #app{ display:flex !important; flex-direction:column; }
+    html.sd-flex #app > canvas{ flex:1 1 0; min-height:0; height:auto !important; }
+    html.sd-flex #app > .panel, html.sd-flex #app > #dashboard{ flex:0 0 auto; }
     html.sd-morph #topbar, html.sd-morph .rail, html.sd-morph .surface-head, html.sd-morph #start-hint{ display:none !important; }
     html.sd-morph #app{ padding:0 !important; gap:0 !important; } html.sd-morph #stage, html.sd-morph #portal-container{ gap:0 !important; }
     html.sd-morph .canvas-container{ border:0 !important; border-radius:0 !important; }
     html.sd-view-field #deck-b-container, html.sd-view-seq #deck-a-container{ display:none !important; }
     html.sd-morph.sd-open #dock{ max-height:58vh; overflow:auto; }
+    html.sd-full #controls-container, html.sd-full #dashboard, html.sd-full #app > .panel{ max-height:46vh !important; overflow:auto !important; -webkit-overflow-scrolling:touch; }
+    html.sd-full #overlay, html.sd-full #tutorial-overlay{ display:none !important; }
   `;
-  function kick(frame){ try{ const w = frame.contentWindow; const f = ()=> w.dispatchEvent(new w.Event('resize')); f(); setTimeout(f, 60); setTimeout(f, 300); }catch{} }
+  function kick(frame){ try{ const w = frame.contentWindow;
+      // some tables pin their canvas to the pixel size it had last time; release it so it can follow the new box
+      const f = ()=>{ w.document.querySelectorAll('#app > canvas, body > canvas').forEach(c => { c.style.width = ''; c.style.height = ''; }); w.dispatchEvent(new w.Event('resize')); };
+      f(); setTimeout(f, 60); setTimeout(f, 300); }catch{} }
   function moduleFrame(frame){
     const ctl = frame.parentElement.querySelector('.ctl');
-    let w, doc; try{ w = frame.contentWindow; doc = w.document; if (!doc || !doc.documentElement || !doc.body) return; }catch(e){ ctl.hidden = true; return; }
+    let w, doc; try{ w = frame.contentWindow; doc = w.document; if (!doc || !doc.documentElement || !doc.body) return; }catch(e){ return; }
+    if (frame.parentElement.classList.contains('controls')) return;
     if (!doc.getElementById('sd-module-css')){
       const s = doc.createElement('style'); s.id = 'sd-module-css'; s.textContent = MODULE_CSS; (doc.head || doc.documentElement).appendChild(s);
-      const H = doc.documentElement; H.classList.add('sd-module'); H.classList.remove('sd-open'); ctl.classList.remove('on');
-      H.classList.toggle('sd-flex', !!doc.querySelector('#app > .panel'));
+      const H = doc.documentElement; H.classList.add('sd-module'); H.classList.remove('sd-open');
+      H.classList.toggle('sd-flex', !!doc.querySelector('#app > canvas'));
       const view = new URL(w.location.href).searchParams.get('view');
       if (doc.getElementById('portal-container')){ H.classList.add('sd-morph'); if (view) H.classList.add('sd-view-' + view); }
-      ctl.hidden = !doc.querySelector('#controls-container, #dashboard, #app > .panel, #dock, #top-strip');
       kick(frame);
       if (view && w.scionDeck){ try{ const p = w.scionDeck.manifest().params.find(p => /fade/i.test(p.id + ' ' + p.label)); if (p) w.scionDeck.set(p.id, view === 'field' ? 0 : 1); }catch{} }
       sendBpm(frame);
@@ -406,7 +415,7 @@
   }
 
   // ---------- macros: two sliders under each square, bound to the table's own parameters ----------
-  function bindMacros(frame){
+  function bindMacros(frame){ return;      // two decks only: a table's parameters live in its OPEN view
     const side = sideOf(frame.id), box = $('mac' + side), t = tab[frame.id]; let w, doc; try{ w = frame.contentWindow; doc = w.document; }catch{ box.innerHTML = ''; return; }
     let items = [];
     if (w.scionDeck && w.scionDeck.manifest){ try{ const ps = (w.scionDeck.manifest().params || []).filter(p => !/play|tempo|bpm|start|xfade|crossfade|level|volume/i.test(p.id + ' ' + (p.label || '')));
@@ -471,14 +480,26 @@
       f.style.top = bar + 'px'; f.style.width = pad.clientWidth + 'px'; f.style.height = (pad.clientHeight - bar) + 'px'; f.style.transform = 'none'; return; }
     const sq = parseFloat(getComputedStyle(deckEl).getPropertyValue('--sq')) || 300, v = Math.max(sq, tab[fid].min || 0);
     f.style.top = '0'; f.style.width = f.style.height = v + 'px'; f.style.transform = v > sq ? 'scale(' + (sq / v) + ')' : 'none'; }
-  function setControls(f, on){ const pad = f.parentElement; pad.classList.toggle('controls', on); pad.querySelector('.cbar span').textContent = tab[f.id].name + ' · CONTROLS';
-    try{ const d = f.contentWindow.document; d.documentElement.classList.toggle('sd-open', on);
-      if (/mandalla\.html/.test(tab[f.id].url)) d.body.classList.toggle('embed-mode', !on); }catch{}                 // rings: show the full-size strip while controls are open
-    fitFrame(f.id); kick(f); if (!on) bindMacros(f); }
+  // OPEN: the table as it was built, whole and unscaled, with real touches. The other deck keeps playing.
+  const HOSTCLS = ['sd-module', 'sd-morph', 'sd-view-field', 'sd-view-seq'];
+  function setControls(f, on){
+    const pad = f.parentElement, side = sideOf(f.id), o = other(side);
+    if (on) for (const x of [frames.f1, frames.f2]) if (x !== f && x.parentElement.classList.contains('controls')) setControls(x, false);
+    pad.classList.toggle('controls', on); pad.classList.toggle('ca', side === 'A'); pad.classList.toggle('cb', side === 'B');
+    pad.querySelector('.cbar span').textContent = side + ' · ' + tab[f.id].name; const sw = pad.querySelector('.sw'); sw.textContent = 'OPEN ' + o; sw.className = 'btn sw ' + (o === 'A' ? 'ca' : 'cb');
+    deckEl.classList.toggle('opened', !!document.querySelector('.pad.controls'));
+    document.documentElement.style.setProperty('--obar', ($('xfrow').offsetHeight + 18) + 'px');
+    try{ const d = f.contentWindow.document, H = d.documentElement;
+      if (on){ f._cls = HOSTCLS.filter(c => H.classList.contains(c)); H.classList.remove(...HOSTCLS, 'sd-open'); H.classList.add('sd-full'); }   // sd-full only keeps the chart from being squeezed out by a tall panel
+      else { H.classList.remove('sd-full'); if (f._cls){ H.classList.add(...f._cls); f._cls = null; } }
+      if (/mandalla\.html/.test(tab[f.id].url)) d.body.classList.toggle('embed-mode', !on);
+    }catch{}
+    fitFrame(f.id); kick(f); syncMonitors();
+  }
   function loadTable(side, t){
     const fid = slot[side], frame = frames[fid]; tab[fid] = t;
     for (const x of taps[fid]){ try{ x.node?.disconnect(); }catch{} } taps[fid] = [];
-    frame.parentElement.classList.remove('controls'); fw[fid].clear();
+    if (frame.parentElement.classList.contains('controls')){ frame.parentElement.classList.remove('controls'); deckEl.classList.remove('opened'); } frame._cls = null; fw[fid].clear();
     $('mac' + side).innerHTML = ''; $('mac' + side).dataset.sig = ''; names(); fitFrame(fid); frame.src = t.url;
     let n = 0; clearInterval(frame._t); frame._t = setInterval(()=>{ tapFrame(frame); if (++n > 500) clearInterval(frame._t); }, 8);
     writeUrl(); syncMonitors();
@@ -487,10 +508,9 @@
     f.addEventListener('load', ()=>{ clearInterval(f._t); tapFrame(f); moduleFrame(f); setTimeout(()=> moduleFrame(f), 500); setTimeout(()=> moduleFrame(f), 1500); if (st.playing) startFrame(f); setTimeout(applyRoutes, 300); });
     f.parentElement.querySelector('.ctl').addEventListener('click', ()=> setControls(f, true));
     f.parentElement.querySelector('.done').addEventListener('click', ()=> setControls(f, false));
+    f.parentElement.querySelector('.sw').addEventListener('click', ()=> setControls(frames[f.id === 'f1' ? 'f2' : 'f1'], true));
     glassFor(f);
-    f.parentElement.querySelector('.foc').addEventListener('click', ()=>{ const on = !f.parentElement.classList.contains('focused');
-      document.querySelectorAll('.pad').forEach(p => p.classList.remove('focused')); f.parentElement.classList.toggle('focused', on); deckEl.classList.toggle('focus', on);
-      f.parentElement.querySelector('.foc').classList.toggle('on', on); layout(); kick(f); });
+
   }
   function names(){ $('nameA').textContent = tab[slot.A].name; $('nameB').textContent = tab[slot.B].name; }
   function writeUrl(){ const u = new URL(location.href); u.searchParams.set('a', tab[slot.A].key); u.searchParams.set('b', tab[slot.B].key); history.replaceState(null, '', u.pathname + u.search + location.hash); }
@@ -505,7 +525,7 @@
     const macH = Math.max($('macA').offsetHeight, $('macB').offsetHeight), hintH = $('hint').offsetHeight, short = deckEl.classList.contains('short');
     let sq, col = false;
     if (focus) sq = Math.min(W, H - barH - g);
-    else { const row = Math.min((W - g) / 2, H - head - barH - macH - hintH - (short ? 2 : 4) * g), c = Math.min(W, (H - 2 * head - barH - 2 * macH - hintH - 7 * g) / 2); col = c > row && !short; sq = col ? c : row; }   // every grid row costs a gap, empty or not
+    else { const row = Math.min((W - g) / 2, H - head - barH - hintH - (short ? 2 : 3) * g), c = Math.min(W, (H - 2 * head - barH - hintH - 5 * g) / 2); col = c > row && !short; sq = col ? c : row; }   // every grid row costs a gap, empty or not
     deckEl.classList.toggle('col', col && !focus);
     deckEl.style.setProperty('--sq', Math.max(110, Math.floor(sq)) + 'px');
     fitFrame('f1'); fitFrame('f2');
@@ -772,7 +792,7 @@
   }
   addEventListener('hashchange', render);
   document.addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
-  $('scrim').onclick = ()=> go(''); addEventListener('keydown', e => { if (e.key === 'Escape'){ const open = document.querySelector('.pad.controls'); if (open) setControls(open.querySelector('iframe'), false); else if (location.hash.length > 1) go(''); else if (deckEl.classList.contains('focus')) document.querySelector('.pad.focused .foc').click(); } });
+  $('scrim').onclick = ()=> go(''); addEventListener('keydown', e => { if (e.key === 'Escape'){ const open = document.querySelector('.pad.controls'); if (open) setControls(open.querySelector('iframe'), false); else if (location.hash.length > 1) go(''); } });
   $('more').onclick = ()=> go('moreSheet'); $('crateBtn').onclick = ()=> go('crate');
   $('swap').onclick = ()=>{ [slot.A, slot.B] = [slot.B, slot.A]; $('pad1').className = 'pad in' + sideOf('f1'); $('pad2').className = 'pad in' + sideOf('f2');
     for (const k of ['trim', 'filt', 'dly']) [st[k].A, st[k].B] = [st[k].B, st[k].A];

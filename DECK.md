@@ -158,6 +158,14 @@ ROUTING  [A→B mode amount][B→A …]      [MASTER ▾]  [EXPORT WAV][SAVE SES
   counted) instead of assuming one. A phone on its side gets a one-row control bar.
 - Focus (⛶) keeps PLAY / BPM / LINK / REC visible.
 
+### Changes after the second phone test: two decks, and OPEN
+
+- The deck screen is **only the two squares**, the crossfade and one row of buttons. Macro sliders and the focus button are gone.
+- **OPEN** on a square shows that table whole: full screen, unscaled, nothing hidden, real touches, with all of its own
+  menus and controls. The other deck keeps playing. The crossfade stays pinned underneath. **← BOTH** returns;
+  **OPEN A / OPEN B** jumps straight to the other deck.
+- While a table is open, a tall control panel is capped at 46 % of the height and scrolls, so the chart is never squeezed out.
+
 ### Table contract (to add a table)
 
 Minimum: one page whose playing surface is a canvas that follows the window `resize` event and sends its
