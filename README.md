@@ -19,6 +19,22 @@ This repo is pure HTML/CSS/JS. No build step required.
   - `.vscode/settings.json` — Local IDE settings (useful for Live Server workflow).
   - `smith_decks_*.webm` — Example recorded output(s).
 
+## The deck (deck.html)
+
+Two square slots, A and B. Any table goes in either. Full manual, state map and the contract for adding
+tables: [DECK.md](DECK.md).
+
+- **DECK:** pickers with meters, two squares, two macro sliders per table, crossfade, PLAY, BPM (tap in time), REC, ⋯.
+- **SURFACES** (tap A or B): thumbnails of every table, DISCS / PLATES / FAVORITES, search, all moto albums as ring tables.
+- **MIXER** (⋯): trim, filter, delay send per deck; delay return; limiter; tempo; routing A→B and B→A
+  (SEND, RING MOD, GATE, DUCK, FILTER).
+- **SAVED PAIRS** (⋯): store and recall both tables with mixer, routing and tempo.
+- **TAKE** (REC, then STOP): master + deck A + deck B waveforms, trim handles, EXPORT WAV (master or master + stems), SHARE, SAVE SESSION.
+- **New tables:** `vinyl.html` (scratchable record; takes crate tracks), `sampler.html` (16 slices; GRAB records the other deck),
+  `chladni.html?v=00|01` (sand plate; touch position picks the mode).
+
+`index.html` is unchanged: it is still the original two-deck host.
+
 ## Quick Start
 
 1) Serve the folder with a local HTTP server.

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>CHLADNI • plate table</title>
+<style>
+  html,body{ margin:0; height:100%; background:#000; overflow:hidden; touch-action:none; user-select:none; -webkit-user-select:none }
+  canvas{ position:fixed; inset:0; width:100%; height:100%; display:block }
+  #tag{ position:fixed; left:10px; bottom:8px; font:700 11px ui-monospace,Menlo,monospace; letter-spacing:.14em; color:#8b98a5; pointer-events:none }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas><div id="tag"></div>
+<script>
+(function(){
+  'use strict';
+  // Sand on a vibrating plate. Touch position picks the mode (x → m, y → n); holding drives the plate.
+  const q = new URLSearchParams(location.search), variant = q.get('v') === '01' ? 1 : 0;
+  const COLOR = variant ? [255, 205, 110] : [235, 240, 245];
+  const cv = document.getElementById('cv'), g = cv.getContext('2d'), tag = document.getElementById('tag');
+  const N = 7000, px = new Float32Array(N), py = new Float32Array(N);
+  for (let i = 0; i < N; i++){ px[i] = Math.random(); py[i] = Math.random(); }
+  const P = { mode: 0.35, drive: 0.5 };            // normalized params
+  let m = 3, n = 5, hold = 0, running = false, W = 1, H = 1, S = 1, ox = 0, oy = 0;
+  const MODES = []; for (let a = 1; a <= 7; a++) for (let b = a + 1; b <= 8; b++) MODES.push([a, b]);
+  function setMode(v){ P.mode = Math.max(0, Math.min(1, v)); [m, n] = MODES[Math.min(MODES.length - 1, Math.floor(P.mode * MODES.length))]; retune(); label(); }
+  const f = (x, y) => { const a = Math.cos(n * Math.PI * x) * Math.cos(m * Math.PI * y), b = Math.cos(m * Math.PI * x) * Math.cos(n * Math.PI * y); return variant ? a + b : a - b; };
+  function label(){ tag.textContent = `CHLADNI ${variant ? '01' : '00'} · m${m} n${n} · ${Math.round(freq())} Hz`; }
+
+  // ---- sound: three plate partials; drive sets level
+  let ac, master, oscs = [];
+  const freq = () => 55 * Math.sqrt(m * m + n * n);
+  function audio(){
+    if (ac) return; ac = new (window.AudioContext || window.webkitAudioContext)();
+    master = ac.createGain(); master.gain.value = 0; master.connect(ac.destination);
+    [[1, 0.5, 'sine'], [2.01, 0.18, 'sine'], [0.5, 0.3, 'triangle']].forEach(([mul, lvl, type]) => { const o = ac.createOscillator(), v = ac.createGain(); o.type = type; v.gain.value = lvl; o.connect(v); v.connect(master); o.start(); oscs.push([o, mul]); });
+    retune();
+  }
+  function retune(){ if (!ac) return; for (const [o, mul] of oscs) o.frequency.setTargetAtTime(freq() * mul, ac.currentTime, 0.03); }
+  function level(){ if (!ac) return; const v = (running ? 0.35 : 0) * P.drive + hold * 0.5; master.gain.setTargetAtTime(Math.min(0.8, v) * 0.5, ac.currentTime, 0.05); }
+
+  // ---- drawing
+  function resize(){ const d = Math.min(2, devicePixelRatio || 1); W = cv.width = innerWidth * d; H = cv.height = innerHeight * d; S = Math.min(W, H) * 0.92; ox = (W - S) / 2; oy = (H - S) / 2; g.fillStyle = '#000'; g.fillRect(0, 0, W, H); }
+  addEventListener('resize', resize); resize();
+  function frame(){
+    const shake = 0.006 + ((running ? 0.6 : 0.25) * P.drive + hold) * 0.03;      // the plate never fully rests, so a new mode always forms
+    g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(0, 0, W, H);
+    g.fillStyle = `rgba(${COLOR[0]},${COLOR[1]},${COLOR[2]},0.85)`;
+    const sz = Math.max(1, S / 420);
+    for (let i = 0; i < N; i++){
+      const a = Math.abs(f(px[i], py[i])), k = shake * Math.min(1, a * 1.6) + (a < 0.05 ? 0.0002 : 0.0008);                  // sand moves where the plate moves, rests on the nodal lines
+      let x = px[i] + (Math.random() - 0.5) * k, y = py[i] + (Math.random() - 0.5) * k;
+      if (x < 0 || x > 1) x = Math.random(); if (y < 0 || y > 1) y = Math.random();
+      px[i] = x; py[i] = y; g.fillRect(ox + x * S, oy + y * S, sz, sz);
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---- touch: position picks mode numbers, holding drives
+  function at(e){ const r = cv.getBoundingClientRect(), d = cv.width / r.width; const x = ((e.clientX - r.left) * d - ox) / S, y = ((e.clientY - r.top) * d - oy) / S;
+    m = 1 + Math.round(Math.max(0, Math.min(1, x)) * 7); n = 1 + Math.round(Math.max(0, Math.min(1, y)) * 7); if (m === n) n = m + 1;
+    const lo = Math.min(m, n), hi = Math.max(m, n), idx = MODES.findIndex(p => p[0] === lo && p[1] === hi); if (idx >= 0) P.mode = (idx + 0.5) / MODES.length;
+    retune(); label(); emit('mode'); }
+  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); audio(); ac.resume(); hold = 1; at(e); level(); });
+  cv.addEventListener('pointermove', e => { if (hold) at(e); });
+  const up = () => { hold = 0; level(); }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  function emit(id){ try{ parent !== window && parent.postMessage({ type: 'scion-param', id, value: P[id] }, '*'); }catch{} }
+
+  window.scionDeck = { version: 1,
+    manifest: () => ({ name: 'CHLADNI ' + (variant ? '01' : '00'), kind: 'plate', params: [{ id: 'mode', label: 'MODE', value: P.mode }, { id: 'drive', label: 'DRIVE', value: P.drive }] }),
+    set(id, v){ if (id === 'mode') setMode(v); else if (id === 'drive'){ P.drive = Math.max(0, Math.min(1, v)); level(); } },
+    get: id => P[id], start(){ audio(); ac.resume(); running = true; level(); }, stop(){ running = false; level(); }, setBpm(){} };
+  setMode(P.mode);
+})();
+</script>
+</body>
+</html>
