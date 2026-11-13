@@ -24,7 +24,8 @@
   .head{ display:flex; gap:8px; min-width:0 } #headA{ grid-area:headA } #headB{ grid-area:headB }
   .pick{ flex:1; min-width:0; height:46px; display:flex; align-items:center; gap:10px; padding:0 12px; border-radius:10px; background:var(--panel); border:2px solid var(--c); font-size:15px; font-weight:700; letter-spacing:.14em; text-align:left }
   .pick b{ font-size:22px; color:var(--c) } .pick span{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap } .pick i{ font-style:normal; color:var(--muted) }
-  .vu{ flex:none; width:96px; height:46px; border-radius:10px; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; gap:3px; padding:0 9px }
+  .head .open{ flex:none; height:46px; padding:0 14px; border-color:var(--c); color:var(--c) }
+  .vu{ flex:none; width:58px; height:46px; border-radius:10px; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; gap:2px; padding:0 7px }
   .vu u{ flex:1; height:18px; border-radius:2px; background:#16202a } .vu u.on{ background:var(--c) } .vu.direct u.on{ background:var(--muted) }
   .pad{ position:relative; width:var(--sq); height:var(--sq); border-radius:10px; overflow:hidden; background:#000; border:1px solid var(--line) }
   .pad.inA{ grid-area:padA } .pad.inB{ grid-area:padB }
@@ -129,16 +130,16 @@
   #coach b{ color:var(--a) } #coachGo{ width:100%; border-color:var(--play) }
   #toast{ position:fixed; left:50%; transform:translateX(-50%); top:calc(env(safe-area-inset-top,0px) + 62px); z-index:70; padding:10px 14px; border-radius:10px; background:#101820; border:1px solid var(--line); font-size:12px; letter-spacing:.06em; display:none; max-width:92vw }
   #toast.show{ display:flex; gap:12px; align-items:center } #toast button{ background:none; border:0; color:var(--a); font-weight:700; letter-spacing:.14em }
-  @media (max-width:520px){ .pair{ gap:8px; padding:8px } .pair .t{ width:54px; height:54px } .pair .n{ font-size:11px; letter-spacing:.08em } .pair .load{ padding:0 10px } .btn{ padding:0 10px; font-size:12px; height:44px } .pick{ height:40px; font-size:13px } .vu{ height:40px; width:70px; padding:0 6px; gap:2px } #takeHead{ font-size:20px } }
+  @media (max-width:520px){ .pair{ gap:8px; padding:8px } .pair .t{ width:54px; height:54px } .pair .n{ font-size:11px; letter-spacing:.08em } .pair .load{ padding:0 10px } .btn{ padding:0 10px; font-size:12px; height:44px } .pick{ height:40px; font-size:13px } .vu{ height:40px; width:44px; padding:0 5px; gap:1px } .head .open{ height:40px; padding:0 10px } #takeHead{ font-size:20px } }
 </style>
 </head>
 <body>
 <!-- DECK: two squares, one crossfader, play / tempo / record. Everything else is one tap away. -->
 <div id="deck">
-  <div class="head ca" id="headA"><button class="pick" id="pickA" title="Choose the table for deck A"><b>A</b><span id="nameA"></span><i>▾</i></button><div class="vu" id="vuA"></div></div>
-  <div class="head cb" id="headB"><button class="pick" id="pickB" title="Choose the table for deck B"><b>B</b><span id="nameB"></span><i>▾</i></button><div class="vu" id="vuB"></div></div>
-  <div class="pad inA" id="pad1"><iframe id="f1" allow="autoplay; microphone" allowfullscreen></iframe><div class="glass"></div><div class="cbar"><button class="btn done">← BOTH</button><span></span><button class="btn sw"></button></div><div class="corner"><button class="ctl" title="Open this deck: the whole table with all of its own controls">OPEN</button></div></div>
-  <div class="pad inB" id="pad2"><iframe id="f2" allow="autoplay; microphone" allowfullscreen></iframe><div class="glass"></div><div class="cbar"><button class="btn done">← BOTH</button><span></span><button class="btn sw"></button></div><div class="corner"><button class="ctl" title="Open this deck: the whole table with all of its own controls">OPEN</button></div></div>
+  <div class="head ca" id="headA"><button class="pick" id="pickA" title="Choose the table for deck A"><b>A</b><span id="nameA"></span><i>▾</i></button><button class="btn open" id="openA" title="Open deck A: the whole table, full screen, with all of its own controls">OPEN</button><div class="vu" id="vuA"></div></div>
+  <div class="head cb" id="headB"><button class="pick" id="pickB" title="Choose the table for deck B"><b>B</b><span id="nameB"></span><i>▾</i></button><button class="btn open" id="openB" title="Open deck B: the whole table, full screen, with all of its own controls">OPEN</button><div class="vu" id="vuB"></div></div>
+  <div class="pad inA" id="pad1"><iframe id="f1" allow="autoplay; microphone" allowfullscreen></iframe><div class="glass"></div><div class="cbar"><button class="btn done">← BOTH</button><span></span><button class="btn sw"></button></div></div>
+  <div class="pad inB" id="pad2"><iframe id="f2" allow="autoplay; microphone" allowfullscreen></iframe><div class="glass"></div><div class="cbar"><button class="btn done">← BOTH</button><span></span><button class="btn sw"></button></div></div>
   <div class="mac ca" id="macA"></div><div class="mac cb" id="macB"></div>
   <div id="hint"></div>
   <div id="bar">
@@ -244,7 +245,7 @@
     <li>Slide <b>CROSSFADE</b>. Left is A, right is B.</li>
     <li>Press <b>● REC</b>. Press it again: trim the take, export WAV.</li>
     <li>Press <b>LINK</b>. One table chops, ducks, filters or feeds the other.</li>
-    <li>Press <b>OPEN</b> on a square. That table fills the screen with all of its own controls. <b>← BOTH</b> returns.</li>
+    <li>Press <b>OPEN</b> beside A or B. That table fills the screen at full size with all of its own controls. <b>← BOTH</b> returns.</li>
     <li>Press <b>⋯</b> for mixer, saved pairs, full screen.</li>
   </ol>
   <button class="btn" id="coachGo">START</button>
@@ -398,7 +399,6 @@
       const f = ()=>{ w.document.querySelectorAll('#app > canvas, body > canvas').forEach(c => { c.style.width = ''; c.style.height = ''; }); w.dispatchEvent(new w.Event('resize')); };
       f(); setTimeout(f, 60); setTimeout(f, 300); }catch{} }
   function moduleFrame(frame){
-    const ctl = frame.parentElement.querySelector('.ctl');
     let w, doc; try{ w = frame.contentWindow; doc = w.document; if (!doc || !doc.documentElement || !doc.body) return; }catch(e){ return; }
     if (frame.parentElement.classList.contains('controls')) return;
     if (!doc.getElementById('sd-module-css')){
@@ -506,12 +506,12 @@
   }
   for (const fid of ['f1', 'f2']){ const f = frames[fid];
     f.addEventListener('load', ()=>{ clearInterval(f._t); tapFrame(f); moduleFrame(f); setTimeout(()=> moduleFrame(f), 500); setTimeout(()=> moduleFrame(f), 1500); if (st.playing) startFrame(f); setTimeout(applyRoutes, 300); });
-    f.parentElement.querySelector('.ctl').addEventListener('click', ()=> setControls(f, true));
     f.parentElement.querySelector('.done').addEventListener('click', ()=> setControls(f, false));
     f.parentElement.querySelector('.sw').addEventListener('click', ()=> setControls(frames[f.id === 'f1' ? 'f2' : 'f1'], true));
     glassFor(f);
 
   }
+  $('openA').onclick = ()=> setControls(frames[slot.A], true); $('openB').onclick = ()=> setControls(frames[slot.B], true);
   function names(){ $('nameA').textContent = tab[slot.A].name; $('nameB').textContent = tab[slot.B].name; }
   function writeUrl(){ const u = new URL(location.href); u.searchParams.set('a', tab[slot.A].key); u.searchParams.set('b', tab[slot.B].key); history.replaceState(null, '', u.pathname + u.search + location.hash); }
 
