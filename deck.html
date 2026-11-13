@@ -16,27 +16,38 @@
   .ca{ --c:var(--a) } .cb{ --c:var(--b) }
 
   /* ---------- DECK ---------- */
-  #deck{ position:fixed; inset:0; padding:calc(env(safe-area-inset-top,0px) + 8px) 8px calc(env(safe-area-inset-bottom,0px) + 8px);
-    display:grid; gap:var(--gap); justify-content:center; align-content:center; grid-template-columns: var(--sq) var(--sq);
-    grid-template-areas: "headA headB" "padA padB" "macA macB" "hint hint" "bar bar"; }
-  #deck.col{ grid-template-columns: minmax(0, 1fr); justify-items:center; grid-template-areas: "headA" "padA" "macA" "headB" "padB" "macB" "hint" "bar"; }
+  #deck{ position:fixed; left:0; top:0; width:100%; height:var(--vh, 100dvh); padding:calc(env(safe-area-inset-top,0px) + 8px) 8px calc(env(safe-area-inset-bottom,0px) + 8px);
+    display:grid; gap:var(--gap); justify-content:center; align-content:safe center; grid-template-columns: var(--sq) var(--sq);
+    grid-template-areas: "headA headB" "padA padB" "hint hint" "bar bar"; }
+  #deck.col{ grid-template-columns: minmax(0, 1fr); justify-items:center; grid-template-areas: "headA" "padA" "headB" "padB" "hint" "bar"; }
   #deck.col .head, #deck.col .mac, #deck.col #hint, #deck.col #bar{ width:100%; max-width:560px }
   .head{ display:flex; gap:8px; min-width:0 } #headA{ grid-area:headA } #headB{ grid-area:headB }
   .pick{ flex:1; min-width:0; height:46px; display:flex; align-items:center; gap:10px; padding:0 12px; border-radius:10px; background:var(--panel); border:2px solid var(--c); font-size:15px; font-weight:700; letter-spacing:.14em; text-align:left }
   .pick b{ font-size:22px; color:var(--c) } .pick span{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap } .pick i{ font-style:normal; color:var(--muted) }
-  .vu{ flex:none; width:96px; height:46px; border-radius:10px; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; gap:3px; padding:0 9px }
+  .head .open{ flex:none; height:46px; padding:0 14px; border-color:var(--c); color:var(--c) }
+  .vu{ flex:none; width:58px; height:46px; border-radius:10px; background:var(--panel); border:1px solid var(--line); display:flex; align-items:center; gap:2px; padding:0 7px }
   .vu u{ flex:1; height:18px; border-radius:2px; background:#16202a } .vu u.on{ background:var(--c) } .vu.direct u.on{ background:var(--muted) }
   .pad{ position:relative; width:var(--sq); height:var(--sq); border-radius:10px; overflow:hidden; background:#000; border:1px solid var(--line) }
   .pad.inA{ grid-area:padA } .pad.inB{ grid-area:padB }
   .pad iframe{ position:absolute; left:0; top:0; width:100%; height:100%; border:0; background:#000; transform-origin:0 0 }
-  .pad .corner{ position:absolute; top:6px; right:6px; z-index:3; display:flex; gap:6px; opacity:.55 } .pad:hover .corner, .pad .corner:focus-within{ opacity:1 }
-  .pad .corner button{ width:38px; height:38px; border-radius:9px; background:rgba(5,8,12,.78); border:1px solid var(--line); font-size:15px }
+  .pad .corner{ position:absolute; top:6px; right:6px; z-index:3; display:flex; gap:6px; opacity:.6 }
+  .pad .glass{ position:absolute; inset:0; z-index:2; touch-action:none }             /* takes every finger, hands it to the table: both squares play at once */
+  .pad.noglass .glass, .pad.controls .glass{ display:none }
+  .pad .cbar{ display:none; position:absolute; left:0; right:0; top:0; z-index:4; height:calc(env(safe-area-inset-top,0px) + 56px); padding:calc(env(safe-area-inset-top,0px) + 4px) 10px 4px; align-items:center; gap:12px; background:var(--bg); border-bottom:1px solid var(--line) }
+  .pad .cbar span{ font-size:14px; font-weight:700; letter-spacing:.14em; color:var(--muted) }
+  .pad.controls{ position:fixed; left:0; top:0; width:100%; height:calc(var(--vh, 100dvh) - var(--obar, 76px)); z-index:50; border:0; border-radius:0 }
+  .pad .cbar .sw{ margin-left:auto; border-color:var(--c) ; color:var(--c) } .pad .cbar .btn{ height:44px }
+  /* a deck is open: only the crossfade row stays, pinned under it */
+  #deck.opened::before{ content:''; position:fixed; inset:0; background:var(--bg); z-index:49 }
+  #deck.opened #bar{ position:fixed; left:8px; right:8px; bottom:calc(env(safe-area-inset-bottom,0px) + 8px); z-index:51 } #deck.opened #bar .row:last-child{ display:none }
+  .pad.controls .cbar{ display:flex } .pad.controls .corner{ display:none }
+  .pad .corner{ opacity:1 } .pad .corner button{ height:36px; padding:0 12px; border-radius:9px; background:rgba(5,8,12,.82); border:1px solid var(--line); font-size:12px; font-weight:700; letter-spacing:.14em }
   .pad .corner button.on{ border-color:var(--a); color:var(--a) }
   .mac{ display:flex; gap:12px; height:30px; align-items:center; min-width:0; padding:0 4px } #macA{ grid-area:macA } #macB{ grid-area:macB }
   .mac label{ flex:1; min-width:0; display:flex; align-items:center; gap:8px; font-size:11px; letter-spacing:.14em; color:var(--muted) }
   .mac label span{ flex:none; max-width:45%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
   .mac input{ flex:1; min-width:0; accent-color:var(--c); height:26px; touch-action:none }
-  .mac:empty{ display:none }
+  .mac{ display:none !important }
   #hint{ grid-area:hint; min-height:16px; font-size:11px; letter-spacing:.06em; color:var(--muted); text-align:center; line-height:1.4 }
   #hint:empty{ display:none }
   #bar{ grid-area:bar; display:flex; flex-direction:column; gap:var(--gap); min-width:0 }
@@ -51,9 +62,17 @@
   input.xf::-webkit-slider-thumb{ -webkit-appearance:none; width:32px; height:34px; margin-top:-11px; border-radius:8px; background:#dfe5ea; border:2px solid #0b0d12; box-shadow:0 2px 8px rgba(0,0,0,.6) }
   input.xf::-moz-range-thumb{ width:28px; height:30px; border-radius:8px; background:#dfe5ea; border:2px solid #0b0d12 }
   #play{ flex:1 1 0; border-color:var(--play) } #play.on{ background:#0c2a1e }
-  #bpm{ flex:1 1 0; min-width:96px } #rec{ flex:1 1 0; border-color:var(--rec); color:#ffb9c0 } #rec.on{ background:#3a0f14 }
+  #bpm{ flex:1 1 0; min-width:0 } #rec{ flex:1 1 0; border-color:var(--rec); color:#ffb9c0 } #rec.on{ background:#3a0f14 }
   #more{ flex:none; width:52px; padding:0; font-size:20px }
-  #deck.focus .head, #deck.focus .mac, #deck.focus #hint, #deck.focus #bar .row:last-child{ display:none }
+  #linkBtn{ flex:1 1 0; border-color:var(--line) } #linkBtn.on{ border-color:var(--tap); color:var(--tap) }
+  #link .dir{ display:flex; gap:8px } #link .dir .btn{ flex:1 } #link .dir .btn.on{ border-color:var(--tap); color:var(--tap); background:#191229 }
+  #link .lm{ width:100%; text-align:left; white-space:normal; height:auto; min-height:52px; padding:8px 14px; line-height:1.4; letter-spacing:.04em; font-weight:400; font-size:13px }
+  #link .lm b{ display:inline-block; min-width:64px; letter-spacing:.14em } #link .lm.on{ border-color:var(--tap); background:#191229 } #link .lm:disabled{ opacity:.4 }
+  #link input[type=range]{ width:100%; height:34px; accent-color:var(--tap); touch-action:none }
+  #deck.focus .head, #deck.focus .mac, #deck.focus #hint{ display:none }
+  #deck.short{ grid-template-areas: "headA headB" "padA padB" "bar bar" }
+  #deck.short .mac, #deck.short #hint{ display:none } #deck.short #bar{ flex-direction:row; align-items:center } #deck.short #xfrow{ flex:1 1 38%; min-width:0 } #deck.short #bar .row:last-child{ flex:1 1 62% }
+  #deck.short .btn{ padding:0 8px; font-size:12px; letter-spacing:.06em } #deck.short #more{ width:44px }
   #deck.focus{ grid-template-columns: var(--sq); grid-template-areas: "padA" "bar" } #deck.focus .pad{ grid-area:padA } #deck.focus .pad:not(.focused){ visibility:hidden; pointer-events:none }
 
   /* ---------- screens ---------- */
@@ -111,16 +130,16 @@
   #coach b{ color:var(--a) } #coachGo{ width:100%; border-color:var(--play) }
   #toast{ position:fixed; left:50%; transform:translateX(-50%); top:calc(env(safe-area-inset-top,0px) + 62px); z-index:70; padding:10px 14px; border-radius:10px; background:#101820; border:1px solid var(--line); font-size:12px; letter-spacing:.06em; display:none; max-width:92vw }
   #toast.show{ display:flex; gap:12px; align-items:center } #toast button{ background:none; border:0; color:var(--a); font-weight:700; letter-spacing:.14em }
-  @media (max-width:520px){ .pair{ gap:8px; padding:8px } .pair .t{ width:54px; height:54px } .pair .n{ font-size:11px; letter-spacing:.08em } .pair .load{ padding:0 10px } .btn{ padding:0 10px; font-size:12px; height:44px } .pick{ height:40px; font-size:13px } .vu{ height:40px; width:70px; padding:0 6px; gap:2px } #takeHead{ font-size:20px } }
+  @media (max-width:520px){ .pair{ gap:8px; padding:8px } .pair .t{ width:54px; height:54px } .pair .n{ font-size:11px; letter-spacing:.08em } .pair .load{ padding:0 10px } .btn{ padding:0 10px; font-size:12px; height:44px } .pick{ height:40px; font-size:13px } .vu{ height:40px; width:44px; padding:0 5px; gap:1px } .head .open{ height:40px; padding:0 10px } #takeHead{ font-size:20px } }
 </style>
 </head>
 <body>
 <!-- DECK: two squares, one crossfader, play / tempo / record. Everything else is one tap away. -->
 <div id="deck">
-  <div class="head ca" id="headA"><button class="pick" id="pickA" title="Choose the table for deck A"><b>A</b><span id="nameA"></span><i>▾</i></button><div class="vu" id="vuA"></div></div>
-  <div class="head cb" id="headB"><button class="pick" id="pickB" title="Choose the table for deck B"><b>B</b><span id="nameB"></span><i>▾</i></button><div class="vu" id="vuB"></div></div>
-  <div class="pad inA" id="pad1"><iframe id="f1" allow="autoplay; microphone" allowfullscreen></iframe><div class="corner"><button class="ctl" title="This table's own controls">☰</button><button class="foc" title="Fill the screen with this table">⛶</button></div></div>
-  <div class="pad inB" id="pad2"><iframe id="f2" allow="autoplay; microphone" allowfullscreen></iframe><div class="corner"><button class="ctl" title="This table's own controls">☰</button><button class="foc" title="Fill the screen with this table">⛶</button></div></div>
+  <div class="head ca" id="headA"><button class="pick" id="pickA" title="Choose the table for deck A"><b>A</b><span id="nameA"></span><i>▾</i></button><button class="btn open" id="openA" title="Open deck A: the whole table, full screen, with all of its own controls">OPEN</button><div class="vu" id="vuA"></div></div>
+  <div class="head cb" id="headB"><button class="pick" id="pickB" title="Choose the table for deck B"><b>B</b><span id="nameB"></span><i>▾</i></button><button class="btn open" id="openB" title="Open deck B: the whole table, full screen, with all of its own controls">OPEN</button><div class="vu" id="vuB"></div></div>
+  <div class="pad inA" id="pad1"><iframe id="f1" allow="autoplay; microphone" allowfullscreen></iframe><div class="glass"></div><div class="cbar"><button class="btn done">← BOTH</button><span></span><button class="btn sw"></button></div></div>
+  <div class="pad inB" id="pad2"><iframe id="f2" allow="autoplay; microphone" allowfullscreen></iframe><div class="glass"></div><div class="cbar"><button class="btn done">← BOTH</button><span></span><button class="btn sw"></button></div></div>
   <div class="mac ca" id="macA"></div><div class="mac cb" id="macB"></div>
   <div id="hint"></div>
   <div id="bar">
@@ -132,6 +151,7 @@
     <div class="row">
       <button class="btn" id="play">▶ PLAY</button>
       <button class="btn" id="bpm" title="Tap in time to set the tempo. Exact tempo is in the mixer.">120 BPM</button>
+      <button class="btn" id="linkBtn" title="Make one table act on the other">LINK</button>
       <button class="btn" id="rec">● REC</button>
       <button class="btn" id="more" title="Mixer, saved pairs, full screen, help" aria-label="More">⋯</button>
     </div>
@@ -190,6 +210,14 @@
   <div class="row"><button class="btn" id="exportWav">EXPORT WAV</button><button class="btn" id="saveSession">SAVE SESSION</button><button class="btn" id="shareTake" hidden>SHARE TAKE</button></div>
 </section>
 
+<section class="screen sheet" id="link">
+  <div class="top"><h2>LINK</h2><span class="grow"></span><button class="btn back" data-go="">DONE</button></div>
+  <div class="note">A link makes one table act on the other. Pick who acts, then how. Both directions can run at once.</div>
+  <div class="dir"><button class="btn" id="dirAB"></button><button class="btn" id="dirBA"></button></div>
+  <div id="linkModes" style="display:flex;flex-direction:column;gap:8px"></div>
+  <label class="note">AMOUNT <span id="linkAmtV"></span><input type="range" id="linkAmt" min="0" max="1" step="0.01"></label>
+</section>
+
 <section class="screen sheet" id="moreSheet">
   <button class="btn" data-go="mixer">MIXER · trim, filter, delay, routing, tempo</button>
   <button class="btn" data-go="pairs">SAVED PAIRS · store and recall setups</button>
@@ -216,7 +244,9 @@
     <li>Touch a square. It sounds.</li>
     <li>Slide <b>CROSSFADE</b>. Left is A, right is B.</li>
     <li>Press <b>● REC</b>. Press it again: trim the take, export WAV.</li>
-    <li>Press <b>⋯</b> for mixer, routing, saved pairs, full screen.</li>
+    <li>Press <b>LINK</b>. One table chops, ducks, filters or feeds the other.</li>
+    <li>Press <b>OPEN</b> beside A or B. That table fills the screen at full size with all of its own controls. <b>← BOTH</b> returns.</li>
+    <li>Press <b>⋯</b> for mixer, saved pairs, full screen.</li>
   </ol>
   <button class="btn" id="coachGo">START</button>
 </div></div>
@@ -245,7 +275,7 @@
     ['smith-137', 'SMITH 137', 'disc', 'smith-137.html', 420],
     ['smith-255', 'SMITH 255', 'disc', 'smith-255.html', 420],
     ['smith-radio', 'RADIO', 'disc', 'smith-radio.html', 420],
-    ['smith-morph', 'SMITH MORPH', 'disc', 'smith-morph.html?embed=1', 420],
+    ['smith-morph', 'SMITH MORPH', 'disc', 'smith-morph.html?embed=1', 420, null, false],
     ['deco-00', 'DECO MOOD 00', 'disc', 'deco-mood-00.html', 420],
     ['deco-02', 'DECO MOOD 02', 'disc', 'deco-mood-02.html', 420],
     ['deco-03', 'DECO MOOD 03', 'disc', 'deco-mood-03.html', 420],
@@ -253,10 +283,10 @@
     ['sequencer', 'SEQUENCER', 'plate', RES + 'mighty-morph-08g.html?embed=1&view=seq', 0],
     ['chladni-00', 'CHLADNI 00', 'plate', 'chladni.html?v=00', 0],
     ['chladni-01', 'CHLADNI 01', 'plate', 'chladni.html?v=01', 0],
-    ['morph-field', 'MORPH FIELD', 'plate', RES + 'deep-field.html?embed=1', 0],
+    ['morph-field', 'MORPH FIELD', 'plate', RES + 'deep-field.html?embed=1', 0, null, false],
     ['sampler', 'SAMPLER', 'plate', 'sampler.html', 0],
-  ].map(([key, name, kind, url, min, mac]) => ({ key, name, kind, url, min: min || 0, mac, thumb: 'thumbs/' + key + '.jpg' }));
-  const byKey = k => T.find(t => t.key === k) || (k && k.startsWith('ring:') ? { key: k, name: k.slice(5).toUpperCase(), kind: 'disc', url: '../moto/mandalla.html?embed=1&album=' + encodeURIComponent(k.slice(5)), min: 640, thumb: 'thumbs/ghost.jpg' } : null) || (k && /[./]/.test(k) ? { key: k, name: k.split('/').pop().replace(/\.html.*$/, '').toUpperCase(), kind: 'other', url: k, min: 420, thumb: '' } : null);
+  ].map(([key, name, kind, url, min, mac, glass]) => ({ key, name, kind, url, min: min || 0, mac, glass: glass !== false, thumb: 'thumbs/' + key + '.jpg' }));
+  const byKey = k => T.find(t => t.key === k) || (k && k.startsWith('ring:') ? { key: k, name: k.slice(5).toUpperCase(), kind: 'disc', url: '../moto/mandalla.html?embed=1&album=' + encodeURIComponent(k.slice(5)), min: 640, glass: true, thumb: 'thumbs/ghost.jpg' } : null) || (k && /[./]/.test(k) ? { key: k, name: k.split('/').pop().replace(/\.html.*$/, '').toUpperCase(), kind: 'other', url: k, min: 420, thumb: '' } : null);
 
   // ---------- state ----------
   const frames = { f1: $('f1'), f2: $('f2') };
@@ -350,29 +380,33 @@
     html.sd-module:not(.sd-open) #topHud, html.sd-module:not(.sd-open) #dock, html.sd-module:not(.sd-open) .bottom-dock,
     html.sd-module:not(.sd-open) #app > .panel, html.sd-module:not(.sd-open) #app > .hud,
     html.sd-module:not(.sd-open) #top-strip, html.sd-module:not(.sd-open) #embed-strip-toggle{ display:none !important; }
-    html.sd-module.sd-open #controls-container, html.sd-module.sd-open #dashboard, html.sd-module.sd-open #app > .panel{ max-height:58vh !important; overflow:auto !important; -webkit-overflow-scrolling:touch; }
+    html.sd-module.sd-open #controls-container, html.sd-module.sd-open #dashboard, html.sd-module.sd-open #app > .panel{ max-height:62vh !important; overflow:auto !important; -webkit-overflow-scrolling:touch; }
     html.sd-module.sd-open #controls-container, html.sd-module.sd-open #main-menu-content{ display:flex !important; }
     html.sd-module.sd-open .bottom-dock{ display:none !important; }
-    html.sd-module.sd-flex #app{ display:flex !important; flex-direction:column; }
-    html.sd-module.sd-flex #app > canvas{ flex:1 1 0; min-height:0; height:auto !important; }
-    html.sd-module.sd-flex #app > .panel{ flex:0 0 auto; }
+    html.sd-flex #app{ display:flex !important; flex-direction:column; }
+    html.sd-flex #app > canvas{ flex:1 1 0; min-height:0; height:auto !important; }
+    html.sd-flex #app > .panel, html.sd-flex #app > #dashboard{ flex:0 0 auto; }
     html.sd-morph #topbar, html.sd-morph .rail, html.sd-morph .surface-head, html.sd-morph #start-hint{ display:none !important; }
     html.sd-morph #app{ padding:0 !important; gap:0 !important; } html.sd-morph #stage, html.sd-morph #portal-container{ gap:0 !important; }
     html.sd-morph .canvas-container{ border:0 !important; border-radius:0 !important; }
     html.sd-view-field #deck-b-container, html.sd-view-seq #deck-a-container{ display:none !important; }
     html.sd-morph.sd-open #dock{ max-height:58vh; overflow:auto; }
+    html.sd-full #controls-container, html.sd-full #dashboard, html.sd-full #app > .panel{ max-height:46vh !important; overflow:auto !important; -webkit-overflow-scrolling:touch; }
+    html.sd-full #overlay, html.sd-full #tutorial-overlay{ display:none !important; }
   `;
-  function kick(frame){ try{ const w = frame.contentWindow; const f = ()=> w.dispatchEvent(new w.Event('resize')); f(); setTimeout(f, 60); setTimeout(f, 300); }catch{} }
+  function kick(frame){ try{ const w = frame.contentWindow;
+      // some tables pin their canvas to the pixel size it had last time; release it so it can follow the new box
+      const f = ()=>{ w.document.querySelectorAll('#app > canvas, body > canvas').forEach(c => { c.style.width = ''; c.style.height = ''; }); w.dispatchEvent(new w.Event('resize')); };
+      f(); setTimeout(f, 60); setTimeout(f, 300); }catch{} }
   function moduleFrame(frame){
-    const ctl = frame.parentElement.querySelector('.ctl');
-    let w, doc; try{ w = frame.contentWindow; doc = w.document; if (!doc || !doc.documentElement || !doc.body) return; }catch(e){ ctl.hidden = true; return; }
+    let w, doc; try{ w = frame.contentWindow; doc = w.document; if (!doc || !doc.documentElement || !doc.body) return; }catch(e){ return; }
+    if (frame.parentElement.classList.contains('controls')) return;
     if (!doc.getElementById('sd-module-css')){
       const s = doc.createElement('style'); s.id = 'sd-module-css'; s.textContent = MODULE_CSS; (doc.head || doc.documentElement).appendChild(s);
-      const H = doc.documentElement; H.classList.add('sd-module'); H.classList.remove('sd-open'); ctl.classList.remove('on');
-      H.classList.toggle('sd-flex', !!doc.querySelector('#app > .panel'));
+      const H = doc.documentElement; H.classList.add('sd-module'); H.classList.remove('sd-open');
+      H.classList.toggle('sd-flex', !!doc.querySelector('#app > canvas'));
       const view = new URL(w.location.href).searchParams.get('view');
       if (doc.getElementById('portal-container')){ H.classList.add('sd-morph'); if (view) H.classList.add('sd-view-' + view); }
-      ctl.hidden = !doc.querySelector('#controls-container, #dashboard, #app > .panel, #dock, #top-strip');
       kick(frame);
       if (view && w.scionDeck){ try{ const p = w.scionDeck.manifest().params.find(p => /fade/i.test(p.id + ' ' + p.label)); if (p) w.scionDeck.set(p.id, view === 'field' ? 0 : 1); }catch{} }
       sendBpm(frame);
@@ -381,7 +415,7 @@
   }
 
   // ---------- macros: two sliders under each square, bound to the table's own parameters ----------
-  function bindMacros(frame){
+  function bindMacros(frame){ return;      // two decks only: a table's parameters live in its OPEN view
     const side = sideOf(frame.id), box = $('mac' + side), t = tab[frame.id]; let w, doc; try{ w = frame.contentWindow; doc = w.document; }catch{ box.innerHTML = ''; return; }
     let items = [];
     if (w.scionDeck && w.scionDeck.manifest){ try{ const ps = (w.scionDeck.manifest().params || []).filter(p => !/play|tempo|bpm|start|xfade|crossfade|level|volume/i.test(p.id + ' ' + (p.label || '')));
@@ -401,43 +435,108 @@
     layout();
   }
 
+  // ---------- glass: the host takes every finger and hands it to the table underneath ----------
+  // A browser gives a second finger to a second frame without touch events (or not at all). Taking the
+  // touches in the host document and re-dispatching them lets both squares be played at the same time.
+  const fw = { f1: new Map(), f2: new Map() };
+  function patchCapture(w){ if (w.__sdCap) return; w.__sdCap = new Map(); const E = w.Element.prototype, set = E.setPointerCapture, rel = E.releasePointerCapture, has = E.hasPointerCapture;
+    E.setPointerCapture = function(id){ w.__sdCap.set(id, this); try{ set.call(this, id); }catch{} };
+    E.releasePointerCapture = function(id){ if (w.__sdCap.get(id) === this) w.__sdCap.delete(id); try{ rel.call(this, id); }catch{} };
+    E.hasPointerCapture = function(id){ if (w.__sdCap.get(id) === this) return true; try{ return has.call(this, id); }catch{ return false; } }; }
+  function fwd(fid, type, e){
+    const f = frames[fid]; let w, doc; try{ w = f.contentWindow; doc = w.document; if (!doc.body) return; }catch{ return; }
+    patchCapture(w);
+    const r = f.getBoundingClientRect(), sc = r.width / (f.offsetWidth || 1), x = (e.clientX - r.left) / sc, y = (e.clientY - r.top) / sc, id = e.pointerId, map = fw[fid];
+    let rec = map.get(id);
+    if (type === 'down'){ rec = { target: doc.elementFromPoint(x, y) || doc.body, x, y, moved: 0, prevented: false }; map.set(id, rec); }
+    const hover = !rec; if (hover && !(type === 'move' && e.pointerType === 'mouse')) return;
+    if (rec){ rec.moved += Math.abs(x - rec.x) + Math.abs(y - rec.y); rec.x = x; rec.y = y; }
+    const tgt = hover ? (doc.elementFromPoint(x, y) || doc.body) : (w.__sdCap.get(id) || rec.target), end = type === 'up' || type === 'cancel';
+    const base = { bubbles: true, cancelable: true, composed: true, view: w, clientX: x, clientY: y, screenX: x, screenY: y, pointerId: id, pointerType: e.pointerType, isPrimary: e.isPrimary,
+      button: type === 'move' ? -1 : 0, buttons: end || hover ? 0 : 1, pressure: end || hover ? 0 : 0.5, width: e.width || 1, height: e.height || 1 };
+    try{ tgt.dispatchEvent(new w.PointerEvent({ down: 'pointerdown', move: 'pointermove', up: 'pointerup', cancel: 'pointercancel' }[type], base)); }catch{}
+    const mouse = (n, t) => { try{ t.dispatchEvent(new w.MouseEvent(n, Object.assign({}, base, { button: 0, buttons: n === 'mousedown' || n === 'mousemove' && !hover ? 1 : 0 }))); }catch{} };
+    if (e.pointerType === 'mouse'){ const mn = { down: 'mousedown', move: 'mousemove', up: 'mouseup' }[type]; if (mn) mouse(mn, tgt); if (type === 'up' && rec.moved < 6) mouse('click', rec.target); }
+    else if (rec){
+      if (w.Touch && w.TouchEvent){ try{
+        const mk = (i, q) => new w.Touch({ identifier: i, target: q.target, clientX: q.x, clientY: q.y, pageX: q.x + w.scrollX, pageY: q.y + w.scrollY, screenX: q.x, screenY: q.y, radiusX: 8, radiusY: 8, force: 1 });
+        const all = [...map.entries()].map(([i, q]) => mk(i, q)), touches = end ? all.filter(t => t.identifier !== id) : all;
+        const te = new w.TouchEvent({ down: 'touchstart', move: 'touchmove', up: 'touchend', cancel: 'touchcancel' }[type], { bubbles: true, cancelable: true, composed: true, view: w, touches, targetTouches: touches.filter(t => t.target === rec.target), changedTouches: [mk(id, rec)] });
+        if (!rec.target.dispatchEvent(te)) rec.prevented = true; }catch{} }
+      if (type === 'up' && rec.moved < 10 && !rec.prevented) for (const n of ['mousedown', 'mouseup', 'click']) mouse(n, rec.target);   // a tap that nobody claimed becomes a click
+    }
+    if (end){ map.delete(id); w.__sdCap.delete(id); }
+  }
+  function glassFor(f){ const g = f.parentElement.querySelector('.glass');
+    g.addEventListener('pointerdown', e => { e.preventDefault(); try{ g.setPointerCapture(e.pointerId); }catch{} wake(); fwd(f.id, 'down', e); });
+    g.addEventListener('pointermove', e => fwd(f.id, 'move', e));
+    g.addEventListener('pointerup', e => fwd(f.id, 'up', e)); g.addEventListener('pointercancel', e => fwd(f.id, 'cancel', e));
+    g.addEventListener('contextmenu', e => e.preventDefault()); g.addEventListener('touchstart', e => e.preventDefault(), { passive: false }); }
+
   // ---------- loading ----------
-  function fitFrame(fid){ const f = frames[fid], sq = parseFloat(getComputedStyle(deckEl).getPropertyValue('--sq')) || 300, v = Math.max(sq, tab[fid].min || 0);
-    f.style.width = f.style.height = v + 'px'; f.style.transform = v > sq ? 'scale(' + (sq / v) + ')' : 'none'; }
+  function fitFrame(fid){ const f = frames[fid], pad = f.parentElement;
+    pad.classList.toggle('noglass', tab[fid].glass === false);
+    if (pad.classList.contains('controls')){ const bar = pad.querySelector('.cbar').offsetHeight;                   // table's own controls: whole screen, real size
+      f.style.top = bar + 'px'; f.style.width = pad.clientWidth + 'px'; f.style.height = (pad.clientHeight - bar) + 'px'; f.style.transform = 'none'; return; }
+    const sq = parseFloat(getComputedStyle(deckEl).getPropertyValue('--sq')) || 300, v = Math.max(sq, tab[fid].min || 0);
+    f.style.top = '0'; f.style.width = f.style.height = v + 'px'; f.style.transform = v > sq ? 'scale(' + (sq / v) + ')' : 'none'; }
+  // OPEN: the table as it was built, whole and unscaled, with real touches. The other deck keeps playing.
+  const HOSTCLS = ['sd-module', 'sd-morph', 'sd-view-field', 'sd-view-seq'];
+  function setControls(f, on){
+    const pad = f.parentElement, side = sideOf(f.id), o = other(side);
+    if (on) for (const x of [frames.f1, frames.f2]) if (x !== f && x.parentElement.classList.contains('controls')) setControls(x, false);
+    pad.classList.toggle('controls', on); pad.classList.toggle('ca', side === 'A'); pad.classList.toggle('cb', side === 'B');
+    pad.querySelector('.cbar span').textContent = side + ' · ' + tab[f.id].name; const sw = pad.querySelector('.sw'); sw.textContent = 'OPEN ' + o; sw.className = 'btn sw ' + (o === 'A' ? 'ca' : 'cb');
+    deckEl.classList.toggle('opened', !!document.querySelector('.pad.controls'));
+    document.documentElement.style.setProperty('--obar', ($('xfrow').offsetHeight + 18) + 'px');
+    try{ const d = f.contentWindow.document, H = d.documentElement;
+      if (on){ f._cls = HOSTCLS.filter(c => H.classList.contains(c)); H.classList.remove(...HOSTCLS, 'sd-open'); H.classList.add('sd-full'); }   // sd-full only keeps the chart from being squeezed out by a tall panel
+      else { H.classList.remove('sd-full'); if (f._cls){ H.classList.add(...f._cls); f._cls = null; } }
+      if (/mandalla\.html/.test(tab[f.id].url)) d.body.classList.toggle('embed-mode', !on);
+    }catch{}
+    fitFrame(f.id); kick(f); syncMonitors();
+  }
   function loadTable(side, t){
     const fid = slot[side], frame = frames[fid]; tab[fid] = t;
     for (const x of taps[fid]){ try{ x.node?.disconnect(); }catch{} } taps[fid] = [];
+    if (frame.parentElement.classList.contains('controls')){ frame.parentElement.classList.remove('controls'); deckEl.classList.remove('opened'); } frame._cls = null; fw[fid].clear();
     $('mac' + side).innerHTML = ''; $('mac' + side).dataset.sig = ''; names(); fitFrame(fid); frame.src = t.url;
     let n = 0; clearInterval(frame._t); frame._t = setInterval(()=>{ tapFrame(frame); if (++n > 500) clearInterval(frame._t); }, 8);
     writeUrl(); syncMonitors();
   }
   for (const fid of ['f1', 'f2']){ const f = frames[fid];
     f.addEventListener('load', ()=>{ clearInterval(f._t); tapFrame(f); moduleFrame(f); setTimeout(()=> moduleFrame(f), 500); setTimeout(()=> moduleFrame(f), 1500); if (st.playing) startFrame(f); setTimeout(applyRoutes, 300); });
-    f.parentElement.querySelector('.ctl').addEventListener('click', ()=>{ try{ const H = f.contentWindow.document.documentElement; f.parentElement.querySelector('.ctl').classList.toggle('on', H.classList.toggle('sd-open')); kick(f); }catch{} });
-    f.parentElement.querySelector('.foc').addEventListener('click', ()=>{ const on = !f.parentElement.classList.contains('focused');
-      document.querySelectorAll('.pad').forEach(p => p.classList.remove('focused')); f.parentElement.classList.toggle('focused', on); deckEl.classList.toggle('focus', on);
-      f.parentElement.querySelector('.foc').classList.toggle('on', on); layout(); kick(f); });
+    f.parentElement.querySelector('.done').addEventListener('click', ()=> setControls(f, false));
+    f.parentElement.querySelector('.sw').addEventListener('click', ()=> setControls(frames[f.id === 'f1' ? 'f2' : 'f1'], true));
+    glassFor(f);
+
   }
+  $('openA').onclick = ()=> setControls(frames[slot.A], true); $('openB').onclick = ()=> setControls(frames[slot.B], true);
   function names(){ $('nameA').textContent = tab[slot.A].name; $('nameB').textContent = tab[slot.B].name; }
   function writeUrl(){ const u = new URL(location.href); u.searchParams.set('a', tab[slot.A].key); u.searchParams.set('b', tab[slot.B].key); history.replaceState(null, '', u.pathname + u.search + location.hash); }
 
   // ---------- layout: two equal squares, as large as fit ----------
   function layout(){
-    const W = innerWidth - 16, H = innerHeight - 16, g = 10, focus = deckEl.classList.contains('focus');
+    const vv = window.visualViewport, vh = Math.round(vv ? vv.height : innerHeight); document.documentElement.style.setProperty('--vh', vh + 'px');
+    const cs = getComputedStyle(deckEl), g = 10, focus = deckEl.classList.contains('focus');
+    const W = deckEl.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), H = vh - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - 2;
+    deckEl.classList.toggle('short', H < 520 && W > H);                                   // phone on its side: one control row, no macros
     const barH = $('bar').offsetHeight || 110, head = $('headA').offsetHeight || 46;
-    const macH = (h => h ? h + g : 0)(Math.max($('macA').offsetHeight, $('macB').offsetHeight)), hintH = $('hint').offsetHeight ? $('hint').offsetHeight + g : 0;
+    const macH = Math.max($('macA').offsetHeight, $('macB').offsetHeight), hintH = $('hint').offsetHeight, short = deckEl.classList.contains('short');
     let sq, col = false;
     if (focus) sq = Math.min(W, H - barH - g);
-    else { const row = Math.min((W - g) / 2, H - head - barH - macH - hintH - 2 * g), c = Math.min(W, (H - 2 * head - barH - 2 * macH - hintH - 4 * g) / 2); col = c > row; sq = col ? c : row; }
+    else { const row = Math.min((W - g) / 2, H - head - barH - hintH - (short ? 2 : 3) * g), c = Math.min(W, (H - 2 * head - barH - hintH - 5 * g) / 2); col = c > row && !short; sq = col ? c : row; }   // every grid row costs a gap, empty or not
     deckEl.classList.toggle('col', col && !focus);
     deckEl.style.setProperty('--sq', Math.max(110, Math.floor(sq)) + 'px');
     fitFrame('f1'); fitFrame('f2');
   }
-  addEventListener('resize', layout);
+  const relayout = ()=>{ layout(); setTimeout(layout, 120); setTimeout(layout, 500); };
+  addEventListener('resize', relayout); addEventListener('orientationchange', relayout); document.addEventListener('fullscreenchange', relayout); document.addEventListener('webkitfullscreenchange', relayout);
+  window.visualViewport && visualViewport.addEventListener('resize', relayout);
 
   // ---------- hint: the one thing to do next, then silence ----------
   function hint(){ const live = !!ctx && ctx.state === 'running', any = taps.f1.length + taps.f2.length;
-    $('hint').textContent = rec.on ? 'Recording. Press ■ STOP to trim and export the take.' : !any ? 'Touch a square to make sound. Tap A or B above to change a table.' : !live ? 'Tap PLAY once so the deck can mix both tables.' : (taps.f1.length && taps.f2.length) ? '' : 'Touch the other square, then slide CROSSFADE.';
+    $('hint').textContent = rec.on ? 'Recording. Press ■ STOP to trim and export the take.' : !any ? 'Touch a square to make sound. Tap A or B above to change a table.' : !live ? 'Tap PLAY once so the deck can mix both tables.' : !(taps.f1.length && taps.f2.length) ? 'Touch the other square, then slide CROSSFADE.' : (st.mode.AB === 'off' && st.mode.BA === 'off' && !store.get('linked', false)) ? 'Both tables are in the mix. Press LINK to make one act on the other.' : '';
     if (deckEl.dataset.h !== $('hint').textContent){ deckEl.dataset.h = $('hint').textContent; layout(); } }
 
   // ---------- mixer ----------
@@ -477,6 +576,7 @@
   const micIsOn = b => !!b && (/\bON\b/i.test(b.textContent) || b.classList.contains('on') || b.classList.contains('active') || b.getAttribute('aria-pressed') === 'true');
   function applyRoutes(userChange){
     for (const k of ['AB', 'BA']){ $('amt' + k).value = st.amt[k]; $('amt' + k + 'v').textContent = pct(st.amt[k]); $('mode' + k).value = st.mode[k]; }
+    linkLabel();
     if (!ctx) return; const now = ctx.currentTime;
     for (const k of ['AB', 'BA']){
       const from = k[0], to = k[1], src = chain[slot[from]], dst = chain[slot[to]], mode = st.mode[k], amt = st.amt[k];
@@ -494,6 +594,30 @@
       dst._sent = mode === 'send'; if (mode === 'send' && !btn){ st.mode[k] = 'off'; $('mode' + k).value = 'off'; }
     }
   }
+  // LINK sheet: the same routing, in plain instructions
+  let linkDir = 'AB';
+  const LINKS = [
+    ['off', 'OFF', (s, t) => `No link. ${s} and ${t} sound on their own.`],
+    ['gate', 'GATE', (s, t) => `${t} is heard only while ${s} sounds. Play ${s} in bursts: ${t} is chopped to that rhythm.`],
+    ['duck', 'DUCK', (s, t) => `${s} pushes ${t} down. Play ${s}: ${t} dips, then comes back.`],
+    ['filter', 'FILTER', (s, t) => `${s} opens ${t}'s tone. ${t} stays dull until ${s} gets loud.`],
+    ['ring', 'RING', (s, t) => `${t} is multiplied by ${s}. Metallic, bell-like. Both must be sounding.`],
+    ['send', 'SEND', (s, t) => `${s}'s sound goes into ${t}'s input and ${t} processes it. ${t} must be a Smith, Puppet or Deco table.`],
+  ];
+  function renderLink(){
+    const from = linkDir[0], to = linkDir[1], sn = from, tn = to, canSend = !!micButton(frames[slot[to]]);
+    $('dirAB').textContent = 'A ACTS ON B' + (st.mode.AB !== 'off' ? ' · ' + st.mode.AB.toUpperCase() : ''); $('dirBA').textContent = 'B ACTS ON A' + (st.mode.BA !== 'off' ? ' · ' + st.mode.BA.toUpperCase() : '');
+    $('dirAB').classList.toggle('on', linkDir === 'AB'); $('dirBA').classList.toggle('on', linkDir === 'BA');
+    $('linkModes').innerHTML = LINKS.map(([m, n, txt]) => `<button class="btn lm ${st.mode[linkDir] === m ? 'on' : ''}" data-m="${m}" ${m === 'send' && !canSend ? 'disabled' : ''}><b>${n}</b> ${m === 'send' && !canSend ? `Not available: ${tab[slot[to]].name} on deck ${to} has no audio input.` : txt(sn, tn)}</button>`).join('');
+    $('linkAmt').value = st.amt[linkDir]; $('linkAmtV').textContent = pct(st.amt[linkDir]);
+  }
+  function linkLabel(){ const on = ['AB', 'BA'].filter(k => st.mode[k] !== 'off'), b = $('linkBtn'); b.classList.toggle('on', on.length > 0);
+    b.textContent = on.length === 0 ? 'LINK' : on.length === 2 ? 'LINK ×2' : on[0][0] + '→' + on[0][1] + ' ' + st.mode[on[0]].toUpperCase(); }
+  $('linkBtn').onclick = ()=> go('link');
+  $('dirAB').onclick = ()=>{ linkDir = 'AB'; renderLink(); }; $('dirBA').onclick = ()=>{ linkDir = 'BA'; renderLink(); };
+  $('linkModes').addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (!b || b.disabled) return; st.mode[linkDir] = b.dataset.m; store.set('linked', true); wake(); applyRoutes(true); renderLink(); hint(); });
+  $('linkAmt').addEventListener('input', e => { st.amt[linkDir] = +e.target.value; wake(); applyRoutes(); $('linkAmtV').textContent = pct(st.amt[linkDir]); });
+
   function applyAll(){ applyMixer(); applyXf(); applyRoutes(); wireTape(); syncMonitors(); }
 
   // ---------- transport ----------
@@ -607,7 +731,7 @@
     $('surfBody').innerHTML = html || '<div class="note">Nothing matches. Clear the search or pick ALL.</div>';
     const sel = surf.sel && tableFor(surf.sel); $('loadTo').hidden = !sel; if (sel) $('loadTo').textContent = 'LOAD ' + sel.name + ' TO ' + surf.side;
   }
-  function tableFor(key){ if (key.startsWith('ring:')){ const a = (albums || []).find(x => x.key === key.slice(5)); return a && { key, name: a.label, kind: 'disc', url: '../moto/mandalla.html?embed=1&album=' + a.key, min: 640, thumb: 'thumbs/ghost.jpg' }; } return byKey(key); }
+  function tableFor(key){ if (key.startsWith('ring:')){ const a = (albums || []).find(x => x.key === key.slice(5)); return a && { key, name: a.label, kind: 'disc', url: '../moto/mandalla.html?embed=1&album=' + a.key, min: 640, glass: true, thumb: 'thumbs/ghost.jpg' }; } return byKey(key); }
   $('surfaces').addEventListener('click', e => {
     const fav = e.target.closest('[data-fav]'); if (fav){ const k = fav.dataset.fav; favs.has(k) ? favs.delete(k) : favs.add(k); store.set('favs', [...favs]); renderSurfaces(); e.stopPropagation(); return; }
     const chip = e.target.closest('.chip'); if (chip){ surf.filter = chip.dataset.f; renderSurfaces(); return; }
@@ -656,11 +780,11 @@
   $('crateA').onclick = ()=> sendTrack('A'); $('crateB').onclick = ()=> sendTrack('B');
 
   // ---------- navigation: one screen at a time, Back always returns to the deck ----------
-  const SCREENS = ['surfaces', 'pairs', 'mixer', 'take', 'moreSheet', 'crate'];
+  const SCREENS = ['surfaces', 'pairs', 'mixer', 'take', 'moreSheet', 'crate', 'link'];
   function go(name){ if ((location.hash.slice(1) || '') === name) render(); else location.hash = name; }
   function render(){ let name = location.hash.slice(1); if (!SCREENS.includes(name)) name = ''; if (name === 'take' && !take) name = '';
     for (const s of SCREENS) $(s).classList.toggle('show', s === name);
-    $('scrim').classList.toggle('show', ['mixer', 'moreSheet', 'crate'].includes(name));
+    $('scrim').classList.toggle('show', ['mixer', 'moreSheet', 'crate', 'link'].includes(name)); if (name === 'link') renderLink();
     if (name === 'surfaces') renderSurfaces(); if (name === 'pairs') renderPairs(); if (name === 'mixer'){ applyMixer(); applyRoutes(); } if (name === 'crate') loadAlbums();
     if (name === 'take'){ $('shareTake').hidden = !(navigator.canShare && (()=>{ try{ return navigator.canShare({ files: [new File([''], 'a.wav', { type: 'audio/wav' })] }); }catch{ return false; } })()); drawTake(); }
     if (name !== 'take') stopTake();
@@ -668,7 +792,7 @@
   }
   addEventListener('hashchange', render);
   document.addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
-  $('scrim').onclick = ()=> go(''); addEventListener('keydown', e => { if (e.key === 'Escape'){ if (location.hash.length > 1) go(''); else if (deckEl.classList.contains('focus')) document.querySelector('.pad.focused .foc').click(); } });
+  $('scrim').onclick = ()=> go(''); addEventListener('keydown', e => { if (e.key === 'Escape'){ const open = document.querySelector('.pad.controls'); if (open) setControls(open.querySelector('iframe'), false); else if (location.hash.length > 1) go(''); } });
   $('more').onclick = ()=> go('moreSheet'); $('crateBtn').onclick = ()=> go('crate');
   $('swap').onclick = ()=>{ [slot.A, slot.B] = [slot.B, slot.A]; $('pad1').className = 'pad in' + sideOf('f1'); $('pad2').className = 'pad in' + sideOf('f2');
     for (const k of ['trim', 'filt', 'dly']) [st[k].A, st[k].B] = [st[k].B, st[k].A];

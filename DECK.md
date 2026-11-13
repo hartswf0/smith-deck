@@ -145,6 +145,27 @@ ROUTING  [A→B mode amount][B→A …]      [MASTER ▾]  [EXPORT WAV][SAVE SES
 - **Tables.** Listed in the `T` array in `deck.html`: key, name, disc/plate, URL, design size, preferred macros.
   Thumbnails are `thumbs/<key>.jpg` (240 px).
 
+### Changes after the first phone test
+
+- **☰ opens the table's own controls full screen**, at real size, with ← DONE. Inside a small square they could not be used.
+- **LINK** is on the deck's main row. It names what each link does in one sentence and shows the active link on the button
+  (`A→B GATE`). The same routing is still in MIXER.
+- **Both squares take fingers at the same time.** A browser gives the second finger no touch events when it lands in a
+  different frame. A transparent layer in the deck now receives every finger and re-dispatches pointer, touch and (for an
+  unclaimed tap) click events into the table underneath. Tables that need real touches for native widgets
+  (SMITH MORPH, MORPH FIELD) opt out; any table gets real touches while its controls are open.
+- **The bottom row always fits.** The deck measures its real box (visual viewport minus safe-area padding, every grid gap
+  counted) instead of assuming one. A phone on its side gets a one-row control bar.
+- Focus (⛶) keeps PLAY / BPM / LINK / REC visible.
+
+### Changes after the second phone test: two decks, and OPEN
+
+- The deck screen is **only the two squares**, the crossfade and one row of buttons. Macro sliders and the focus button are gone.
+- **OPEN** on a square shows that table whole: full screen, unscaled, nothing hidden, real touches, with all of its own
+  menus and controls. The other deck keeps playing. The crossfade stays pinned underneath. **← BOTH** returns;
+  **OPEN A / OPEN B** jumps straight to the other deck.
+- While a table is open, a tall control panel is capped at 46 % of the height and scrolls, so the chart is never squeezed out.
+
 ### Table contract (to add a table)
 
 Minimum: one page whose playing surface is a canvas that follows the window `resize` event and sends its
